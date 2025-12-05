@@ -20,14 +20,13 @@ namespace RelumiScript
         public string Content { get; set; }
     }
 
+    public class CommandDef { public int Id { get; set; } public string Name { get; set; } }
+
     public class AssetBundleService
     {
         private AssetsManager _manager;
         private Dictionary<int, string> _commandMap;
-        private bool _isInitialized = false;
-
-        // Diagnostic logs
-        public string InitLog { get; private set; } = "Not Initialized.";
+        public string InitLog { get; private set; } = "Not Initialized";
 
         public AssetBundleService()
         {
@@ -35,49 +34,34 @@ namespace RelumiScript
             _commandMap = new Dictionary<int, string>();
         }
 
-        public void Initialize(string jsonFolderPath)
+        public void Initialize(string jsonDir)
         {
-            _commandMap.Clear();
-            InitLog = $"Initializing from: {jsonFolderPath}";
+            string cmdPath = Path.Combine(jsonDir, "commands.json");
+            LoadCommands(cmdPath);
+            InitLog = "Backend Initialized";
+        }
 
-            string commandsPath = Path.Combine(jsonFolderPath, "commands.json");
-
-            // Check override
-            string customPath = Path.Combine(jsonFolderPath, "CustomReference", "commands.json");
-            if (File.Exists(customPath))
+        private void LoadCommands(string path)
+        {
+            if (!File.Exists(path))
             {
-                commandsPath = customPath;
-                InitLog += " (Using CustomReference)";
-            }
-
-            if (!File.Exists(commandsPath))
-            {
-                InitLog += $"\nERROR: commands.json not found at {commandsPath}";
+                InitLog = "Warning: commands.json not found at " + path;
                 return;
             }
 
             try
             {
-                var json = File.ReadAllText(commandsPath);
+                var json = File.ReadAllText(path);
                 var cmds = JsonConvert.DeserializeObject<List<CommandDef>>(json);
                 if (cmds != null)
                 {
                     foreach (var cmd in cmds)
-                    {
-                        if (!_commandMap.ContainsKey(cmd.Id))
-                            _commandMap[cmd.Id] = cmd.Name;
-                    }
-                    InitLog += $"\nSuccess: Loaded {_commandMap.Count} commands.";
-                    _isInitialized = true;
-                }
-                else
-                {
-                    InitLog += "\nERROR: JSON Deserialized to null.";
+                        if (!_commandMap.ContainsKey(cmd.Id)) _commandMap[cmd.Id] = cmd.Name;
                 }
             }
             catch (Exception ex)
             {
-                InitLog += $"\nEXCEPTION: {ex.Message}";
+                InitLog = "Error loading commands: " + ex.Message;
             }
         }
 
@@ -87,7 +71,9 @@ namespace RelumiScript
 
             try
             {
-                // Simple workaround for class database if needed, usually built-in
+                // Unload previous to prevent conflicts if reloading
+                _manager.UnloadAll();
+
                 var bundleInstance = _manager.LoadBundleFile(bundlePath);
                 var afile = _manager.LoadAssetsFileFromBundle(bundleInstance, 0);
                 var infos = afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour);
@@ -106,6 +92,7 @@ namespace RelumiScript
                         var scriptsField = baseField["Scripts"];
                         if (scriptsField.IsDummy) continue;
 
+                        // Unity Array Unwrapping
                         if (scriptsField.Children.Count == 1 && scriptsField.Children[0].FieldName == "Array")
                         {
                             scriptsField = scriptsField.Children[0];
@@ -145,9 +132,7 @@ namespace RelumiScript
                                         {
                                             var arg0 = args[0]["data"];
                                             int cmdId = (!arg0.IsDummy) ? arg0.AsInt : 0;
-
-                                            // MAP NAME HERE
-                                            string cmdName = _commandMap.ContainsKey(cmdId) ? _commandMap[cmdId] : $"_UNK_{cmdId:000}";
+                                            string cmdName = _commandMap.ContainsKey(cmdId) ? _commandMap[cmdId] : $"_UNK_{cmdId}";
 
                                             var argList = new List<string>();
                                             for (int k = 1; k < args.Children.Count; k++)
@@ -175,13 +160,14 @@ namespace RelumiScript
                     catch { continue; }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                InitLog += " | Load Error: " + ex.Message;
+            }
 
             return output;
         }
 
         private string FormatArg(int type, int val) => type switch { 2 => $"@{val}", 3 => $"#{val}", 4 => $"${val}", _ => val.ToString() };
     }
-
-    public class CommandDef { public int Id { get; set; } public string Name { get; set; } }
 }
