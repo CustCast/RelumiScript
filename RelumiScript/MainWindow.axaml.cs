@@ -4,7 +4,6 @@ using Avalonia.Platform.Storage;
 using AvaloniaWebView;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -30,14 +29,14 @@ namespace RelumiScript
 
             if (File.Exists(monacoPath))
             {
-                // Use file:/// to ensure local access permissions
+                // Load the editor. Note: We do NOT inject data here immediately.
+                // We wait for the 'NavigationCompleted' event.
                 Editor.Url = new Uri($"file:///{monacoPath.Replace("\\", "/")}");
                 Editor.NavigationCompleted += async (sender, args) =>
                 {
                     if (args.IsSuccess)
                     {
                         _isEditorReady = true;
-                        // Trigger the file-based data loading strategy
                         await GenerateAndInjectSyntax();
                     }
                 };
@@ -45,29 +44,19 @@ namespace RelumiScript
             else StatusText.Text = $"Error: Monaco not found at {monacoPath}";
         }
 
+        // ... [Keep FindJsonFolder helper] ...
         private string FindJsonFolder()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string[] candidates = {
-                Path.Combine(baseDir, "JSON"),
-                Path.Combine(baseDir, "..", "..", "..", "JSON"),
-                Path.Combine(Directory.GetCurrentDirectory(), "JSON")
-            };
-
-            foreach (var path in candidates)
-            {
-                if (Directory.Exists(path) && File.Exists(Path.Combine(path, "commands.json")))
-                    return Path.GetFullPath(path);
-            }
-            return null;
+            string[] candidates = { Path.Combine(baseDir, "JSON"), Path.Combine(Directory.GetCurrentDirectory(), "JSON") };
+            return candidates.FirstOrDefault(d => Directory.Exists(d) && File.Exists(Path.Combine(d, "commands.json")));
         }
 
-        // Helper to read JSON content safely
+        // Helper to read file safely
         private string ReadJsonContent(string path)
         {
             if (!File.Exists(path)) return "[]";
-            try { return File.ReadAllText(path); }
-            catch { return "[]"; }
+            return File.ReadAllText(path);
         }
 
         private async Task GenerateAndInjectSyntax()
@@ -75,24 +64,16 @@ namespace RelumiScript
             try
             {
                 string jsonDir = FindJsonFolder();
-                if (string.IsNullOrEmpty(jsonDir))
-                {
-                    StatusText.Text = "Critical Error: 'JSON' folder not found.";
-                    return;
-                }
+                if (string.IsNullOrEmpty(jsonDir)) return;
 
-                // 1. Initialize Backend (Ensures decompilation uses correct names)
-                _service.Initialize(jsonDir);
+                _service.Initialize(jsonDir); // Init Backend
 
-                // 2. Generate 'syntax_data.js' directly in the Monaco folder.
-                // This bypasses WebView2 IPC limits and CORS issues.
+                // 1. Generate 'syntax_data.js' in the Monaco folder
                 await Task.Run(() =>
                 {
                     string appDir = AppDomain.CurrentDomain.BaseDirectory;
-                    string monacoDir = Path.Combine(appDir, "Monaco");
-                    string syntaxFilePath = Path.Combine(monacoDir, "syntax_data.js");
+                    string syntaxFilePath = Path.Combine(appDir, "Monaco", "syntax_data.js");
 
-                    // Helper to check for CustomReference files
                     string GetPath(string f)
                     {
                         string c = Path.Combine(jsonDir, "CustomReference", f);
@@ -104,41 +85,29 @@ namespace RelumiScript
                     string sys = ReadJsonContent(GetPath("sys_flags.json"));
                     string work = ReadJsonContent(GetPath("work.json"));
 
-                    // Write a valid JS file that assigns data to a global object
-                    string jsContent = $@"
-                        window.RELUMI_DATA = {{
-                            commands: {cmds},
-                            flags: {flags},
-                            sysflags: {sys},
-                            works: {work}
-                        }};
-                    ";
-
+                    // Write valid JS file
+                    string jsContent = $"window.RELUMI_DATA = {{ commands: {cmds}, flags: {flags}, sysflags: {sys}, works: {work} }};";
                     File.WriteAllText(syntaxFilePath, jsContent);
                 });
 
-                // 3. Tell Monaco to load this local script
-                // Adding a timestamp (?t=...) forces the browser to reload the file and ignore cache
+                // 2. Tell JS to load that file (Bypasses all IPC/CORS limits)
                 long timestamp = DateTime.Now.Ticks;
                 await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={timestamp}');");
 
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => {
-                    StatusText.Text = $"Ready. Backend: {_service.InitSummary}";
-                });
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => StatusText.Text = $"Ready. {_service.InitSummary}");
             }
             catch (Exception ex)
             {
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => {
-                    StatusText.Text = "Init Error: " + ex.Message;
-                });
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => StatusText.Text = "Init Error: " + ex.Message);
             }
         }
 
+        // ... [Keep SetEditorText, BtnLoad_Click, ScriptTree_SelectionChanged] ...
         private async void SetEditorText(string content)
         {
             if (!_isEditorReady) return;
-            string safeContent = JsonConvert.ToString(content);
-            await Editor.ExecuteScriptAsync($"editor.setValue({safeContent});");
+            string safe = JsonConvert.ToString(content);
+            await Editor.ExecuteScriptAsync($"editor.setValue({safe});");
             await Editor.ExecuteScriptAsync("editor.updateOptions({readOnly: false});");
         }
 
@@ -146,22 +115,13 @@ namespace RelumiScript
         {
             var topLevel = TopLevel.GetTopLevel(this);
             var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { AllowMultiple = false });
-
             if (files.Count > 0)
             {
                 StatusText.Text = "Processing...";
                 var path = files[0].Path.LocalPath;
-
-                // Re-init backend if needed
-                if (_service.InitSummary.StartsWith("Not"))
-                {
-                    string jsonDir = FindJsonFolder();
-                    if (!string.IsNullOrEmpty(jsonDir)) _service.Initialize(jsonDir);
-                }
-
+                if (_service.InitSummary.StartsWith("Not")) _service.Initialize(FindJsonFolder());
                 var loadedFiles = await Task.Run(() => _service.LoadAndDecompile(path));
                 var sortedFiles = loadedFiles.OrderBy(f => f.Name).ToList();
-
                 ScriptTree.ItemsSource = sortedFiles;
                 StatusText.Text = $"Loaded {sortedFiles.Count} files. ({_service.InitSummary})";
             }
@@ -170,7 +130,6 @@ namespace RelumiScript
         private void ScriptTree_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (ScriptTree.SelectedItem is ScriptNode s) SetEditorText(s.Content);
-            else if (ScriptTree.SelectedItem is FileNode) SetEditorText("// Select a script label.");
         }
     }
 }
