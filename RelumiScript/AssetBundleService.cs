@@ -1,5 +1,4 @@
-﻿#nullable disable
-using AssetsTools.NET;
+﻿using AssetsTools.NET;
 using AssetsTools.NET.Extra;
 using Newtonsoft.Json;
 using System;
@@ -25,28 +24,61 @@ namespace RelumiScript
     {
         private AssetsManager _manager;
         private Dictionary<int, string> _commandMap;
+        private bool _isInitialized = false;
+
+        // Diagnostic logs
+        public string InitLog { get; private set; } = "Not Initialized.";
 
         public AssetBundleService()
         {
             _manager = new AssetsManager();
             _commandMap = new Dictionary<int, string>();
-            LoadCommands("commands.json");
         }
 
-        private void LoadCommands(string path)
+        public void Initialize(string jsonFolderPath)
         {
-            if (!File.Exists(path)) return;
+            _commandMap.Clear();
+            InitLog = $"Initializing from: {jsonFolderPath}";
+
+            string commandsPath = Path.Combine(jsonFolderPath, "commands.json");
+
+            // Check override
+            string customPath = Path.Combine(jsonFolderPath, "CustomReference", "commands.json");
+            if (File.Exists(customPath))
+            {
+                commandsPath = customPath;
+                InitLog += " (Using CustomReference)";
+            }
+
+            if (!File.Exists(commandsPath))
+            {
+                InitLog += $"\nERROR: commands.json not found at {commandsPath}";
+                return;
+            }
+
             try
             {
-                var json = File.ReadAllText(path);
+                var json = File.ReadAllText(commandsPath);
                 var cmds = JsonConvert.DeserializeObject<List<CommandDef>>(json);
                 if (cmds != null)
                 {
                     foreach (var cmd in cmds)
-                        if (!_commandMap.ContainsKey(cmd.Id)) _commandMap[cmd.Id] = cmd.Name;
+                    {
+                        if (!_commandMap.ContainsKey(cmd.Id))
+                            _commandMap[cmd.Id] = cmd.Name;
+                    }
+                    InitLog += $"\nSuccess: Loaded {_commandMap.Count} commands.";
+                    _isInitialized = true;
+                }
+                else
+                {
+                    InitLog += "\nERROR: JSON Deserialized to null.";
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                InitLog += $"\nEXCEPTION: {ex.Message}";
+            }
         }
 
         public List<FileNode> LoadAndDecompile(string bundlePath)
@@ -55,6 +87,7 @@ namespace RelumiScript
 
             try
             {
+                // Simple workaround for class database if needed, usually built-in
                 var bundleInstance = _manager.LoadBundleFile(bundlePath);
                 var afile = _manager.LoadAssetsFileFromBundle(bundleInstance, 0);
                 var infos = afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour);
@@ -73,14 +106,10 @@ namespace RelumiScript
                         var scriptsField = baseField["Scripts"];
                         if (scriptsField.IsDummy) continue;
 
-                        // --- FIX: UNWRAP THE ARRAY ---
-                        // Unity sometimes wraps Lists in an "Array" child.
-                        // If we see 1 child named "Array", that's the wrapper.
                         if (scriptsField.Children.Count == 1 && scriptsField.Children[0].FieldName == "Array")
                         {
                             scriptsField = scriptsField.Children[0];
                         }
-                        // -----------------------------
 
                         var fileNode = new FileNode { Name = name };
 
@@ -89,7 +118,6 @@ namespace RelumiScript
                             var script = scriptsField[i];
                             var sb = new StringBuilder();
 
-                            // Get Label
                             string label = $"{name}_seq_{i}";
                             var labelField = script["Label"];
                             if (!labelField.IsDummy && !string.IsNullOrEmpty(labelField.AsString))
@@ -97,15 +125,11 @@ namespace RelumiScript
 
                             sb.AppendLine($"{label}:");
 
-                            // Process Commands
                             var commandsField = script["Commands"];
                             if (!commandsField.IsDummy)
                             {
-                                // Unwrap commands array too if needed
                                 if (commandsField.Children.Count == 1 && commandsField.Children[0].FieldName == "Array")
-                                {
                                     commandsField = commandsField.Children[0];
-                                }
 
                                 for (int j = 0; j < commandsField.Children.Count; j++)
                                 {
@@ -121,7 +145,9 @@ namespace RelumiScript
                                         {
                                             var arg0 = args[0]["data"];
                                             int cmdId = (!arg0.IsDummy) ? arg0.AsInt : 0;
-                                            string cmdName = _commandMap.ContainsKey(cmdId) ? _commandMap[cmdId] : $"_UNK_{cmdId}";
+
+                                            // MAP NAME HERE
+                                            string cmdName = _commandMap.ContainsKey(cmdId) ? _commandMap[cmdId] : $"_UNK_{cmdId:000}";
 
                                             var argList = new List<string>();
                                             for (int k = 1; k < args.Children.Count; k++)
