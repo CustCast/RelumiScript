@@ -1,0 +1,37 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:RelumiScript"
+        xmlns:webview="using:AvaloniaWebView"
+        x:Class="RelumiScript.MainWindow"
+        x:CompileBindings="False"
+        Title="Relumi Script Viewer" Height="600" Width="1000">
+
+	<Grid RowDefinitions="Auto, *">
+		<StackPanel Grid.Row="0" Orientation="Horizontal" Background="#333" Height="40">
+			<Button Name="BtnLoad" Content="Load Bundle" Margin="10,5" Click="BtnLoad_Click"/>
+			<TextBlock Name="StatusText" Text="Ready..." VerticalAlignment="Center" Foreground="#AAA" Margin="10,0"/>
+		</StackPanel>
+
+		<Grid Grid.Row="1" ColumnDefinitions="300, 5, *">
+
+			<TreeView Name="ScriptTree" Grid.Column="0" Background="#222" SelectionChanged="ScriptTree_SelectionChanged">
+				<TreeView.DataTemplates>
+					<TreeDataTemplate DataType="local:FileNode" ItemsSource="{Binding Scripts}">
+						<TextBlock Text="{Binding Name}" Foreground="#4EC9B0" FontWeight="Bold" Padding="2"/>
+					</TreeDataTemplate>
+
+					<DataTemplate DataType="local:ScriptNode">
+						<StackPanel Orientation="Horizontal">
+							<TextBlock Text="⚡ " Foreground="Yellow" FontSize="10" VerticalAlignment="Center"/>
+							<TextBlock Text="{Binding Label}" Foreground="#DDD" Padding="2"/>
+						</StackPanel>
+					</DataTemplate>
+				</TreeView.DataTemplates>
+			</TreeView>
+
+			<GridSplitter Grid.Column="1" Background="#444" ResizeDirection="Columns"/>
+
+			<webview:WebView Name="Editor" Grid.Column="2"/>
+		</Grid>
+	</Grid>
+</Window>
