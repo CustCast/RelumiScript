@@ -4,8 +4,10 @@ using Avalonia.Platform.Storage;
 using AvaloniaWebView;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace RelumiScript
@@ -29,8 +31,6 @@ namespace RelumiScript
 
             if (File.Exists(monacoPath))
             {
-                // Load the editor. Note: We do NOT inject data here immediately.
-                // We wait for the 'NavigationCompleted' event.
                 Editor.Url = new Uri($"file:///{monacoPath.Replace("\\", "/")}");
                 Editor.NavigationCompleted += async (sender, args) =>
                 {
@@ -44,19 +44,34 @@ namespace RelumiScript
             else StatusText.Text = $"Error: Monaco not found at {monacoPath}";
         }
 
-        // ... [Keep FindJsonFolder helper] ...
         private string FindJsonFolder()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string[] candidates = { Path.Combine(baseDir, "JSON"), Path.Combine(Directory.GetCurrentDirectory(), "JSON") };
-            return candidates.FirstOrDefault(d => Directory.Exists(d) && File.Exists(Path.Combine(d, "commands.json")));
+            string[] candidates = {
+                Path.Combine(baseDir, "JSON"),
+                Path.Combine(baseDir, "..", "..", "..", "JSON"),
+                Path.Combine(Directory.GetCurrentDirectory(), "JSON")
+            };
+
+            foreach (var path in candidates)
+            {
+                if (Directory.Exists(path) && File.Exists(Path.Combine(path, "commands.json")))
+                    return Path.GetFullPath(path);
+            }
+            return null;
         }
 
-        // Helper to read file safely
-        private string ReadJsonContent(string path)
+        // [FIX] Clean load: Deserialize -> Serialize removes whitespace/BOM/errors
+        private string LoadCleanJson(string path)
         {
             if (!File.Exists(path)) return "[]";
-            return File.ReadAllText(path);
+            try
+            {
+                string content = File.ReadAllText(path);
+                var obj = JsonConvert.DeserializeObject(content);
+                return JsonConvert.SerializeObject(obj, Formatting.None); // Minified valid JSON
+            }
+            catch { return "[]"; }
         }
 
         private async Task GenerateAndInjectSyntax()
@@ -64,45 +79,57 @@ namespace RelumiScript
             try
             {
                 string jsonDir = FindJsonFolder();
-                if (string.IsNullOrEmpty(jsonDir)) return;
+                if (string.IsNullOrEmpty(jsonDir))
+                {
+                    StatusText.Text = "Critical Error: 'JSON' folder not found.";
+                    return;
+                }
 
-                _service.Initialize(jsonDir); // Init Backend
+                _service.Initialize(jsonDir);
 
-                // 1. Generate 'syntax_data.js' in the Monaco folder
                 await Task.Run(() =>
                 {
                     string appDir = AppDomain.CurrentDomain.BaseDirectory;
                     string syntaxFilePath = Path.Combine(appDir, "Monaco", "syntax_data.js");
 
-                    string GetPath(string f)
-                    {
-                        string c = Path.Combine(jsonDir, "CustomReference", f);
-                        return File.Exists(c) ? c : Path.Combine(jsonDir, f);
-                    }
+                    // Load from ROOT JSON folder strictly (as per your request)
+                    string cmds = LoadCleanJson(Path.Combine(jsonDir, "commands.json"));
+                    string flags = LoadCleanJson(Path.Combine(jsonDir, "flags.json"));
+                    string sys = LoadCleanJson(Path.Combine(jsonDir, "sys_flags.json"));
+                    string work = LoadCleanJson(Path.Combine(jsonDir, "work.json"));
 
-                    string cmds = ReadJsonContent(GetPath("commands.json"));
-                    string flags = ReadJsonContent(GetPath("flags.json"));
-                    string sys = ReadJsonContent(GetPath("sys_flags.json"));
-                    string work = ReadJsonContent(GetPath("work.json"));
+                    bool hasData = cmds.Length > 20;
 
-                    // Write valid JS file
-                    string jsContent = $"window.RELUMI_DATA = {{ commands: {cmds}, flags: {flags}, sysflags: {sys}, works: {work} }};";
-                    File.WriteAllText(syntaxFilePath, jsContent);
+                    // Generate pure JS file
+                    string jsContent = $@"
+                        window.RELUMI_DATA = {{
+                            commands: {cmds},
+                            flags: {flags},
+                            sysflags: {sys},
+                            works: {work}
+                        }};
+                        window.RELUMI_DATA_LOADED = {hasData.ToString().ToLower()};
+                    ";
+
+                    File.WriteAllText(syntaxFilePath, jsContent, Encoding.UTF8);
                 });
 
-                // 2. Tell JS to load that file (Bypasses all IPC/CORS limits)
                 long timestamp = DateTime.Now.Ticks;
                 await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={timestamp}');");
 
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => StatusText.Text = $"Ready. {_service.InitSummary}");
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => {
+                    StatusText.Text = $"Ready. Backend: {_service.InitSummary}";
+                });
             }
             catch (Exception ex)
             {
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => StatusText.Text = "Init Error: " + ex.Message);
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => {
+                    StatusText.Text = "Init Error: " + ex.Message;
+                });
             }
         }
 
-        // ... [Keep SetEditorText, BtnLoad_Click, ScriptTree_SelectionChanged] ...
+        // ... [Standard Boilerplate] ...
         private async void SetEditorText(string content)
         {
             if (!_isEditorReady) return;
@@ -119,7 +146,11 @@ namespace RelumiScript
             {
                 StatusText.Text = "Processing...";
                 var path = files[0].Path.LocalPath;
-                if (_service.InitSummary.StartsWith("Not")) _service.Initialize(FindJsonFolder());
+                if (_service.InitSummary.StartsWith("Not") || _service.InitSummary.Contains("Cmds: 0"))
+                {
+                    string jsonDir = FindJsonFolder();
+                    if (!string.IsNullOrEmpty(jsonDir)) _service.Initialize(jsonDir);
+                }
                 var loadedFiles = await Task.Run(() => _service.LoadAndDecompile(path));
                 var sortedFiles = loadedFiles.OrderBy(f => f.Name).ToList();
                 ScriptTree.ItemsSource = sortedFiles;
