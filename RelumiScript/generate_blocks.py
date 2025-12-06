@@ -16,26 +16,6 @@ CUSTOM_BLOCKS = {
         "nextStatement": None,
         "colour": 60,
         "tooltip": "A jump target for scripts."
-    },
-    # 2. OVERRIDES (Add your fancy dropdowns here later)
-    "_ADD_POKEMON": {
-        "type": "bdsp_add_pokemon",
-        "message0": "Give Pokemon %1 Level %2 Item %3 (Unknown %4)",
-        "args0": [
-            {
-                "type": "field_dropdown",
-                "name": "ARG_0",
-                "options": [
-                    ["Bulbasaur", "1"], ["Pikachu", "25"], ["Arceus", "493"], ["Turtwig", "387"]
-                ]
-            },
-            { "type": "field_number", "name": "ARG_1", "value": 5 },
-            { "type": "field_number", "name": "ARG_2", "value": 0 },
-            { "type": "field_number", "name": "ARG_3", "value": 0 }
-        ],
-        "previousStatement": None,
-        "nextStatement": None,
-        "colour": 160
     }
 }
 
@@ -44,7 +24,7 @@ def generate_js():
         print(f"Error: {INPUT_JSON} not found")
         return
 
-    with open(INPUT_JSON, "r", encoding="utf-8") as f:
+    with open(INPUT_JSON, "r", encoding="utf-8-sig") as f:
         commands = json.load(f)
 
     js_output = []

@@ -157,7 +157,18 @@ namespace RelumiScript
                 case 5:
                     if (val >= 0 && val < stringTable.Count)
                     {
-                        return $"\"{System.Uri.UnescapeDataString(stringTable[val])}\"";
+                        string rawString = stringTable[val];
+
+                        // 1. Convert the string to a byte array using Latin1/ISO-8859-1.
+                        // This treats the string as a collection of raw bytes, preventing C# from discarding them.
+                        byte[] rawBytes = Encoding.GetEncoding("iso-8859-1").GetBytes(rawString);
+
+                        // 2. Convert the raw bytes back to a string using UTF-8.
+                        // This forces the proper multi-byte decoding, fixing the '' characters.
+                        string decodedString = Encoding.UTF8.GetString(rawBytes);
+
+                        // 3. Apply URI unescaping (as originally intended).
+                        return $"\"{stringTable[val]}\"";
                     }
                     return $"\"<MISSING_STR_{val}>\"";
                 default: return val.ToString();

@@ -17,6 +17,7 @@
 
 		<PackageReference Include="AssetsTools.NET" Version="3.0.0" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.0" />
 
 		<PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
 		<PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />

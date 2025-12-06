@@ -6909,22 +6909,6 @@
 		"Args": []
 	},
 	{
-		"Id": 326,
-		"Name": "_FIRST_POKE_NO_GET",
-		"Description": "",
-		"Dummy": false,
-		"Animation": false,
-		"Args": []
-	},
-	{
-		"Id": 259,
-		"Name": "_FIRST_POKE_SELECT_PROC",
-		"Description": "Opens the starter choice menu.",
-		"Dummy": false,
-		"Animation": false,
-		"Args": []
-	},
-	{
 		"Id": 260,
 		"Name": "_FIRST_POKE_SELECT_SET_AND_DEL",
 		"Description": "Sets the selected starter to some place in memory. Used right after _FIRST_POKE_SELECT_PROC.",
@@ -11476,14 +11460,6 @@
 		"Name": "_SET_WARP_ID",
 		"Description": "",
 		"Dummy": false,
-		"Animation": false,
-		"Args": []
-	},
-	{
-		"Id": 226,
-		"Name": "_SET_WEATHER",
-		"Description": "Unused.",
-		"Dummy": true,
 		"Animation": false,
 		"Args": []
 	},

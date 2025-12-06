@@ -5,7 +5,6 @@
     <script src="https://unpkg.com/blockly/blockly.min.js"></script>
     <script src="https://unpkg.com/@blockly/plugin-toolbox-search/dist/index.js"></script>
     <script src="block_defs.js"></script>
-    <script src="block_defs.js"></script>
     <style>
         html, body {
             height: 100%;
@@ -25,59 +24,35 @@
 
     <script>
         // 1. INITIALIZE BLOCKLY
-        // Fallback definition for Label to prevent crashes if python script wasn't run
-
         if (Blockly.ToolboxSearchCategory) {
-            Blockly.registry.register(
-                Blockly.registry.Type.TOOLBOX_ITEM,
-                'search',
-                Blockly.ToolboxSearchCategory
-            );
+            Blockly.registry.register(Blockly.registry.Type.TOOLBOX_ITEM, 'search', Blockly.ToolboxSearchCategory);
         }
 
-        // Add the search category to the Toolbox XML if it exists
         if (typeof TOOLBOX_XML !== 'undefined') {
-            // Insert the search category at the very top of the toolbox
-            // We use 'kind="search"' which matches the name we registered above
             TOOLBOX_XML = TOOLBOX_XML.replace('<xml>', '<xml><category name="Search" kind="search"></category>');
         }
 
-        Blockly.Blocks['bdsp_label'] = {
-            init: function () {
-                this.appendDummyInput().appendField("Label:").appendField(new Blockly.FieldTextInput("Label_Name"), "LABEL_NAME");
-                this.setPreviousStatement(false , null);
-                this.setNextStatement(true, null);
-                this.setColour(60);
-            }
-        };
-        Blockly.JavaScript['bdsp_label'] = function (block) {
-            return block.getFieldValue('LABEL_NAME') + ':\n';
-        };
+        if (!Blockly.Blocks['bdsp_label']) {
+            Blockly.Blocks['bdsp_label'] = {
+                init: function () {
+                    this.appendDummyInput().appendField("Label:").appendField(new Blockly.FieldTextInput("Label_Name"), "LABEL_NAME");
+                    this.setPreviousStatement(false, null);
+                    this.setNextStatement(true, null);
+                    this.setColour(60);
+                }
+            };
+            Blockly.JavaScript['bdsp_label'] = function (block) { return block.getFieldValue('LABEL_NAME') + ':\n'; };
+        }
 
         var relumiTheme = Blockly.Theme.defineTheme('relumi', {
             'base': Blockly.Themes.Classic,
-            'blockStyles': {
-                'logic_blocks': { 'colourPrimary': "#4a148c" }, // Purple Logic
-                'loop_blocks': { 'colourPrimary': "#b71c1c" }   // Red Loops
-            },
+            'blockStyles': { 'logic_blocks': { 'colourPrimary': "#4a148c" }, 'loop_blocks': { 'colourPrimary': "#b71c1c" } },
             'componentStyles': {
-                'workspaceBackgroundColour': '#1e1e1e',
-                'toolboxBackgroundColour': '#333',
-                'toolboxForegroundColour': '#fff',
-                'flyoutBackgroundColour': '#252526',
-                'flyoutForegroundColour': '#ccc',
-                'flyoutOpacity': 1,
-                'scrollbarColour': '#797979',
-                'insertionMarkerColour': '#fff',
-                'insertionMarkerOpacity': 0.3,
-                'scrollbarOpacity': 0.4,
-                'cursorColour': '#d0d0d0'
+                'workspaceBackgroundColour': '#1e1e1e', 'toolboxBackgroundColour': '#333', 'toolboxForegroundColour': '#fff',
+                'flyoutBackgroundColour': '#252526', 'flyoutForegroundColour': '#ccc', 'flyoutOpacity': 1,
+                'scrollbarColour': '#797979', 'insertionMarkerColour': '#fff', 'insertionMarkerOpacity': 0.3, 'scrollbarOpacity': 0.4, 'cursorColour': '#d0d0d0'
             },
-            'fontStyle': {
-                'family': 'Segoe UI, sans-serif',
-                'weight': 'bold',
-                'size': 12
-            }
+            'fontStyle': { 'family': 'Segoe UI, sans-serif', 'weight': 'bold', 'size': 12 }
         });
 
         var workspace = Blockly.inject('blocklyDiv', {
@@ -92,92 +67,144 @@
 
         var isDecompiling = false;
 
-        // 2. PARSER
+        // 2. PARSER (GRID LAYOUT)
         function loadScript(scriptText) {
             isDecompiling = true;
+            Blockly.Events.disable(); // Prevent rendering lag
+
             try {
                 workspace.clear();
-
                 if (!scriptText) return;
 
-                // Remove BOM and whitespace
                 scriptText = scriptText.trim().replace(/^\uFEFF/, '');
-
                 var lines = scriptText.split('\n');
-                var previousBlock = null;
 
-                lines.forEach(function (line) {
-                    line = line.trim();
-                    if (!line || line.startsWith("'") || line.startsWith("//") || line.length < 2) return;
+                var previousBlock = null;
+                var currentRootBlock = null;
+
+                // LAYOUT VARIABLES
+                var layoutX = 50;
+                var layoutY = 50;
+                var MAX_ROW_WIDTH = 6000; // Reset to new row if x > this
+                var currentRowMaxHeight = 0;
+
+                for (var i = 0; i < lines.length; i++) {
+                    var line = lines[i].trim();
+                    if (!line || line.startsWith("'") || line.startsWith("//") || line.length < 2) continue;
+
+                    var block = null;
 
                     // A. LABEL CHECK
                     var labelMatch = line.match(/^([a-zA-Z0-9_]+):$/);
                     if (labelMatch) {
-                        var block = workspace.newBlock('bdsp_label');
+                        block = workspace.newBlock('bdsp_label');
                         block.setFieldValue(labelMatch[1], 'LABEL_NAME');
-                        block.initSvg(); block.render();
-                        // Only connect if the new block (e.g. Label) actually accepts a top connection
-                        if (previousBlock && previousBlock.nextConnection && block.previousConnection) {
-                            previousBlock.nextConnection.connect(block.previousConnection);
-                        }
-                        previousBlock = block;
-                        return;
                     }
 
                     // B. COMMAND CHECK
-                    var cmdMatch = line.match(/^([a-zA-Z0-9_]+)(?:\s+(.*))?$/);
+                    if (!block) {
+                        var cmdMatch = line.match(/^([a-zA-Z0-9_]+)(?:\s+(.*))?$/);
+                        if (cmdMatch) {
+                            var cmdName = cmdMatch[1];
+                            var argsRaw = cmdMatch[2] || "";
 
-                    if (cmdMatch) {
-                        var cmdName = cmdMatch[1];
-                        var argsRaw = cmdMatch[2] || "";
+                            if (typeof commandMap !== 'undefined' && commandMap[cmdName]) {
+                                var def = commandMap[cmdName];
+                                block = workspace.newBlock(def.type);
 
-                        if (typeof commandMap === 'undefined' || !commandMap[cmdName]) return;
+                                var argsList = argsRaw.match(/[^\s"]+|"([^"]*)"/g) || [];
+                                for (var k = 0; k < argsList.length; k++) {
+                                    if (k >= def.args) break;
+                                    var val = argsList[k];
+                                    var cleanVal = val.replace(/^"|"$/g, "");
 
-                        var def = commandMap[cmdName];
-                        var block = workspace.newBlock(def.type);
-
-                        var argsList = argsRaw.match(/[^\s"]+|"([^"]*)"/g) || [];
-
-                        for (var i = 0; i < argsList.length; i++) {
-                            if (i >= def.args) break;
-                            var val = argsList[i];
-                            var cleanVal = val.replace(/^"|"$/g, "");
-
-                            var input = block.getInput('ARG_' + i);
-
-                            if (input) {
-                                var argBlock;
-                                if (!isNaN(cleanVal) && !val.startsWith('"')) {
-                                    argBlock = workspace.newBlock('math_number');
-                                    argBlock.setFieldValue(cleanVal, 'NUM');
-                                } else {
-                                    argBlock = workspace.newBlock('text');
-                                    argBlock.setFieldValue(cleanVal, 'TEXT');
+                                    var input = block.getInput('ARG_' + k);
+                                    if (input) {
+                                        var argBlock;
+                                        if (!isNaN(cleanVal) && !val.startsWith('"')) {
+                                            argBlock = workspace.newBlock('math_number');
+                                            argBlock.setFieldValue(cleanVal, 'NUM');
+                                        } else {
+                                            argBlock = workspace.newBlock('text');
+                                            argBlock.setFieldValue(cleanVal, 'TEXT');
+                                        }
+                                        input.connection.connect(argBlock.outputConnection);
+                                    } else {
+                                        block.setFieldValue(cleanVal, 'ARG_' + k);
+                                    }
                                 }
-                                argBlock.initSvg(); argBlock.render();
-                                input.connection.connect(argBlock.outputConnection);
-                            } else {
-                                block.setFieldValue(cleanVal, 'ARG_' + i);
                             }
                         }
+                    }
 
-                        block.initSvg(); block.render();
-                        if (previousBlock && previousBlock.nextConnection && block.previousConnection) {
+                    // C. PLACEMENT & CONNECTION
+                    if (block) {
+                        block.initSvg();
+                        block.render();
+
+                        var connected = false;
+
+                        // FIX: Explicitly prevent Labels from connecting to anything.
+                        // This forces them to start a new stack.
+                        var isLabel = (block.type === 'bdsp_label');
+
+                        if (!isLabel && previousBlock && previousBlock.nextConnection && block.previousConnection) {
                             previousBlock.nextConnection.connect(block.previousConnection);
+                            connected = true;
                         }
+
+                        // --- GRID LAYOUT LOGIC ---
+                        if (!connected) {
+                            // If we have a previous stack, determine where to place this new one
+                            if (currentRootBlock) {
+                                // 1. Measure the stack we just finished
+                                var stackSize = getStackDimensions(currentRootBlock);
+
+                                // 2. Move cursor to the RIGHT of the previous stack
+                                layoutX += stackSize.width + 150; // 150px gap between scripts
+
+                                // 3. Update height tracking for the current row
+                                if (stackSize.height > currentRowMaxHeight) currentRowMaxHeight = stackSize.height;
+
+                                // 4. Check for Row Wrap
+                                if (layoutX > MAX_ROW_WIDTH) {
+                                    layoutX = 50; // Reset X
+                                    layoutY += currentRowMaxHeight + 100; // Move Y down by tallest item
+                                    currentRowMaxHeight = 0; // Reset height tracker
+                                }
+                            }
+
+                            // Place new block/stack
+                            block.moveBy(layoutX, layoutY);
+                            currentRootBlock = block;
+                        }
+
                         previousBlock = block;
                     }
-                });
-
-                workspace.zoomToFit();
+                }
 
             } catch (e) {
-                console.error(e);
+                console.error("Blockly Load Error:", e);
             } finally {
-                // Resize trigger to ensure layout is correct after hidden state
+                Blockly.Events.enable();
                 window.dispatchEvent(new Event('resize'));
                 setTimeout(() => { isDecompiling = false; }, 500);
             }
+        }
+
+        // --- HELPER: Fast Size Calculation ---
+        function getStackDimensions(rootBlock) {
+            var width = 0;
+            var height = 0;
+            var block = rootBlock;
+            while (block) {
+                var hw = block.getHeightWidth();
+                if (hw.width > width) width = hw.width;
+                height += hw.height;
+                // Subtract connection height overlap? standard is roughly 4px but negligible here
+                block = block.getNextBlock();
+            }
+            return { width: width, height: height };
         }
 
         function updateCSharp() {
@@ -189,7 +216,6 @@
         }
         workspace.addChangeListener(updateCSharp);
 
-        // Handle window resizing
         window.addEventListener('resize', function () {
             Blockly.svgResize(workspace);
         });

@@ -183,20 +183,25 @@ namespace RelumiScript
         // --- UPDATED: TEXT SETTER ---
         private async void SetEditorText(string content)
         {
-            // 1. Update internal memory
+            // 1. Update internal memory (Keeps original format if needed)
             _currentScriptContent = content;
 
             string safe = JsonConvert.ToString(content);
 
-            // 2. Always update Monaco (it handles background updates fine)
+            // 2. Always update Monaco
             if (_isEditorReady)
             {
-                await Editor.ExecuteScriptAsync($"editor.setValue({safe});");
+                // --- CHANGED LOGIC START ---
+                // Instead of setting the value directly, we pass it through the JS formatter.
+                // The conditional operator checks if the function exists to prevent crashing if JS isn't fully loaded.
+                string jsCommand = $"editor.setValue(window.formatLegacyScript ? window.formatLegacyScript({safe}) : {safe});";
+                await Editor.ExecuteScriptAsync(jsCommand);
+                // --- CHANGED LOGIC END ---
+
                 await Editor.ExecuteScriptAsync("editor.updateOptions({readOnly: false});");
             }
 
             // 3. ONLY update Blockly if it is actively being looked at.
-            //    Updating it while hidden causes rendering glitches and state loss.
             if (_isBlocklyReady && BlockEditor.IsVisible)
             {
                 await BlockEditor.ExecuteScriptAsync($"loadScript({safe});");
@@ -225,7 +230,23 @@ namespace RelumiScript
 
         private void ScriptTree_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (ScriptTree.SelectedItem is ScriptNode s) SetEditorText(s.Content);
+            if (ScriptTree.SelectedItem is ScriptNode s)
+            {
+                // Single script selected: Load just that script
+                SetEditorText(s.Content);
+            }
+            else if (ScriptTree.SelectedItem is FileNode f)
+            {
+                // Parent file selected: Combine ALL scripts in this file
+                // We use a StringBuilder to efficiently join them with newlines
+                StringBuilder sb = new StringBuilder();
+                foreach (var script in f.Scripts)
+                {
+                    sb.AppendLine(script.Content);
+                    sb.AppendLine(); // Add an extra empty line between scripts for readability
+                }
+                SetEditorText(sb.ToString());
+            }
         }
     }
 }
