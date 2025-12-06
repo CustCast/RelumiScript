@@ -21175,6 +21175,7 @@ Blockly.JavaScript['bdsp__zukan_touroku_wait'] = function(block) {
   return code;
 };
 var TOOLBOX_XML = '<xml>';
+TOOLBOX_XML += '<category name="Search" kind="search"></category>';
 TOOLBOX_XML += '<category name="Logic" colour="210">';
 TOOLBOX_XML += '<block type="controls_if"></block>';
 TOOLBOX_XML += '<block type="logic_compare"></block>';

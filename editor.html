@@ -681,6 +681,7 @@
         });
 
         fileContent += `var TOOLBOX_XML = '<xml>';${EOL}`;
+        fileContent += `TOOLBOX_XML += '<category name="Search" kind="search"></category>';${EOL}`;
         fileContent += `TOOLBOX_XML += '<category name="Logic" colour="210">';${EOL}`;
         fileContent += `TOOLBOX_XML += '<block type="controls_if"></block>';${EOL}`;
         fileContent += `TOOLBOX_XML += '<block type="logic_compare"></block>';${EOL}`;
