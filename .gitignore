@@ -17,3 +17,4 @@ obj/
 # Directories that are usually build outputs but often get committed accidentally
 [Dd]ebug/
 [Rr]elease/
+__pycache__/
