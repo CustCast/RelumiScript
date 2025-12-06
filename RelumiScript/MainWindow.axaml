@@ -31,7 +31,26 @@
 
 			<GridSplitter Grid.Column="1" Background="#444" ResizeDirection="Columns"/>
 
-			<webview:WebView Name="Editor" Grid.Column="2"/>
+			<Grid Grid.Column="2" RowDefinitions="Auto, *">
+
+				<StackPanel Grid.Row="0" Orientation="Horizontal" Background="#2D2D2D">
+					<RadioButton Name="TabCode" Content="Code (EV-AS)"
+								 GroupName="EditorTabs" IsChecked="True"
+								 Click="OnTabChanged" Margin="10,5"
+								 Foreground="White"/>
+
+					<RadioButton Name="TabVisual" Content="Visual Blocks"
+								 GroupName="EditorTabs"
+								 Click="OnTabChanged" Margin="10,5"
+								 Foreground="White"/>
+				</StackPanel>
+
+				<Panel Grid.Row="1" Background="#1E1E1E">
+					<webview:WebView Name="Editor" IsVisible="True"/>
+					<webview:WebView Name="BlockEditor" IsVisible="False"/>
+				</Panel>
+			</Grid>
+
 		</Grid>
 	</Grid>
 </Window>

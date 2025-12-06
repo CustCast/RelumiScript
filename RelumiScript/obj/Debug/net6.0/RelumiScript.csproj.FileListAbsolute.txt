@@ -235,3 +235,5 @@ C:\Users\justi\source\repos\RelumiScript\RelumiScript\obj\Debug\net6.0\scopedcss
 C:\Users\justi\source\repos\RelumiScript\RelumiScript\obj\Debug\net6.0\RelumiScript.csproj.CopyComplete
 C:\Users\justi\source\repos\RelumiScript\RelumiScript\obj\Debug\net6.0\RelumiScript.genruntimeconfig.cache
 C:\Users\justi\source\repos\RelumiScript\RelumiScript\obj\Debug\net6.0\ref\RelumiScript.dll
+C:\Users\justi\source\repos\RelumiScript\RelumiScript\bin\Debug\net6.0\Blockly\index.html
+C:\Users\justi\source\repos\RelumiScript\RelumiScript\bin\Debug\net6.0\Blockly\block_defs.js

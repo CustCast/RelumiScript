@@ -16,12 +16,15 @@ namespace RelumiScript
     {
         private AssetBundleService _service;
         private bool _isEditorReady = false;
+        private bool _isBlocklyReady = false;
+        private string _currentScriptContent = ""; // Stores text for tab switching
 
         public MainWindow()
         {
             InitializeComponent();
             _service = new AssetBundleService();
             InitializeEditor();
+            InitializeBlockly();
         }
 
         private void InitializeEditor()
@@ -44,6 +47,31 @@ namespace RelumiScript
             else StatusText.Text = $"Error: Monaco not found at {monacoPath}";
         }
 
+        private void InitializeBlockly()
+        {
+            string appDir = AppDomain.CurrentDomain.BaseDirectory;
+            string blocklyPath = Path.Combine(appDir, "Assets", "Blockly", "index.html");
+
+            // Fallback check if Assets folder isn't used
+            if (!File.Exists(blocklyPath))
+                blocklyPath = Path.Combine(appDir, "Blockly", "index.html");
+
+            if (File.Exists(blocklyPath))
+            {
+                BlockEditor.Url = new Uri($"file:///{blocklyPath.Replace("\\", "/")}");
+                BlockEditor.NavigationCompleted += (sender, args) =>
+                {
+                    if (args.IsSuccess) _isBlocklyReady = true;
+                };
+
+                // Optional: Listen for code coming back from Blocks
+                BlockEditor.WebMessageReceived += (s, e) => {
+                    // Update our memory store when blocks change
+                    _currentScriptContent = e.Message;
+                };
+            }
+        }
+
         private string FindJsonFolder()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -61,7 +89,6 @@ namespace RelumiScript
             return null;
         }
 
-        // [FIX] Clean load: Deserialize -> Serialize removes whitespace/BOM/errors
         private string LoadCleanJson(string path)
         {
             if (!File.Exists(path)) return "[]";
@@ -69,7 +96,7 @@ namespace RelumiScript
             {
                 string content = File.ReadAllText(path);
                 var obj = JsonConvert.DeserializeObject(content);
-                return JsonConvert.SerializeObject(obj, Formatting.None); // Minified valid JSON
+                return JsonConvert.SerializeObject(obj, Formatting.None);
             }
             catch { return "[]"; }
         }
@@ -79,29 +106,22 @@ namespace RelumiScript
             try
             {
                 string jsonDir = FindJsonFolder();
-                if (string.IsNullOrEmpty(jsonDir))
-                {
-                    StatusText.Text = "Critical Error: 'JSON' folder not found.";
-                    return;
-                }
+                if (string.IsNullOrEmpty(jsonDir)) return;
 
                 _service.Initialize(jsonDir);
 
                 await Task.Run(() =>
                 {
-                    string appDir = AppDomain.CurrentDomain.BaseDirectory;
-                    string syntaxFilePath = Path.Combine(appDir, "Monaco", "syntax_data.js");
-
-                    // Load from ROOT JSON folder strictly (as per your request)
                     string cmds = LoadCleanJson(Path.Combine(jsonDir, "commands.json"));
                     string flags = LoadCleanJson(Path.Combine(jsonDir, "flags.json"));
                     string sys = LoadCleanJson(Path.Combine(jsonDir, "sys_flags.json"));
                     string work = LoadCleanJson(Path.Combine(jsonDir, "work.json"));
-
                     bool hasData = cmds.Length > 20;
 
-                    // Generate pure JS file
-                    string jsContent = $@"
+                    string appDir = AppDomain.CurrentDomain.BaseDirectory;
+                    string monacoPath = Path.Combine(appDir, "Monaco", "syntax_data.js");
+
+                    string monacoContent = $@"
                         window.RELUMI_DATA = {{
                             commands: {cmds},
                             flags: {flags},
@@ -110,12 +130,14 @@ namespace RelumiScript
                         }};
                         window.RELUMI_DATA_LOADED = {hasData.ToString().ToLower()};
                     ";
-
-                    File.WriteAllText(syntaxFilePath, jsContent, Encoding.UTF8);
+                    File.WriteAllText(monacoPath, monacoContent, Encoding.UTF8);
                 });
 
                 long timestamp = DateTime.Now.Ticks;
-                await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={timestamp}');");
+                if (_isEditorReady)
+                {
+                    await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={timestamp}');");
+                }
 
                 Avalonia.Threading.Dispatcher.UIThread.Post(() => {
                     StatusText.Text = $"Ready. Backend: {_service.InitSummary}";
@@ -129,13 +151,56 @@ namespace RelumiScript
             }
         }
 
-        // ... [Standard Boilerplate] ...
+        // --- NEW: TAB SWITCHING LOGIC ---
+        private async void OnTabChanged(object sender, RoutedEventArgs e)
+        {
+            if (TabCode.IsChecked == true)
+            {
+                // --- SWITCHING TO TEXT MODE ---
+                Editor.IsVisible = true;
+                BlockEditor.IsVisible = false;
+
+                // Sync: Push the latest text from memory into Monaco
+                SetEditorText(_currentScriptContent);
+            }
+            else
+            {
+                // --- SWITCHING TO VISUAL MODE ---
+                Editor.IsVisible = false;
+                BlockEditor.IsVisible = true;
+
+                // Sync: Push text from memory into Blockly
+                if (_isBlocklyReady && !string.IsNullOrEmpty(_currentScriptContent))
+                {
+                    string safe = JsonConvert.ToString(_currentScriptContent);
+
+                    // We call loadScript explicitly when the tab becomes visible
+                    await BlockEditor.ExecuteScriptAsync($"loadScript({safe});");
+                }
+            }
+        }
+
+        // --- UPDATED: TEXT SETTER ---
         private async void SetEditorText(string content)
         {
-            if (!_isEditorReady) return;
+            // 1. Update internal memory
+            _currentScriptContent = content;
+
             string safe = JsonConvert.ToString(content);
-            await Editor.ExecuteScriptAsync($"editor.setValue({safe});");
-            await Editor.ExecuteScriptAsync("editor.updateOptions({readOnly: false});");
+
+            // 2. Always update Monaco (it handles background updates fine)
+            if (_isEditorReady)
+            {
+                await Editor.ExecuteScriptAsync($"editor.setValue({safe});");
+                await Editor.ExecuteScriptAsync("editor.updateOptions({readOnly: false});");
+            }
+
+            // 3. ONLY update Blockly if it is actively being looked at.
+            //    Updating it while hidden causes rendering glitches and state loss.
+            if (_isBlocklyReady && BlockEditor.IsVisible)
+            {
+                await BlockEditor.ExecuteScriptAsync($"loadScript({safe});");
+            }
         }
 
         private async void BtnLoad_Click(object sender, RoutedEventArgs e)

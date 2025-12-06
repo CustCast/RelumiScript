@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+    <script src="block_defs.js"></script>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            background-color: #1e1e1e;
+            font-family: Consolas, monospace;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #blocklyDiv {
+            flex-grow: 1;
+            width: 100%;
+        }
+
+        #debugConsole {
+            height: 150px;
+            background: #111;
+            color: #0f0;
+            overflow-y: scroll;
+            padding: 10px;
+            font-size: 12px;
+            border-top: 2px solid #444;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="blocklyDiv"></div>
+    <div id="debugConsole">Ready.</div>
+
+    <script>
+        function log(msg) {
+            var d = document.getElementById('debugConsole');
+            d.innerHTML += "<div>" + msg + "</div>";
+            d.scrollTop = d.scrollHeight;
+        }
+
+        // --- 1. EMERGENCY FALLBACK DEFINITIONS ---
+        // We define these HERE so the editor never crashes on basic blocks
+        Blockly.Blocks['bdsp_label'] = {
+            init: function () {
+                this.appendDummyInput().appendField("Label:").appendField(new Blockly.FieldTextInput("Label_Name"), "LABEL_NAME");
+                this.setPreviousStatement(true, null);
+                this.setNextStatement(true, null);
+                this.setColour(60);
+            }
+        };
+        Blockly.JavaScript['bdsp_label'] = function (block) {
+            return block.getFieldValue('LABEL_NAME') + ':\n';
+        };
+
+        // --- 2. INITIALIZE ---
+        var workspace = Blockly.inject('blocklyDiv', {
+            media: 'https://unpkg.com/blockly/media/',
+            toolbox: (typeof TOOLBOX_XML !== 'undefined') ? TOOLBOX_XML : '<xml><category name="Error: Run Python Script" colour="0"></category></xml>',
+            zoom: { controls: true, wheel: true, startScale: 0.8, maxScale: 3, minScale: 0.3, scaleSpeed: 1.2 },
+            grid: { spacing: 20, length: 3, colour: '#444', snap: true },
+            trashcan: true,
+            theme: Blockly.Themes.Dark
+        });
+
+        var isDecompiling = false;
+
+        // --- 3. PARSER ---
+        function loadScript(scriptText) {
+            isDecompiling = true;
+            try {
+                workspace.clear();
+                document.getElementById('debugConsole').innerHTML = "";
+
+                if (!scriptText) {
+                    log("Empty script received.");
+                    return;
+                }
+
+                // FIX: Remove Byte Order Mark (BOM) and whitespace
+                scriptText = scriptText.trim().replace(/^\uFEFF/, '');
+
+                log("Processing " + scriptText.length + " chars...");
+
+                var lines = scriptText.split('\n');
+                var previousBlock = null;
+                var count = 0;
+
+                lines.forEach(function (line) {
+                    line = line.trim();
+                    if (!line || line.startsWith("'") || line.startsWith("//") || line.length < 2) return;
+
+                    // A. LABEL CHECK (Ends with :)
+                    // Matches "Name:"
+                    var labelMatch = line.match(/^([a-zA-Z0-9_]+):$/);
+                    if (labelMatch) {
+                        var block = workspace.newBlock('bdsp_label');
+                        block.setFieldValue(labelMatch[1], 'LABEL_NAME');
+                        block.initSvg(); block.render();
+
+                        if (previousBlock && previousBlock.nextConnection) {
+                            previousBlock.nextConnection.connect(block.previousConnection);
+                        }
+                        previousBlock = block;
+                        count++;
+                        return;
+                    }
+
+                    // B. COMMAND CHECK
+                    // Matches "CommandName" optionally followed by " Args"
+                    var cmdMatch = line.match(/^([a-zA-Z0-9_]+)(?:\s+(.*))?$/);
+
+                    if (cmdMatch) {
+                        var cmdName = cmdMatch[1];
+                        var argsRaw = cmdMatch[2] || "";
+
+                        if (typeof commandMap === 'undefined' || !commandMap[cmdName]) {
+                            log("Unknown: " + cmdName); // Just skip unknown commands
+                            return;
+                        }
+
+                        var def = commandMap[cmdName];
+                        var block = workspace.newBlock(def.type);
+
+                        // Parse Args: Handles quoted strings "A B" vs non-quoted A B
+                        var argsList = argsRaw.match(/[^\s"]+|"([^"]*)"/g) || [];
+
+                        for (var i = 0; i < argsList.length; i++) {
+                            if (i >= def.args) break;
+                            var val = argsList[i];
+                            var cleanVal = val.replace(/^"|"$/g, ""); // Strip quotes
+
+                            var input = block.getInput('ARG_' + i);
+
+                            if (input) {
+                                var argBlock;
+                                // Heuristic: Is it a number?
+                                if (!isNaN(cleanVal) && !val.startsWith('"')) {
+                                    argBlock = workspace.newBlock('math_number');
+                                    argBlock.setFieldValue(cleanVal, 'NUM');
+                                } else {
+                                    argBlock = workspace.newBlock('text');
+                                    argBlock.setFieldValue(cleanVal, 'TEXT');
+                                }
+                                argBlock.initSvg(); argBlock.render();
+                                input.connection.connect(argBlock.outputConnection);
+                            } else {
+                                // Dropdown/Field
+                                block.setFieldValue(cleanVal, 'ARG_' + i);
+                            }
+                        }
+
+                        block.initSvg(); block.render();
+                        if (previousBlock && previousBlock.nextConnection) {
+                            previousBlock.nextConnection.connect(block.previousConnection);
+                        }
+                        previousBlock = block;
+                        count++;
+                    } else {
+                        log("Regex Mismatch: " + line);
+                    }
+                });
+
+                log("Done. Blocks: " + count);
+                workspace.zoomToFit();
+
+            } catch (e) {
+                log("CRITICAL ERROR: " + e);
+            } finally {
+                setTimeout(() => { isDecompiling = false; }, 500);
+            }
+        }
+
+        function updateCSharp() {
+            if (isDecompiling) return;
+            try {
+                var code = Blockly.JavaScript.workspaceToCode(workspace);
+                window.chrome.webview.postMessage(code);
+            } catch (e) { }
+        }
+        workspace.addChangeListener(updateCSharp);
+    </script>
+</body>
+</html>
