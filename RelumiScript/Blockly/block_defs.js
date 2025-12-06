@@ -2677,21 +2677,16 @@ Blockly.JavaScript['bdsp__add_natsuki'] = function(block) {
   code += ')\n';
   return code;
 };
-commandMap['_ADD_POKEMON'] = { type: 'bdsp__add_pokemon', args: 4 };
+commandMap['bdsp__add_pokemon'] = { type: 'bdsp__add_pokemon', args: 0 };
 Blockly.Blocks['bdsp__add_pokemon'] = {
   init: function() {
-    this.jsonInit({"type": "bdsp_add_pokemon", "message0": "Give Pokemon %1 Level %2 Item %3 (Unknown %4)", "args0": [{"type": "field_dropdown", "name": "ARG_0", "options": [["Bulbasaur", "1"], ["Ivysaur", "2"], ["Venusaur", "3"], ["Charmander", "4"], ["Charmeleon", "5"], ["Charizard", "6"], ["Pikachu", "25"], ["Arceus", "493"]]}, {"type": "field_number", "name": "ARG_1", "value": 5, "min": 1, "max": 100}, {"type": "field_dropdown", "name": "ARG_2", "options": [["None", "0"], ["Master Ball", "1"], ["Potion", "17"]]}, {"type": "field_number", "name": "ARG_3", "value": 0}], "previousStatement": null, "nextStatement": null, "colour": 160, "tooltip": "Gives a Pokemon to the player (Custom Block)"});
+    this.appendDummyInput().appendField('bdsp__add_pokemon');
+    this.setColour(230);
+    this.setTooltip("");
   }
 };
 Blockly.JavaScript['bdsp__add_pokemon'] = function(block) {
-  var code = '_ADD_POKEMON(';
-  code += block.getFieldValue('ARG_0');
-  code += ', ';
-  code += block.getFieldValue('ARG_1');
-  code += ', ';
-  code += block.getFieldValue('ARG_2');
-  code += ', ';
-  code += block.getFieldValue('ARG_3');
+  var code = 'bdsp__add_pokemon(';
   code += ')\n';
   return code;
 };
@@ -5575,7 +5570,7 @@ Blockly.Blocks['bdsp__case_cancel'] = {
     this.setPreviousStatement(true, null);
     this.setNextStatement(true, null);
     this.setColour(230);
-    this.setTooltip("Compares the value of the variable given to the last _SWITCH command ran to the value of \"Cancel\", then jumps to a script if they are equal.");
+    this.setTooltip("Compares the value of the variable given to the last _SWITCH command ran to the value of Cancel, then jumps to a script if they are equal.");
   }
 };
 Blockly.JavaScript['bdsp__case_cancel'] = function(block) {
@@ -8543,10 +8538,9 @@ Blockly.JavaScript['bdsp__embankment'] = function(block) {
 commandMap['_END'] = { type: 'bdsp__end', args: 0 };
 Blockly.Blocks['bdsp__end'] = {
   init: function() {
-    this.appendDummyInput().appendField('_END');
+    this.appendDummyInput().appendField('End');
     this.setPreviousStatement(true, null);
-    this.setNextStatement(true, null);
-    this.setColour(230);
+    this.setColour(360);
     this.setTooltip("Ends the script.");
   }
 };
@@ -21181,12 +21175,12 @@ Blockly.JavaScript['bdsp__zukan_touroku_wait'] = function(block) {
   return code;
 };
 var TOOLBOX_XML = '<xml>';
-TOOLBOX_XML += '<category name="Logic" colour="210">' +
-'  <block type="controls_if"></block>' +
-'  <block type="logic_compare"></block>' +
-'  <block type="math_number"></block>' +
-'  <block type="text"></block>' +
-'</category>';
+TOOLBOX_XML += '<category name="Logic" colour="210">';
+TOOLBOX_XML += '<block type="controls_if"></block>';
+TOOLBOX_XML += '<block type="logic_compare"></block>';
+TOOLBOX_XML += '<block type="math_number"></block>';
+TOOLBOX_XML += '<block type="text"></block>';
+TOOLBOX_XML += '</category>';
 TOOLBOX_XML += '<category name="Commands" colour="230">';
 TOOLBOX_XML += '<block type="bdsp__set_weather"></block>';
 TOOLBOX_XML += '<block type="bdsp__first_poke_select_proc"></block>';
@@ -21671,7 +21665,6 @@ TOOLBOX_XML += '<block type="bdsp__elevator_anm"></block>';
 TOOLBOX_XML += '<block type="bdsp__elevator_floor_get"></block>';
 TOOLBOX_XML += '<block type="bdsp__elevator_floor_write"></block>';
 TOOLBOX_XML += '<block type="bdsp__embankment"></block>';
-TOOLBOX_XML += '<block type="bdsp__end"></block>';
 TOOLBOX_XML += '<block type="bdsp__ending_demo"></block>';
 TOOLBOX_XML += '<block type="bdsp__end_lightintensity"></block>';
 TOOLBOX_XML += '<block type="bdsp__end_lightintensity_charcter"></block>';
@@ -22465,4 +22458,8 @@ TOOLBOX_XML += '<block type="bdsp__zukan_sex_ver_up"></block>';
 TOOLBOX_XML += '<block type="bdsp__zukan_text_ver_up"></block>';
 TOOLBOX_XML += '<block type="bdsp__zukan_touroku"></block>';
 TOOLBOX_XML += '<block type="bdsp__zukan_touroku_wait"></block>';
-TOOLBOX_XML += '</category></xml>';
+TOOLBOX_XML += '</category>';
+TOOLBOX_XML += '<category name="END" colour="230">';
+TOOLBOX_XML += '<block type="bdsp__end"></block>';
+TOOLBOX_XML += '</category>';
+TOOLBOX_XML += '</xml>';

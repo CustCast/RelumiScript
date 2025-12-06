@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BDSP Block Editor</title>
+    <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        /* --- Layout & Dark Theme Overrides --- */
+        body, html { 
+            height: 100%; 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #212529; 
+            color: #e9ecef;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        /* Sidebar */
+        #sidebar { 
+            height: 100vh; 
+            border-right: 1px solid #343a40; 
+            background-color: #1a1d20; 
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #block-list-container {
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        /* Main Editor Pane */
+        #main-area {
+            height: 100vh; 
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: #212529;
+            position: relative; /* For absolute positioning of loader */
+        }
+
+        /* Top Section: Settings */
+        #editor-settings-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 25px;
+            padding-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Bottom Section: Preview */
+        #preview-wrapper {
+            height: 40vh;
+            min-height: 250px;
+            background-color: #2b3035;
+            border-top: 1px solid #343a40;
+            display: flex;
+            flex-direction: column;
+            padding: 10px 25px 25px 25px;
+        }
+        
+        #preview-area { 
+            flex-grow: 1;
+            width: 100%; 
+            background-color: #1a1d20;
+            border-radius: 6px;
+            border: 1px solid #343a40;
+        }
+
+        /* Custom Hue Slider */
+        input[type=range].hue-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 24px;
+            border-radius: 12px;
+            background: linear-gradient(to right, 
+                hsl(0, 100%, 50%), 
+                hsl(60, 100%, 50%), 
+                hsl(120, 100%, 50%), 
+                hsl(180, 100%, 50%), 
+                hsl(240, 100%, 50%), 
+                hsl(300, 100%, 50%), 
+                hsl(360, 100%, 50%));
+            outline: none;
+            cursor: pointer;
+            border: 2px solid #343a40;
+        }
+        
+        input[type=range].hue-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 32px;
+            background: #fff;
+            border: 3px solid #000;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+
+        /* List Items */
+        .list-group-item { 
+            border: none;
+            border-left: 4px solid transparent; 
+            background-color: #1a1d20; 
+            color: #adb5bd;
+            border-bottom: 1px solid #2b3035; 
+            padding: 10px 15px;
+        }
+        .list-group-item:hover { 
+            background-color: #2b3035; 
+            color: #fff;
+        }
+        .list-group-item.active { 
+            background-color: #2b3035; 
+            border-left-color: #0d6efd; 
+            color: #fff; 
+        }
+
+        /* Utility */
+        .form-control, .form-select { 
+            background-color: #1a1d20 !important; 
+            border-color: #343a40 !important; 
+            color: #fff !important; 
+        }
+        .form-control:focus { box-shadow: none; border-color: #0d6efd !important; }
+        .card { background-color: #2b3035; border: 1px solid #343a40; }
+        .card-header { background-color: #212529; border-bottom: 1px solid #343a40; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: #1a1d20; }
+        ::-webkit-scrollbar-thumb { background: #343a40; border-radius: 5px; }
+        ::-webkit-scrollbar-thumb:hover { background: #495057; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid h-100 p-0">
+    <div class="row g-0 h-100">
+        
+        <div class="col-3" id="sidebar">
+            <div class="p-3 border-bottom border-secondary">
+                <div class="d-flex align-items-center mb-3">
+                    <span class="fs-5 fw-bold text-white">BDSP Editor</span>
+                </div>
+                
+                <div class="mb-3">
+                    <select id="rendererSelect" class="form-select form-select-sm" onchange="changeRenderer()">
+                        <option value="zelos" selected>Zelos (Scratch-like)</option>
+                        <option value="geras">Geras (Classic)</option>
+                        <option value="thrasos">Thrasos (Modern)</option>
+                    </select>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <label class="btn btn-outline-primary btn-sm" for="fileInput">
+                        📂 Load File
+                        <input type="file" id="fileInput" hidden accept=".js">
+                    </label>
+                    <button class="btn btn-success btn-sm fw-bold" onclick="downloadFile()">
+                        💾 Save JS
+                    </button>
+                    <!-- NEW: Add Block Button -->
+                    <button class="btn btn-outline-light btn-sm mt-1" onclick="createNewBlock()">
+                        ➕ New Block
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-2 border-bottom border-secondary bg-black bg-opacity-10">
+                <input type="text" id="searchBox" class="form-control form-control-sm" placeholder="Search blocks...">
+            </div>
+
+            <div id="block-list-container">
+                <div class="list-group list-group-flush" id="blockList"></div>
+                <div id="list-placeholder" class="text-center text-muted mt-5 p-3">
+                    <small>Load <code>block_defs.js</code><br>or click New Block.</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-9" id="main-area">
+            
+            <div id="global-placeholder" class="d-flex flex-column align-items-center justify-content-center h-100 w-100 text-muted" style="position: absolute; z-index: 10; background-color: #212529;">
+                <div style="font-size: 4rem; opacity: 0.5;">📂</div>
+                <h2 class="fw-light mt-3">Waiting for Data...</h2>
+                <p class="mb-4">Upload a file or create a new block.</p>
+            </div>
+
+            <div id="editor-interface" class="d-none flex-column h-100">
+                
+                <div id="editor-settings-area">
+                    
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div style="width: 100%;">
+                            <label class="form-label text-secondary small fw-bold text-uppercase">Block Label (Display Only)</label>
+                            <input type="text" id="editCommandName" class="form-control form-control-lg fw-bold mb-1">
+                            <div class="d-flex align-items-center gap-2 mt-1">
+                                <span class="badge bg-secondary font-monospace" id="displayBlockId">BLOCK_ID</span>
+                                <span class="text-muted small">Code Function (Read-Only): <span id="displayFuncName" class="font-monospace text-light bg-black px-1 rounded">_FUNC</span></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <div class="col-md-7 d-flex flex-column gap-3">
+                            
+                            <div class="card shadow-sm">
+                                <div class="card-body py-3">
+                                    <label class="form-label fw-bold d-flex justify-content-between mb-2">
+                                        <span>Block Color</span>
+                                        <span class="badge bg-dark border border-secondary text-light" id="hueValueDisplay">Hue: 230</span>
+                                    </label>
+                                    <input type="range" class="hue-slider" min="0" max="360" id="hueSlider">
+                                </div>
+                            </div>
+
+                            <div class="card shadow-sm">
+                                <div class="card-body py-3">
+                                    <label class="form-label text-secondary small fw-bold text-uppercase">Toolbox Category</label>
+                                    <div class="input-group">
+                                        <select id="categorySelect" class="form-select">
+                                            <!-- Options populated by JS -->
+                                        </select>
+                                        <button class="btn btn-outline-light" type="button" onclick="addNewCategory()" title="Add New Category">
+                                            + New
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="form-label fw-bold text-secondary small text-uppercase">Tooltip</label>
+                                <textarea class="form-control" id="editTooltip" rows="3" placeholder="Describe what this block does..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="col-md-5 d-flex flex-column gap-3">
+                            
+                            <div class="card shadow-sm">
+                                <div class="card-header py-2"><small class="fw-bold text-uppercase text-secondary">Connections</small></div>
+                                <div class="card-body">
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" id="editPrev">
+                                        <label class="form-check-label">Previous Statement</label>
+                                    </div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="editNext">
+                                        <label class="form-check-label">Next Statement</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card shadow-sm flex-grow-1">
+                                <div class="card-header py-2 d-flex justify-content-between align-items-center">
+                                    <small class="fw-bold text-uppercase text-secondary">Arguments</small>
+                                    <button class="btn btn-sm btn-outline-primary py-0" style="font-size: 0.8rem;" onclick="addArg()">+ Add</button>
+                                </div>
+                                <div class="card-body p-2 overflow-auto" style="max-height: 200px;" id="argsContainer">
+                                    </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                <div id="preview-wrapper">
+                    <label class="text-secondary small fw-bold text-uppercase mb-2">Live Preview</label>
+                    <div id="preview-area"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- State ---
+    let blocksData = [];
+    let knownCategories = new Set(['Commands']); // Store unique categories found
+    let currentBlockIndex = -1;
+    let workspace = null;
+
+    // --- File Parser ---
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) { parseContent(e.target.result); };
+        reader.readAsText(file);
+    });
+
+    function parseContent(content) {
+        blocksData = [];
+        knownCategories = new Set(['Commands']);
+
+        const idToFuncMap = {};
+        const mapRegex = /commandMap\['(.*?)'\]\s*=\s*\{\s*type:\s*'(.*?)'/g;
+        let mapMatch;
+        while ((mapMatch = mapRegex.exec(content)) !== null) {
+            const funcName = mapMatch[1]; 
+            const blockId = mapMatch[2];  
+            idToFuncMap[blockId] = funcName;
+        }
+
+        const blockDefRegex = /Blockly\.Blocks\['(.*?)'\]\s*=\s*\{([\s\S]*?)\};/g;
+        let match;
+
+        while ((match = blockDefRegex.exec(content)) !== null) {
+            const blockId = match[1];
+            const body = match[2];
+
+            const cmdNameMatch = /appendDummyInput\(\)\.appendField\('(.*?)'\)/.exec(body);
+            const displayLabel = cmdNameMatch ? cmdNameMatch[1] : blockId;
+            const funcName = idToFuncMap[blockId] || displayLabel;
+
+            const colorMatch = /setColour\((\d+)\)/.exec(body);
+            const color = colorMatch ? parseInt(colorMatch[1]) : 230;
+
+            const tooltipMatch = /setTooltip\("(.*?)"\)/.exec(body);
+            const tooltip = tooltipMatch ? tooltipMatch[1] : "";
+
+            const hasPrev = body.includes('setPreviousStatement(true');
+            const hasNext = body.includes('setNextStatement(true');
+
+            const args = [];
+            const argRegex = /appendValueInput\('(.*?)'\)\.appendField\('(.*?)'\)/g;
+            let argMatch;
+            while ((argMatch = argRegex.exec(body)) !== null) {
+                args.push({ id: argMatch[1], label: argMatch[2] });
+            }
+
+            blocksData.push({
+                id: blockId,
+                funcName: funcName,      
+                displayLabel: displayLabel, 
+                color: color,
+                tooltip: tooltip,
+                prev: hasPrev,
+                next: hasNext,
+                args: args,
+                category: 'Commands' // Default, will update later
+            });
+        }
+
+        // 3. Parse Categories - IMPROVED REGEX
+        // Matches TOOLBOX_XML += '...'; with flexible whitespace and quote types
+        const xmlLines = [];
+        const xmlLineRegex = /TOOLBOX_XML\s*\+=\s*['"](.*?)['"];/g;
+        let xmlMatch;
+        while ((xmlMatch = xmlLineRegex.exec(content)) !== null) {
+            xmlLines.push(xmlMatch[1]);
+        }
+        
+        if (xmlLines.length > 0) {
+            const fullXml = xmlLines.join('');
+            try {
+                const parser = new DOMParser();
+                // Wrap in root to handle fragment parsing
+                const xmlDoc = parser.parseFromString(`<root>${fullXml}</root>`, "text/xml");
+                const categories = xmlDoc.querySelectorAll("category");
+                
+                categories.forEach(cat => {
+                    const catName = cat.getAttribute("name");
+                    if(catName !== 'Logic' && catName !== 'Math') { 
+                        knownCategories.add(catName);
+                    }
+
+                    const blocks = cat.querySelectorAll("block");
+                    blocks.forEach(b => {
+                        const type = b.getAttribute("type");
+                        const blockObj = blocksData.find(bd => bd.id === type);
+                        if (blockObj) {
+                            blockObj.category = catName;
+                        }
+                    });
+                });
+            } catch (e) {
+                console.warn("Failed to parse TOOLBOX_XML categories", e);
+            }
+        }
+        
+        // Final pass: ensure all used categories are in the known set
+        blocksData.forEach(b => {
+            if (b.category) knownCategories.add(b.category);
+        });
+
+        finishLoading();
+    }
+
+    function createNewBlock() {
+        const idSuffix = Math.floor(Math.random() * 10000);
+        const newBlock = {
+            id: `custom_block_${idSuffix}`,
+            funcName: `_CUSTOM_FUNC_${idSuffix}`,
+            displayLabel: 'New Command',
+            color: 230,
+            tooltip: '',
+            prev: true,
+            next: true,
+            args: [],
+            category: 'Commands'
+        };
+        
+        blocksData.push(newBlock);
+        knownCategories.add('Commands');
+        finishLoading();
+        // Select the new block
+        loadBlockToEditor(blocksData.length - 1);
+    }
+
+    function finishLoading() {
+        renderBlockList();
+        
+        const globalPlaceholder = document.getElementById('global-placeholder');
+        globalPlaceholder.classList.remove('d-flex'); 
+        globalPlaceholder.classList.add('d-none');    
+
+        document.getElementById('list-placeholder').style.display = 'none';
+
+        const editorInterface = document.getElementById('editor-interface');
+        editorInterface.classList.remove('d-none');
+        editorInterface.classList.add('d-flex');
+
+        changeRenderer(); 
+        if (blocksData.length > 0 && currentBlockIndex === -1) {
+            loadBlockToEditor(0);
+        }
+    }
+
+    // --- Renderer & Workspace ---
+    function changeRenderer() {
+        const renderer = document.getElementById('rendererSelect').value;
+        if (workspace) workspace.dispose();
+
+        workspace = Blockly.inject('preview-area', {
+            renderer: renderer,
+            scrollbars: true,
+            toolbox: false,
+            grid: { spacing: 25, length: 3, colour: '#495057', snap: true },
+            trashcan: false,
+            move: { scrollbars: true, drag: true, wheel: true }
+        });
+
+        workspace.svgGroup_.parentElement.style.backgroundColor = "#1a1d20";
+
+        if (currentBlockIndex !== -1) updatePreview();
+    }
+
+    // --- UI Rendering ---
+    function renderBlockList() {
+        const list = document.getElementById('blockList');
+        const search = document.getElementById('searchBox').value.toLowerCase();
+        list.innerHTML = '';
+
+        blocksData.forEach((block, index) => {
+            if (block.id.toLowerCase().includes(search) || 
+                block.displayLabel.toLowerCase().includes(search) ||
+                block.funcName.toLowerCase().includes(search)) {
+                
+                const item = document.createElement('button');
+                item.className = `list-group-item list-group-item-action text-start ${index === currentBlockIndex ? 'active' : ''}`;
+                item.innerHTML = `
+                    <div class="fw-bold text-truncate">${block.displayLabel}</div>
+                    <div style="font-size: 0.7rem; opacity: 0.5;" class="text-truncate font-monospace">${block.id}</div>
+                `;
+                item.onclick = () => loadBlockToEditor(index);
+                list.appendChild(item);
+            }
+        });
+    }
+
+    document.getElementById('searchBox').addEventListener('input', renderBlockList);
+
+    function loadBlockToEditor(index) {
+        currentBlockIndex = index;
+        const block = blocksData[index];
+        renderBlockList(); 
+
+        document.getElementById('editCommandName').value = block.displayLabel; 
+        document.getElementById('displayBlockId').textContent = block.id;
+        document.getElementById('displayFuncName').textContent = block.funcName; 
+        
+        document.getElementById('hueSlider').value = block.color;
+        document.getElementById('hueValueDisplay').textContent = `Hue: ${block.color}`;
+        
+        populateCategorySelect(block.category);
+
+        document.getElementById('editTooltip').value = block.tooltip;
+        document.getElementById('editPrev').checked = block.prev;
+        document.getElementById('editNext').checked = block.next;
+
+        const argsContainer = document.getElementById('argsContainer');
+        argsContainer.innerHTML = '';
+        if(block.args.length === 0) {
+            argsContainer.innerHTML = '<div class="text-muted small text-center py-3 fst-italic opacity-50">No parameters</div>';
+        }
+        block.args.forEach((arg, argIndex) => {
+            argsContainer.appendChild(createArgRow(arg, argIndex));
+        });
+
+        updatePreview();
+    }
+    
+    // --- Category Management ---
+    function populateCategorySelect(selectedCategory) {
+        const select = document.getElementById('categorySelect');
+        select.innerHTML = '';
+        
+        const sortedCats = Array.from(knownCategories).sort();
+        
+        sortedCats.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            if (cat === selectedCategory) option.selected = true;
+            select.appendChild(option);
+        });
+    }
+
+    function addNewCategory() {
+        const name = prompt("Enter new category name:");
+        if (name && name.trim() !== "") {
+            const cleanName = name.trim();
+            knownCategories.add(cleanName);
+            
+            // Assign new category to current block
+            if (currentBlockIndex !== -1) {
+                blocksData[currentBlockIndex].category = cleanName;
+                populateCategorySelect(cleanName);
+                updatePreview();
+            } else {
+                // If no block selected (rare), just add to list
+                populateCategorySelect(cleanName);
+            }
+        }
+    }
+
+    document.getElementById('categorySelect').addEventListener('change', (e) => {
+        if(currentBlockIndex !== -1) {
+            blocksData[currentBlockIndex].category = e.target.value;
+        }
+    });
+
+    function createArgRow(arg, index) {
+        const div = document.createElement('div');
+        div.className = 'input-group input-group-sm mb-2';
+        div.innerHTML = `
+            <span class="input-group-text bg-dark border-secondary text-muted">#${index+1}</span>
+            <input type="text" class="form-control bg-dark text-light border-secondary" value="${arg.label}" 
+                   placeholder="Parameter Name" oninput="updateArgLabel(${index}, this.value)">
+            <button class="btn btn-outline-danger border-secondary" onclick="removeArg(${index})" title="Delete">✕</button>
+        `;
+        return div;
+    }
+
+    // --- Interactive Logic ---
+    document.getElementById('editCommandName').addEventListener('input', (e) => {
+        blocksData[currentBlockIndex].displayLabel = e.target.value; 
+        renderBlockList();
+        updatePreview();
+    });
+
+    document.getElementById('hueSlider').addEventListener('input', (e) => {
+        const val = parseInt(e.target.value);
+        document.getElementById('hueValueDisplay').textContent = `Hue: ${val}`;
+        blocksData[currentBlockIndex].color = val;
+        updatePreview();
+    });
+
+    document.getElementById('editTooltip').addEventListener('input', (e) => { blocksData[currentBlockIndex].tooltip = e.target.value; updatePreview(); });
+    document.getElementById('editPrev').addEventListener('change', (e) => { blocksData[currentBlockIndex].prev = e.target.checked; updatePreview(); });
+    document.getElementById('editNext').addEventListener('change', (e) => { blocksData[currentBlockIndex].next = e.target.checked; updatePreview(); });
+
+    function updateArgLabel(argIndex, newVal) {
+        blocksData[currentBlockIndex].args[argIndex].label = newVal;
+        updatePreview();
+    }
+
+    function removeArg(argIndex) {
+        blocksData[currentBlockIndex].args.splice(argIndex, 1);
+        blocksData[currentBlockIndex].args.forEach((a, i) => a.id = `ARG_${i}`);
+        loadBlockToEditor(currentBlockIndex);
+    }
+
+    function addArg() {
+        const newId = `ARG_${blocksData[currentBlockIndex].args.length}`;
+        blocksData[currentBlockIndex].args.push({ id: newId, label: 'New Param' });
+        loadBlockToEditor(currentBlockIndex);
+    }
+
+    // --- Blockly Preview ---
+    function updatePreview() {
+        if (!workspace || currentBlockIndex === -1) return;
+        const block = blocksData[currentBlockIndex];
+
+        if (Blockly.Blocks[block.id]) delete Blockly.Blocks[block.id];
+
+        Blockly.Blocks[block.id] = {
+            init: function() {
+                this.appendDummyInput().appendField(block.displayLabel); 
+                block.args.forEach(arg => {
+                    this.appendValueInput(arg.id).appendField(arg.label);
+                });
+                if (block.prev) this.setPreviousStatement(true, null);
+                if (block.next) this.setNextStatement(true, null);
+                this.setColour(block.color);
+                this.setTooltip(block.tooltip);
+            }
+        };
+
+        workspace.clear();
+        try {
+            const previewBlock = workspace.newBlock(block.id);
+            previewBlock.initSvg();
+            previewBlock.render();
+            
+            const metrics = workspace.getMetrics();
+            const blockHW = previewBlock.getHeightWidth();
+            const x = (metrics.viewWidth / 2) - (blockHW.width / 2);
+            const y = (metrics.viewHeight / 2) - (blockHW.height / 2);
+            previewBlock.moveBy(x, y);
+            
+        } catch (e) {
+            console.warn("Preview warning:", e);
+        }
+    }
+
+    // --- Save & Download ---
+    function downloadFile() {
+        if (blocksData.length === 0) return alert("No data to save!");
+
+        const EOL = '\r\n';
+        let fileContent = `// Auto-generated Block Definitions${EOL}console.log('Loading static block definitions...');${EOL}var commandMap = {};${EOL}`;
+
+        blocksData.forEach(block => {
+            block.args.forEach((a, i) => a.id = `ARG_${i}`);
+
+            fileContent += `commandMap['${block.funcName}'] = { type: '${block.id}', args: ${block.args.length} };${EOL}`;
+
+            fileContent += `Blockly.Blocks['${block.id}'] = {${EOL}`;
+            fileContent += `  init: function() {${EOL}`;
+            
+            const safeDisplayLabel = block.displayLabel.replace(/'/g, "\\'");
+            fileContent += `    this.appendDummyInput().appendField('${safeDisplayLabel}');${EOL}`;
+            
+            block.args.forEach(arg => {
+                const safeLabel = arg.label.replace(/'/g, "\\'");
+                fileContent += `    this.appendValueInput('${arg.id}').appendField('${safeLabel}');${EOL}`;
+            });
+
+            if (block.prev) fileContent += `    this.setPreviousStatement(true, null);${EOL}`;
+            if (block.next) fileContent += `    this.setNextStatement(true, null);${EOL}`;
+            
+            fileContent += `    this.setColour(${block.color});${EOL}`;
+            const safeTooltip = block.tooltip.replace(/"/g, '\\"').replace(/\n/g, ' '); 
+            fileContent += `    this.setTooltip("${safeTooltip}");${EOL}`;
+            fileContent += `  }${EOL}};${EOL}`;
+            
+            fileContent += `Blockly.JavaScript['${block.id}'] = function(block) {${EOL}`;
+            fileContent += `  var code = '${block.funcName}(';${EOL}`;
+            
+            block.args.forEach((arg, index) => {
+                fileContent += `  var val = Blockly.JavaScript.valueToCode(block, '${arg.id}', Blockly.JavaScript.ORDER_ATOMIC) || '0';${EOL}`;
+                fileContent += `  val = val.replace(/^'|'$/g, '');${EOL}`;
+                fileContent += `  code += val;${EOL}`;
+                if (index < block.args.length - 1) {
+                    fileContent += `  code += ', ';${EOL}`;
+                }
+            });
+            
+            fileContent += `  code += ')\\n';${EOL}`;
+            fileContent += `  return code;${EOL}`;
+            fileContent += `};${EOL}`;
+        });
+
+        fileContent += `var TOOLBOX_XML = '<xml>';${EOL}`;
+        fileContent += `TOOLBOX_XML += '<category name="Logic" colour="210">';${EOL}`;
+        fileContent += `TOOLBOX_XML += '<block type="controls_if"></block>';${EOL}`;
+        fileContent += `TOOLBOX_XML += '<block type="logic_compare"></block>';${EOL}`;
+        fileContent += `TOOLBOX_XML += '<block type="math_number"></block>';${EOL}`;
+        fileContent += `TOOLBOX_XML += '<block type="text"></block>';${EOL}`;
+        fileContent += `TOOLBOX_XML += '</category>';${EOL}`;
+
+        const categories = {};
+        blocksData.forEach(b => {
+            const cat = b.category || 'Commands';
+            if (!categories[cat]) categories[cat] = [];
+            categories[cat].push(b);
+        });
+
+        for (const [catName, blocks] of Object.entries(categories)) {
+            const color = 230; 
+            fileContent += `TOOLBOX_XML += '<category name="${catName}" colour="${color}">';${EOL}`;
+            blocks.forEach(b => {
+                fileContent += `TOOLBOX_XML += '<block type="${b.id}"></block>';${EOL}`;
+            });
+            fileContent += `TOOLBOX_XML += '</category>';${EOL}`;
+        }
+        
+        fileContent += `TOOLBOX_XML += '</xml>';`;
+
+        const blob = new Blob([fileContent], { type: 'text/javascript' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'block_defs.js';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+</script>
+
+</body>
+</html>

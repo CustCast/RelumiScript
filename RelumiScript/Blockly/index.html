@@ -27,7 +27,7 @@
         Blockly.Blocks['bdsp_label'] = {
             init: function () {
                 this.appendDummyInput().appendField("Label:").appendField(new Blockly.FieldTextInput("Label_Name"), "LABEL_NAME");
-                this.setPreviousStatement(true, null);
+                this.setPreviousStatement(false , null);
                 this.setNextStatement(true, null);
                 this.setColour(60);
             }
@@ -36,13 +36,40 @@
             return block.getFieldValue('LABEL_NAME') + ':\n';
         };
 
+        var relumiTheme = Blockly.Theme.defineTheme('relumi', {
+            'base': Blockly.Themes.Classic,
+            'blockStyles': {
+                'logic_blocks': { 'colourPrimary': "#4a148c" }, // Purple Logic
+                'loop_blocks': { 'colourPrimary': "#b71c1c" }   // Red Loops
+            },
+            'componentStyles': {
+                'workspaceBackgroundColour': '#1e1e1e',
+                'toolboxBackgroundColour': '#333',
+                'toolboxForegroundColour': '#fff',
+                'flyoutBackgroundColour': '#252526',
+                'flyoutForegroundColour': '#ccc',
+                'flyoutOpacity': 1,
+                'scrollbarColour': '#797979',
+                'insertionMarkerColour': '#fff',
+                'insertionMarkerOpacity': 0.3,
+                'scrollbarOpacity': 0.4,
+                'cursorColour': '#d0d0d0'
+            },
+            'fontStyle': {
+                'family': 'Segoe UI, sans-serif',
+                'weight': 'bold',
+                'size': 12
+            }
+        });
+
         var workspace = Blockly.inject('blocklyDiv', {
             media: 'https://unpkg.com/blockly/media/',
+            renderer: 'zelos',
             toolbox: (typeof TOOLBOX_XML !== 'undefined') ? TOOLBOX_XML : '<xml><category name="Error" colour="0"></category></xml>',
             zoom: { controls: true, wheel: true, startScale: 0.8, maxScale: 3, minScale: 0.3, scaleSpeed: 1.2 },
             grid: { spacing: 20, length: 3, colour: '#444', snap: true },
             trashcan: true,
-            theme: Blockly.Themes.Dark
+            theme: relumiTheme
         });
 
         var isDecompiling = false;
@@ -71,8 +98,8 @@
                         var block = workspace.newBlock('bdsp_label');
                         block.setFieldValue(labelMatch[1], 'LABEL_NAME');
                         block.initSvg(); block.render();
-
-                        if (previousBlock && previousBlock.nextConnection) {
+                        // Only connect if the new block (e.g. Label) actually accepts a top connection
+                        if (previousBlock && previousBlock.nextConnection && block.previousConnection) {
                             previousBlock.nextConnection.connect(block.previousConnection);
                         }
                         previousBlock = block;
@@ -117,7 +144,7 @@
                         }
 
                         block.initSvg(); block.render();
-                        if (previousBlock && previousBlock.nextConnection) {
+                        if (previousBlock && previousBlock.nextConnection && block.previousConnection) {
                             previousBlock.nextConnection.connect(block.previousConnection);
                         }
                         previousBlock = block;
