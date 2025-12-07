@@ -10,14 +10,14 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Avalonia" Version="11.3.9" />
-		<PackageReference Include="Avalonia.Desktop" Version="11.3.9" />
-		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.9" />
-		<PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.9" />
+		<PackageReference Include="Avalonia" Version="11.2.3" />
+		<PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
+		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
+		<PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.3" />
 
-		<PackageReference Include="AssetsTools.NET" Version="3.0.2" />
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-		<PackageReference Include="System.Text.Encoding.CodePages" Version="10.0.0" />
+		<PackageReference Include="AssetsTools.NET" Version="3.0.0" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+		<PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
 
 		<PackageReference Include="WebView.Avalonia" Version="11.0.0.1" />
 		<PackageReference Include="WebView.Avalonia.Desktop" Version="11.0.0.1" />
@@ -34,6 +34,9 @@
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
 		<Content Include="JSON\**">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</Content>
+		<Content Include="Assets\**">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
 	</ItemGroup>

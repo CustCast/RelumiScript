@@ -1,7 +1,9 @@
-﻿using Avalonia.Controls;
+﻿using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,21 +11,48 @@ using System.Linq;
 
 namespace RelumiScript
 {
+    public class AtlasData
+    {
+        [JsonProperty("size")] public int Size { get; set; }
+        [JsonProperty("glyphs")] public Dictionary<string, GlyphData> Glyphs { get; set; }
+    }
+
+    public class GlyphData
+    {
+        [JsonProperty("p")] public int Page { get; set; }
+        [JsonProperty("x")] public int X { get; set; }
+        [JsonProperty("y")] public int Y { get; set; }
+        [JsonProperty("w")] public int Width { get; set; }
+        [JsonProperty("h")] public int Height { get; set; }
+        [JsonProperty("ox")] public int OffsetX { get; set; }
+        [JsonProperty("oy")] public int OffsetY { get; set; }
+    }
+
     public class MessageRenderer
     {
-        private Dictionary<string, double> _metrics = new Dictionary<string, double>();
+        private Dictionary<string, double> _metrics = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
+        // Constants derived from main.py logic
         private const double BaseFontSize = 54.0;
         private const double BaseMetric = 573.0;
+        private const double MaxWidth = 1080.0;
+
+        // Conversion factor: Game Units -> Screen Pixels
+        // 1080px / 573 units = ~1.8848 pixels per unit
+        private const double PixelsPerUnit = MaxWidth / BaseMetric;
 
         private string _assetDir;
         private Bitmap _bgImage;
 
-        // Constructor now requires the path to the 'Assets' folder
+        private AtlasData _atlasData;
+        private List<Bitmap> _atlasPages = new List<Bitmap>();
+
         public MessageRenderer(string assetRoot)
         {
             _assetDir = assetRoot;
             LoadMetrics();
             LoadBackground();
+            LoadAtlas();
         }
 
         private void LoadMetrics()
@@ -36,9 +65,7 @@ namespace RelumiScript
                     if (string.IsNullOrWhiteSpace(line) || line.StartsWith("//")) continue;
                     var parts = line.Split(new[] { ' ', ',' }, 2, StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length == 2 && double.TryParse(parts[1], out double width))
-                    {
                         _metrics[parts[0]] = width;
-                    }
                 }
             }
         }
@@ -46,9 +73,35 @@ namespace RelumiScript
         private void LoadBackground()
         {
             string path = Path.Combine(_assetDir, "textbox.png");
-            if (File.Exists(path))
+            if (File.Exists(path)) _bgImage = new Bitmap(path);
+        }
+
+        private void LoadAtlas()
+        {
+            string fontDir = Path.Combine(_assetDir, "Fonts");
+            string mapPath = Path.Combine(fontDir, "atlas_map.json");
+
+            if (File.Exists(mapPath))
             {
-                _bgImage = new Bitmap(path);
+                try
+                {
+                    string json = File.ReadAllText(mapPath);
+                    _atlasData = JsonConvert.DeserializeObject<AtlasData>(json);
+
+                    var safeMap = new Dictionary<string, GlyphData>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var kvp in _atlasData.Glyphs) safeMap[kvp.Key] = kvp.Value;
+                    _atlasData.Glyphs = safeMap;
+
+                    int pageIndex = 0;
+                    while (true)
+                    {
+                        string imgPath = Path.Combine(fontDir, $"atlas_{pageIndex}.png");
+                        if (!File.Exists(imgPath)) break;
+                        _atlasPages.Add(new Bitmap(imgPath));
+                        pageIndex++;
+                    }
+                }
+                catch (Exception ex) { Console.WriteLine($"Atlas Load Error: {ex.Message}"); }
             }
         }
 
@@ -57,16 +110,9 @@ namespace RelumiScript
             double width = 0;
             for (int i = 0; i < text.Length; i++)
             {
-                if (i + 2 < text.Length && text.Substring(i, 3) == "{n}")
-                {
-                    width += 343.6875;
-                    i += 2;
-                    continue;
-                }
-
+                if (i + 2 < text.Length && text.Substring(i, 3) == "{n}") { width += 343.6875; i += 2; continue; }
                 string c = text[i].ToString();
                 if (c == "'") c = "’";
-
                 if (_metrics.TryGetValue(c, out double val)) width += val;
                 else if (char.IsDigit(c[0])) width += 15.0;
                 else width += _metrics.GetValueOrDefault(" ", 8.67);
@@ -84,57 +130,71 @@ namespace RelumiScript
             };
 
             if (string.IsNullOrEmpty(rawText)) return canvas;
+            if (_atlasData == null || _atlasPages.Count == 0)
+            {
+                canvas.Children.Add(new TextBlock { Text = "Atlas Missing", Foreground = Brushes.Red, FontSize = 30, Margin = new Thickness(50) });
+                return canvas;
+            }
 
             var lines = rawText.Replace("{n}", "\n").Replace("\\r", "").Split('\n');
 
             double currentY = 50;
             double startX = 110;
+            double refSize = _atlasData.Size;
 
             foreach (var line in lines)
             {
                 double lineWidth = MeasureText(line);
-                double scale = lineWidth > BaseMetric ? (BaseMetric / lineWidth) : 1.0;
-                double fontSize = BaseFontSize * scale;
-                double renderHeight = fontSize;
+                double lineScale = lineWidth > BaseMetric ? (BaseMetric / lineWidth) : 1.0;
 
-                var linePanel = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Height = renderHeight
-                };
+                double targetFontSize = BaseFontSize * lineScale;
+                double renderScale = targetFontSize / refSize;
 
-                Canvas.SetLeft(linePanel, startX);
-                Canvas.SetTop(linePanel, currentY);
+                double cursorX = startX;
 
                 foreach (char c in line)
                 {
+                    string charStr = c.ToString();
+                    if (charStr == "'") charStr = "’";
+
+                    // 1. Get Metric (Game Units)
+                    double metricWidth = 8.67;
+                    if (_metrics.TryGetValue(charStr, out double w)) metricWidth = w;
+                    else if (char.IsDigit(c)) metricWidth = 15.0;
+
+                    // 2. Convert to Pixels: Metric * Ratio * Scale
+                    double advancePx = metricWidth * PixelsPerUnit * lineScale;
+
                     if (c == ' ')
                     {
-                        linePanel.Children.Add(new Panel { Width = (fontSize / 3) });
+                        cursorX += advancePx;
                         continue;
                     }
 
                     string hex = ((int)c).ToString("X4");
-                    string imgPath = Path.Combine(_assetDir, "Fonts", $"{hex}.png");
 
-                    if (File.Exists(imgPath))
+                    if (_atlasData.Glyphs.TryGetValue(hex, out GlyphData data) && data.Page < _atlasPages.Count)
                     {
+                        var croppedBitmap = new CroppedBitmap(_atlasPages[data.Page], new PixelRect(data.X, data.Y, data.Width, data.Height));
                         var img = new Image
                         {
-                            Source = new Bitmap(imgPath),
-                            Height = fontSize,
-                            Stretch = Stretch.Uniform
+                            Source = croppedBitmap,
+                            Width = data.Width * renderScale,
+                            Height = data.Height * renderScale,
+                            Stretch = Stretch.Fill
                         };
-                        linePanel.Children.Add(img);
-                    }
-                    else
-                    {
-                        linePanel.Children.Add(new Border { Background = Brushes.Red, Width = fontSize / 2, Height = fontSize });
-                    }
-                }
 
-                canvas.Children.Add(linePanel);
-                currentY += (renderHeight + 10);
+                        double drawX = cursorX + (data.OffsetX * renderScale);
+                        double drawY = currentY + (data.OffsetY * renderScale);
+
+                        Canvas.SetLeft(img, drawX);
+                        Canvas.SetTop(img, drawY);
+                        canvas.Children.Add(img);
+                    }
+
+                    cursorX += advancePx;
+                }
+                currentY += (targetFontSize + 10);
             }
 
             return new Viewbox { Child = canvas, Stretch = Stretch.Uniform };

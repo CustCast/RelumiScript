@@ -21,9 +21,6 @@ namespace RelumiScript
         private bool _isBlocklyReady = false;
         private string _currentScriptContent = "";
 
-        // Track if we are currently forcing the preview pane open
-        private bool _isPreviewActive = false;
-
         public MainWindow()
         {
             InitializeComponent();
@@ -36,12 +33,29 @@ namespace RelumiScript
         private void TryInitMessageRenderer()
         {
             if (_messageRenderer != null) return;
+
             string jsonDir = FindJsonFolder();
             if (!string.IsNullOrEmpty(jsonDir))
             {
+                // Assets should be strictly parallel to JSON folder
                 string assetsDir = Path.GetFullPath(Path.Combine(jsonDir, "..", "Assets"));
+
                 if (Directory.Exists(assetsDir))
-                    _messageRenderer = new MessageRenderer(assetsDir);
+                {
+                    try
+                    {
+                        _messageRenderer = new MessageRenderer(assetsDir);
+                        Console.WriteLine($"MessageRenderer initialized from: {assetsDir}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"MessageRenderer Failed: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Assets folder not found at: {assetsDir}");
+                }
             }
         }
 
@@ -53,8 +67,6 @@ namespace RelumiScript
             if (File.Exists(monacoPath))
             {
                 Editor.Url = new Uri($"file:///{monacoPath.Replace("\\", "/")}");
-
-                // 1. Listen for messages from Monaco
                 Editor.WebMessageReceived += OnEditorMessageReceived;
 
                 Editor.NavigationCompleted += async (sender, args) =>
@@ -63,7 +75,6 @@ namespace RelumiScript
                     {
                         _isEditorReady = true;
                         await GenerateAndInjectSyntax();
-                        // 2. Inject the click listener
                         await InjectMonacoListeners();
                     }
                 };
@@ -71,62 +82,35 @@ namespace RelumiScript
             else StatusText.Text = $"Error: Monaco not found at {monacoPath}";
         }
 
-        // --- NEW: Inject JS Listener ---
         private async Task InjectMonacoListeners()
         {
             string script = @"
                 editor.onDidChangeCursorPosition((e) => {
                     var model = editor.getModel();
                     var lineContent = model.getLineContent(e.position.lineNumber);
-                    // Match pattern: _TALKMSG(@filename%labelname)
                     var match = lineContent.match(/_TALKMSG\s*\(\s*@([^%]+)%([^)]+)\s*\)/);
                     if (match) {
-                        // Send 'PREVIEW:filename%labelname' to C#
                         window.chrome.webview.postMessage('PREVIEW:' + match[1] + '%' + match[2]);
-                    } else {
-                        // Send 'HIDE' to close preview if not on a message line
-                        window.chrome.webview.postMessage('HIDE_PREVIEW');
                     }
                 });
             ";
             await Editor.ExecuteScriptAsync(script);
         }
 
-        // --- NEW: Handle Message from Monaco ---
         private void OnEditorMessageReceived(object sender, WebViewMessageReceivedEventArgs e)
         {
             string msg = e.Message;
-            if (string.IsNullOrEmpty(msg)) return;
+            if (string.IsNullOrEmpty(msg) || !msg.StartsWith("PREVIEW:")) return;
 
-            if (msg == "HIDE_PREVIEW")
-            {
-                if (_isPreviewActive)
-                {
-                    _isPreviewActive = false;
-                    MessagePreviewScroller.IsVisible = false;
-                }
-                return;
-            }
-
-            if (msg.StartsWith("PREVIEW:"))
-            {
-                // Format: PREVIEW:dp_poffin_main%DP_poffin_main_178
-                var parts = msg.Substring(8).Split('%');
-                if (parts.Length != 2) return;
-
-                string fileName = parts[0].Trim();
-                string label = parts[1].Trim();
-
-                ShowMessagePreview(fileName, label);
-            }
+            var parts = msg.Substring(8).Split('%');
+            if (parts.Length == 2) ShowMessagePreview(parts[0].Trim(), parts[1].Trim());
         }
 
         private void ShowMessagePreview(string fileName, string label)
         {
-            if (_messageRenderer == null) return;
+            TryInitMessageRenderer();
 
-            // Look up the text in our already loaded TreeView data
-            // (Assuming you have loaded the message bundle)
+            // Check tree data
             var allFiles = ScriptTree.ItemsSource as IEnumerable<FileNode>;
             if (allFiles == null) return;
 
@@ -136,16 +120,14 @@ namespace RelumiScript
                 var targetScript = targetFile.Scripts.FirstOrDefault(s => s.Label.Equals(label, StringComparison.OrdinalIgnoreCase));
                 if (targetScript != null)
                 {
-                    // Render and Show
-                    _isPreviewActive = true;
-                    MessagePreviewScroller.IsVisible = true;
                     MessagePreviewContent.Children.Clear();
-                    MessagePreviewContent.Children.Add(_messageRenderer.Render(targetScript.Content));
+                    if (_messageRenderer != null)
+                        MessagePreviewContent.Children.Add(_messageRenderer.Render(targetScript.Content));
+                    else
+                        StatusText.Text = "Preview Error: Renderer not initialized.";
                 }
             }
         }
-
-        // ... [Rest of the file remains unchanged: InitializeBlockly, BtnLoad_Click, etc.] ...
 
         private void InitializeBlockly()
         {
@@ -156,44 +138,23 @@ namespace RelumiScript
             if (File.Exists(blocklyPath))
             {
                 BlockEditor.Url = new Uri($"file:///{blocklyPath.Replace("\\", "/")}");
-                BlockEditor.NavigationCompleted += (sender, args) =>
-                {
-                    if (args.IsSuccess) _isBlocklyReady = true;
-                };
-                BlockEditor.WebMessageReceived += (s, e) =>
-                {
-                    _currentScriptContent = e.Message;
-                };
+                BlockEditor.NavigationCompleted += (sender, args) => { if (args.IsSuccess) _isBlocklyReady = true; };
+                BlockEditor.WebMessageReceived += (s, e) => { _currentScriptContent = e.Message; };
             }
         }
 
         private string FindJsonFolder()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string[] candidates = {
-                Path.Combine(baseDir, "JSON"),
-                Path.Combine(baseDir, "..", "..", "..", "JSON"),
-                Path.Combine(Directory.GetCurrentDirectory(), "JSON")
-            };
-
-            foreach (var path in candidates)
-            {
-                if (Directory.Exists(path) && File.Exists(Path.Combine(path, "commands.json")))
-                    return Path.GetFullPath(path);
-            }
+            string[] candidates = { Path.Combine(baseDir, "JSON"), Path.Combine(baseDir, "..", "..", "..", "JSON"), Path.Combine(Directory.GetCurrentDirectory(), "JSON") };
+            foreach (var path in candidates) { if (Directory.Exists(path) && File.Exists(Path.Combine(path, "commands.json"))) return Path.GetFullPath(path); }
             return null;
         }
 
         private string LoadCleanJson(string path)
         {
             if (!File.Exists(path)) return "[]";
-            try
-            {
-                string content = File.ReadAllText(path);
-                var obj = JsonConvert.DeserializeObject(content);
-                return JsonConvert.SerializeObject(obj, Formatting.None);
-            }
-            catch { return "[]"; }
+            try { return JsonConvert.SerializeObject(JsonConvert.DeserializeObject(File.ReadAllText(path)), Formatting.None); } catch { return "[]"; }
         }
 
         private async Task GenerateAndInjectSyntax()
@@ -216,43 +177,23 @@ namespace RelumiScript
                     string sys = LoadCleanJson(Path.Combine(jsonDir, "sys_flags.json"));
                     string work = LoadCleanJson(Path.Combine(jsonDir, "work.json"));
                     string pokes = JsonConvert.SerializeObject(_service.PokemonMap, Formatting.None);
-                    bool hasData = cmds.Length > 20;
 
                     string appDir = AppDomain.CurrentDomain.BaseDirectory;
                     string monacoPath = Path.Combine(appDir, "Monaco", "syntax_data.js");
-
-                    string monacoContent = $@"
-                        window.RELUMI_DATA = {{
-                            commands: {cmds},
-                            flags: {flags},
-                            sysflags: {sys},
-                            works: {work},
-                            pokes: {pokes}
-                        }};
-                        window.RELUMI_DATA_LOADED = {hasData.ToString().ToLower()};
-                    ";
-                    File.WriteAllText(monacoPath, monacoContent, Encoding.UTF8);
+                    string content = $"window.RELUMI_DATA = {{ commands: {cmds}, flags: {flags}, sysflags: {sys}, works: {work}, pokes: {pokes} }}; window.RELUMI_DATA_LOADED = true;";
+                    File.WriteAllText(monacoPath, content, Encoding.UTF8);
                 });
 
-                long timestamp = DateTime.Now.Ticks;
-                if (_isEditorReady)
-                {
-                    await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={timestamp}');");
-                }
+                if (_isEditorReady) await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={DateTime.Now.Ticks}');");
 
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => {
-                    StatusText.Text = $"Ready. Backend: {_service.InitSummary}";
-                });
+                // Only update status if we actually did something useful
+                if (!_service.InitSummary.Contains("Cmds: 0"))
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() => { StatusText.Text = $"Ready. Backend: {_service.InitSummary}"; });
             }
-            catch (Exception ex)
-            {
-                Avalonia.Threading.Dispatcher.UIThread.Post(() => {
-                    StatusText.Text = "Init Error: " + ex.Message;
-                });
-            }
+            catch (Exception ex) { Avalonia.Threading.Dispatcher.UIThread.Post(() => { StatusText.Text = "Init Error: " + ex.Message; }); }
         }
 
-        private async void OnTabChanged(object sender, RoutedEventArgs e)
+        private void OnTabChanged(object sender, RoutedEventArgs e)
         {
             if (TabCode.IsChecked == true)
             {
@@ -267,7 +208,7 @@ namespace RelumiScript
                 if (_isBlocklyReady && !string.IsNullOrEmpty(_currentScriptContent))
                 {
                     string safe = JsonConvert.ToString(_currentScriptContent);
-                    await BlockEditor.ExecuteScriptAsync($"loadScript({safe});");
+                    _ = BlockEditor.ExecuteScriptAsync($"loadScript({safe});");
                 }
             }
         }
@@ -276,20 +217,16 @@ namespace RelumiScript
         {
             _currentScriptContent = content;
             string safe = JsonConvert.ToString(content);
-
             if (_isEditorReady)
             {
                 string jsCommand = $"editor.setValue(window.formatLegacyScript ? window.formatLegacyScript({safe}) : {safe});";
                 await Editor.ExecuteScriptAsync(jsCommand);
                 await Editor.ExecuteScriptAsync("editor.updateOptions({readOnly: false});");
             }
-
-            if (_isBlocklyReady && BlockEditor.IsVisible)
-            {
-                await BlockEditor.ExecuteScriptAsync($"loadScript({safe});");
-            }
+            if (_isBlocklyReady && BlockEditor.IsVisible) await BlockEditor.ExecuteScriptAsync($"loadScript({safe});");
         }
 
+        // Improved search
         private string FindFileInStructure(string root, string[] segments)
         {
             string full = Path.Combine(root, Path.Combine(segments));
@@ -301,65 +238,72 @@ namespace RelumiScript
                 if (File.Exists(partial)) return partial;
             }
 
-            var fileName = segments.Last();
             try
             {
-                var found = Directory.EnumerateFiles(root, fileName, SearchOption.AllDirectories).FirstOrDefault();
+                var found = Directory.EnumerateFiles(root, segments.Last(), SearchOption.AllDirectories).FirstOrDefault();
                 if (found != null) return found;
             }
             catch { }
-
             return null;
         }
 
         private async void BtnLoad_Click(object sender, RoutedEventArgs e)
         {
             var topLevel = TopLevel.GetTopLevel(this);
-            var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+            var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Dump Folder" });
+            if (folders.Count == 0) return;
+
+            StatusText.Text = "Scanning...";
+            var rootPath = folders[0].Path.LocalPath;
+
+            // 1. Locate Files
+            string evScriptPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Dpr", "ev_script" });
+            string pokemonMsgPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Message", "common_msbt" });
+            string scriptMsgPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Message", "english" });
+
+            if (string.IsNullOrEmpty(evScriptPath)) { StatusText.Text = "Error: 'ev_script' not found."; return; }
+
+            // 2. Initialize JSONs
+            if (_service.InitSummary.Contains("Cmds: 0"))
             {
-                AllowMultiple = false,
-                Title = "Select Dump Folder"
-            });
-
-            if (folders.Count > 0)
-            {
-                StatusText.Text = "Processing...";
-                var rootPath = folders[0].Path.LocalPath;
-
-                string evScriptPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Dpr", "ev_script" });
-                string msgPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Message", "common_msbt" });
-
-                if (string.IsNullOrEmpty(evScriptPath))
-                {
-                    StatusText.Text = $"Error: 'ev_script' not found in: {rootPath}";
-                    return;
-                }
-
-                if (_service.InitSummary.Contains("Cmds: 0"))
-                {
-                    string jsonDir = FindJsonFolder();
-                    if (!string.IsNullOrEmpty(jsonDir)) _service.Initialize(jsonDir);
-                }
-
-                if (!string.IsNullOrEmpty(msgPath))
-                {
-                    StatusText.Text = "Loading Message Data...";
-                    await Task.Run(() => _service.LoadPokemonData(msgPath));
-                    await GenerateAndInjectSyntax();
-                }
-
-                var loadedScripts = await Task.Run(() => _service.LoadAndDecompile(evScriptPath));
-                var loadedMessages = !string.IsNullOrEmpty(msgPath)
-                    ? await Task.Run(() => _service.LoadMessageFiles(msgPath))
-                    : new List<FileNode>();
-
-                var rootItems = new List<FileNode>();
-                rootItems.AddRange(loadedScripts);
-                rootItems.AddRange(loadedMessages);
-
-                ScriptTree.ItemsSource = rootItems.OrderBy(x => x.Name).ToList();
-                StatusText.Text = $"Loaded {loadedScripts.Count} scripts, {loadedMessages.Count} messages.";
+                string jsonDir = FindJsonFolder();
+                if (!string.IsNullOrEmpty(jsonDir)) _service.Initialize(jsonDir);
             }
+
+            // 3. Load Pokemon Names (from common_msbt)
+            if (!string.IsNullOrEmpty(pokemonMsgPath))
+            {
+                await Task.Run(() => _service.LoadPokemonData(pokemonMsgPath));
+            }
+            else
+            {
+                Console.WriteLine("Warning: common_msbt not found, Pokemon names missing.");
+            }
+
+            // 4. Update Syntax (Needs Pokemon names)
+            await GenerateAndInjectSyntax();
+
+            // 5. Load Main Scripts
+            var loadedScripts = await Task.Run(() => _service.LoadAndDecompile(evScriptPath));
+
+            // 6. Load Messages (from english)
+            var loadedMessages = new List<FileNode>();
+            if (!string.IsNullOrEmpty(scriptMsgPath))
+            {
+                loadedMessages = await Task.Run(() => _service.LoadMessageFiles(scriptMsgPath));
+            }
+            else
+            {
+                Console.WriteLine("Warning: english bundle not found, messages missing.");
+            }
+
+            // 7. Populate Tree
+            var rootItems = new List<FileNode>();
+            rootItems.AddRange(loadedScripts);
+            rootItems.AddRange(loadedMessages);
+
+            ScriptTree.ItemsSource = rootItems.OrderBy(x => x.Name).ToList();
+            StatusText.Text = $"Loaded {loadedScripts.Count} scripts, {loadedMessages.Count} messages.";
         }
 
         private void ScriptTree_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -371,34 +315,21 @@ namespace RelumiScript
 
                 if (parent != null && parent.IsMessage && _messageRenderer != null)
                 {
-                    // Show full message preview (already handled by OnEditorMessageReceived logic, but good for clicking tree too)
-                    MessagePreviewScroller.IsVisible = true;
+                    // Update Preview
                     MessagePreviewContent.Children.Clear();
                     MessagePreviewContent.Children.Add(_messageRenderer.Render(s.Content));
                 }
                 else
                 {
-                    // Regular script view
-                    MessagePreviewScroller.IsVisible = false; // Ensure hidden
-                    if (TabCode.IsChecked == true) Editor.IsVisible = true;
-                    else BlockEditor.IsVisible = true;
-
+                    // Show Code
                     SetEditorText(s.Content);
                 }
             }
             else if (ScriptTree.SelectedItem is FileNode f)
             {
                 if (f.IsMessage) return;
-
-                MessagePreviewScroller.IsVisible = false;
-                if (TabCode.IsChecked == true) Editor.IsVisible = true;
-
                 StringBuilder sb = new StringBuilder();
-                foreach (var script in f.Scripts)
-                {
-                    sb.AppendLine(script.Content);
-                    sb.AppendLine();
-                }
+                foreach (var script in f.Scripts) { sb.AppendLine(script.Content); sb.AppendLine(); }
                 SetEditorText(sb.ToString());
             }
         }

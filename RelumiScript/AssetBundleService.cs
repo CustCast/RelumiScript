@@ -10,45 +10,28 @@ using System.Text;
 
 namespace RelumiScript
 {
-    public class NameDef
-    {
-        [JsonProperty("Id")] public int Id { get; set; }
-        [JsonProperty("Name")] public string Name { get; set; }
-    }
-
-    public class FileNameDef
-    {
-        public string FileName { get; set; }
-        public string FriendlyName { get; set; }
-    }
+    public class NameDef { [JsonProperty("Id")] public int Id { get; set; } [JsonProperty("Name")] public string Name { get; set; } }
+    public class FileNameDef { public string FileName { get; set; } public string FriendlyName { get; set; } }
 
     public class FileNode
     {
         public string Name { get; set; }
         public bool IsMessage { get; set; }
         public List<ScriptNode> Scripts { get; set; } = new List<ScriptNode>();
-
-        // UI Helpers
         public string Icon => IsMessage ? "💬" : "📜";
         public string Color => IsMessage ? "#569CD6" : "#4EC9B0";
     }
 
-    public class ScriptNode
-    {
-        public string Label { get; set; }
-        public string Content { get; set; }
-    }
+    public class ScriptNode { public string Label { get; set; } public string Content { get; set; } }
 
     public class AssetBundleService
     {
         private AssetsManager _manager;
-
         private Dictionary<int, string> _commandMap = new Dictionary<int, string>();
         private Dictionary<int, string> _flagMap = new Dictionary<int, string>();
         private Dictionary<int, string> _sysFlagMap = new Dictionary<int, string>();
         private Dictionary<int, string> _workMap = new Dictionary<int, string>();
         private Dictionary<string, string> _fileNameMap = new Dictionary<string, string>();
-
         public Dictionary<int, string> PokemonMap { get; private set; } = new Dictionary<int, string>();
 
         public string InitLog { get; private set; } = "Not Initialized";
@@ -66,7 +49,6 @@ namespace RelumiScript
                 LoadMap(jsonDir, "sys_flags.json", _sysFlagMap);
                 LoadMap(jsonDir, "work.json", _workMap);
                 LoadFileMap(jsonDir, "file_names.json");
-                InitLog = $"Backend Ready. {_commandMap.Count} cmds.";
             }
             catch (Exception ex) { InitLog = ex.Message; }
         }
@@ -84,7 +66,6 @@ namespace RelumiScript
                 catch { }
             }
         }
-
         private void LoadFileMap(string dir, string f)
         {
             string p = Path.Combine(dir, f);
@@ -93,219 +74,171 @@ namespace RelumiScript
                 try
                 {
                     var list = JsonConvert.DeserializeObject<List<FileNameDef>>(File.ReadAllText(p));
-                    if (list != null)
-                    {
-                        foreach (var d in list)
-                        {
-                            if (!string.IsNullOrEmpty(d.FileName) && !_fileNameMap.ContainsKey(d.FileName))
-                                _fileNameMap[d.FileName] = d.FriendlyName;
-                        }
-                    }
+                    if (list != null) foreach (var d in list) if (!_fileNameMap.ContainsKey(d.FileName)) _fileNameMap[d.FileName] = d.FriendlyName;
                 }
                 catch { }
             }
         }
 
-        // --- POKEMON LOADER ---
+        // Loads Pokemon Names from common_msbt
         public void LoadPokemonData(string msgBundlePath)
         {
             PokemonMap.Clear();
             if (!File.Exists(msgBundlePath)) return;
-
             try
             {
-                if (_manager.Files.Any(f => f.path == msgBundlePath))
-                {
-                    _manager.UnloadAssetsFile(msgBundlePath);
-                    _manager.UnloadBundleFile(msgBundlePath);
-                }
+                if (_manager.Files.Any(f => f.path == msgBundlePath)) { _manager.UnloadAssetsFile(msgBundlePath); _manager.UnloadBundleFile(msgBundlePath); }
+                var bundle = _manager.LoadBundleFile(msgBundlePath);
+                var afile = _manager.LoadAssetsFileFromBundle(bundle, 0);
 
-                var bundleInstance = _manager.LoadBundleFile(msgBundlePath);
-                var afile = _manager.LoadAssetsFileFromBundle(bundleInstance, 0);
-                var infos = afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour);
-
-                foreach (var info in infos)
+                foreach (var info in afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour))
                 {
                     var baseField = _manager.GetBaseField(afile, info);
-                    var nameField = baseField["m_Name"];
-                    if (!nameField.IsDummy && nameField.AsString == "english_ss_monsname")
+                    if (baseField["m_Name"].AsString == "english_ss_monsname")
                     {
-                        var entries = baseField["labelDataArray"]; // Primary check
+                        // Handle wrapped arrays
+                        var entries = baseField["labelDataArray"];
                         if (entries.IsDummy) entries = baseField["entries"];
-                        if (entries.IsDummy) entries = baseField["data"];
-                        if (entries.IsDummy) entries = baseField["Array"];
+                        if (!entries.IsDummy && entries.Children.Count == 1 && entries.Children[0].FieldName == "Array")
+                            entries = entries.Children[0];
 
-                        if (!entries.IsDummy && entries.Children.Count > 0)
+                        if (!entries.IsDummy)
                         {
-                            var items = (entries.Children[0].FieldName == "Array") ? entries.Children[0] : entries;
-                            foreach (var item in items.Children)
+                            foreach (var item in entries.Children)
                             {
-                                var indexField = item["arrayIndex"];
-                                var wordDataArray = item["wordDataArray"];
+                                var idx = item["arrayIndex"];
+                                var words = item["wordDataArray"];
+                                if (!words.IsDummy && words.Children.Count > 0 && words.Children[0].FieldName == "Array")
+                                    words = words.Children[0]; // Unwrap word array
 
-                                if (!indexField.IsDummy && !wordDataArray.IsDummy && wordDataArray.Children.Count > 0)
+                                if (!idx.IsDummy && !words.IsDummy && words.Children.Count > 0)
                                 {
-                                    int id = indexField.AsInt;
-                                    var firstWord = wordDataArray.Children[0];
-                                    if (firstWord.FieldName == "Array") firstWord = firstWord.Children[0];
-                                    var strField = firstWord["str"];
-                                    if (!strField.IsDummy) PokemonMap[id] = strField.AsString;
+                                    PokemonMap[idx.AsInt] = words.Children[0]["str"].AsString;
                                 }
                             }
-                            break;
                         }
+                        break;
                     }
                 }
             }
-            catch (Exception ex) { Console.WriteLine("Error loading pokemon: " + ex.Message); }
+            catch (Exception ex) { Console.WriteLine("PokeLoad Error: " + ex.Message); }
         }
 
-        // --- MESSAGE FILES LOADER ---
+        // Loads Messages from english (or any msbt bundle)
         public List<FileNode> LoadMessageFiles(string bundlePath)
         {
             var output = new List<FileNode>();
             try
             {
-                if (!_manager.Files.Any(f => f.path == bundlePath))
+                if (_manager.Files.Any(f => f.path == bundlePath)) { _manager.UnloadAssetsFile(bundlePath); _manager.UnloadBundleFile(bundlePath); }
+                var bundle = _manager.LoadBundleFile(bundlePath);
+                var afile = _manager.LoadAssetsFileFromBundle(bundle, 0);
+
+                foreach (var info in afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour))
                 {
-                    var bundle = _manager.LoadBundleFile(bundlePath);
-                    _manager.LoadAssetsFileFromBundle(bundle, 0);
-                }
-
-                var inst = _manager.Files.FirstOrDefault(f => f.path == bundlePath);
-                if (inst == null) return output;
-
-                var infos = inst.file.GetAssetsOfType(AssetClassID.MonoBehaviour);
-
-                foreach (var info in infos)
-                {
-                    var baseField = _manager.GetBaseField(inst, info);
-                    var nameField = baseField["m_Name"];
-                    if (nameField.IsDummy) continue;
-
-                    string name = nameField.AsString;
+                    var baseField = _manager.GetBaseField(afile, info);
+                    string name = baseField["m_Name"].AsString;
                     if (!name.StartsWith("english_") || name == "english_ss_monsname") continue;
 
-                    var fileNode = new FileNode { Name = name.Replace("english_", ""), IsMessage = true };
+                    var node = new FileNode { Name = name.Replace("english_", ""), IsMessage = true };
 
                     var entries = baseField["labelDataArray"];
                     if (entries.IsDummy) entries = baseField["entries"];
+                    if (!entries.IsDummy && entries.Children.Count == 1 && entries.Children[0].FieldName == "Array")
+                        entries = entries.Children[0];
 
-                    if (!entries.IsDummy && entries.Children.Count > 0)
+                    if (!entries.IsDummy)
                     {
-                        var items = (entries.Children[0].FieldName == "Array") ? entries.Children[0] : entries;
-                        foreach (var item in items.Children)
+                        foreach (var item in entries.Children)
                         {
-                            string label = item["labelName"].AsString;
-                            string text = "";
-                            var wordDataArray = item["wordDataArray"];
-                            if (!wordDataArray.IsDummy && wordDataArray.Children.Count > 0)
+                            string txt = "";
+                            var words = item["wordDataArray"];
+                            if (!words.IsDummy && words.Children.Count > 0 && words.Children[0].FieldName == "Array")
+                                words = words.Children[0];
+
+                            if (!words.IsDummy && words.Children.Count > 0)
                             {
-                                var words = (wordDataArray.Children[0].FieldName == "Array") ? wordDataArray.Children[0] : wordDataArray;
-                                if (words.Children.Count > 0) text = words.Children[0]["str"].AsString;
+                                txt = words.Children[0]["str"].AsString;
                             }
-                            fileNode.Scripts.Add(new ScriptNode { Label = label, Content = text });
+                            node.Scripts.Add(new ScriptNode { Label = item["labelName"].AsString, Content = txt });
                         }
                     }
-
-                    if (fileNode.Scripts.Count > 0)
+                    if (node.Scripts.Count > 0)
                     {
-                        fileNode.Scripts = fileNode.Scripts.OrderBy(s => s.Label).ToList();
-                        output.Add(fileNode);
+                        node.Scripts.Sort((a, b) => string.Compare(a.Label, b.Label));
+                        output.Add(node);
                     }
                 }
             }
-            catch (Exception ex) { Console.WriteLine("Msg Load Error: " + ex.Message); }
+            catch (Exception ex) { Console.WriteLine("MsgLoad Error: " + ex.Message); }
             return output.OrderBy(f => f.Name).ToList();
         }
 
-        // --- SCRIPT LOADER ---
         public List<FileNode> LoadAndDecompile(string bundlePath)
         {
             var output = new List<FileNode>();
             try
             {
-                if (_manager.Files.Any(f => f.path == bundlePath))
-                {
-                    _manager.UnloadAssetsFile(bundlePath);
-                    _manager.UnloadBundleFile(bundlePath);
-                }
+                if (_manager.Files.Any(f => f.path == bundlePath)) { _manager.UnloadAssetsFile(bundlePath); _manager.UnloadBundleFile(bundlePath); }
+                var bundle = _manager.LoadBundleFile(bundlePath);
+                var afile = _manager.LoadAssetsFileFromBundle(bundle, 0);
 
-                var bundleInstance = _manager.LoadBundleFile(bundlePath);
-                var afile = _manager.LoadAssetsFileFromBundle(bundleInstance, 0);
-                var infos = afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour);
-
-                foreach (var info in infos)
+                foreach (var info in afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour))
                 {
-                    try
+                    var baseField = _manager.GetBaseField(afile, info);
+                    string name = baseField["m_Name"].AsString;
+                    if (string.IsNullOrEmpty(name) || name.StartsWith("EvCam")) continue;
+
+                    string display = _fileNameMap.ContainsKey(name) ? $"{_fileNameMap[name]} ({name})" : name;
+                    var node = new FileNode { Name = display, IsMessage = false };
+
+                    var strList = baseField["StrList"];
+                    if (!strList.IsDummy && strList.Children.Count == 1 && strList.Children[0].FieldName == "Array")
+                        strList = strList.Children[0];
+
+                    var strings = new List<string>();
+                    if (!strList.IsDummy)
                     {
-                        var baseField = _manager.GetBaseField(afile, info);
-                        var nameField = baseField["m_Name"];
-                        if (nameField.IsDummy) continue;
+                        foreach (var s in strList.Children) strings.Add(s.AsString);
+                    }
 
-                        var internalName = nameField.AsString;
-                        if (string.IsNullOrEmpty(internalName) || internalName.StartsWith("EvCam")) continue;
+                    var scripts = baseField["Scripts"];
+                    if (scripts.IsDummy) continue;
+                    if (scripts.Children.Count == 1 && scripts.Children[0].FieldName == "Array") scripts = scripts.Children[0];
 
-                        string displayName = internalName;
-                        if (_fileNameMap.ContainsKey(internalName)) displayName = $"{_fileNameMap[internalName]} ({internalName})";
+                    for (int i = 0; i < scripts.Children.Count; i++)
+                    {
+                        var sb = new StringBuilder();
+                        var script = scripts[i];
+                        string label = !script["Label"].IsDummy ? script["Label"].AsString : $"{name}_seq_{i}";
+                        sb.AppendLine($"{label}:");
 
-                        var strListField = baseField["StrList"];
-                        List<string> stringTable = new List<string>();
-                        if (!strListField.IsDummy)
+                        var cmds = script["Commands"];
+                        if (!cmds.IsDummy && cmds.Children.Count == 1 && cmds.Children[0].FieldName == "Array") cmds = cmds.Children[0];
+
+                        if (!cmds.IsDummy)
                         {
-                            var data = (strListField.Children.Count == 1 && strListField.Children[0].FieldName == "Array") ? strListField.Children[0] : strListField;
-                            foreach (var s in data.Children) stringTable.Add(s.AsString);
-                        }
-
-                        var scriptsField = baseField["Scripts"];
-                        if (scriptsField.IsDummy) continue;
-                        if (scriptsField.Children.Count == 1 && scriptsField.Children[0].FieldName == "Array") scriptsField = scriptsField.Children[0];
-
-                        var fileNode = new FileNode { Name = displayName, IsMessage = false };
-
-                        for (int i = 0; i < scriptsField.Children.Count; i++)
-                        {
-                            var script = scriptsField[i];
-                            var sb = new StringBuilder();
-                            string label = $"{internalName}_seq_{i}";
-                            var labelField = script["Label"];
-                            if (!labelField.IsDummy && !string.IsNullOrEmpty(labelField.AsString)) label = labelField.AsString;
-
-                            sb.AppendLine($"{label}:");
-
-                            var commandsField = script["Commands"];
-                            if (!commandsField.IsDummy)
+                            foreach (var cmd in cmds.Children)
                             {
-                                if (commandsField.Children.Count == 1 && commandsField.Children[0].FieldName == "Array") commandsField = commandsField.Children[0];
+                                var args = cmd["Arg"];
+                                if (!args.IsDummy && args.Children.Count == 1 && args.Children[0].FieldName == "Array") args = args.Children[0];
 
-                                for (int j = 0; j < commandsField.Children.Count; j++)
+                                if (!args.IsDummy && args.Children.Count > 0)
                                 {
-                                    var cmd = commandsField[j];
-                                    var args = cmd["Arg"];
-                                    if (!args.IsDummy)
+                                    int id = args[0]["data"].AsInt;
+                                    string cmdName = _commandMap.ContainsKey(id) ? _commandMap[id] : $"cmd_{id}";
+                                    var argList = new List<string>();
+                                    for (int k = 1; k < args.Children.Count; k++)
                                     {
-                                        if (args.Children.Count == 1 && args.Children[0].FieldName == "Array") args = args.Children[0];
-                                        if (args.Children.Count > 0)
-                                        {
-                                            int cmdId = !args[0]["data"].IsDummy ? args[0]["data"].AsInt : 0;
-                                            string cmdName = _commandMap.ContainsKey(cmdId) ? _commandMap[cmdId] : $"cmd_{cmdId}";
-                                            var argList = new List<string>();
-                                            for (int k = 1; k < args.Children.Count; k++)
-                                            {
-                                                var type = !args[k]["argType"].IsDummy ? args[k]["argType"].AsInt : 0;
-                                                var val = !args[k]["data"].IsDummy ? args[k]["data"].AsInt : 0;
-                                                argList.Add(FormatArg(type, val, stringTable));
-                                            }
-                                            sb.AppendLine($"\t{cmdName} {string.Join(" ", argList)}");
-                                        }
+                                        argList.Add(FormatArg(args[k]["argType"].AsInt, args[k]["data"].AsInt, strings));
                                     }
+                                    sb.AppendLine($"\t{cmdName} {string.Join(" ", argList)}");
                                 }
                             }
-                            fileNode.Scripts.Add(new ScriptNode { Label = label, Content = sb.ToString() });
                         }
-                        if (fileNode.Scripts.Count > 0) output.Add(fileNode);
+                        node.Scripts.Add(new ScriptNode { Label = label, Content = sb.ToString() });
                     }
-                    catch { continue; }
+                    if (node.Scripts.Count > 0) output.Add(node);
                 }
             }
             catch (Exception ex) { output.Add(new FileNode { Name = "ERROR", Scripts = { new ScriptNode { Label = "Log", Content = ex.ToString() } } }); }
@@ -316,19 +249,14 @@ namespace RelumiScript
         {
             switch (type)
             {
-                case 1:
-                    byte[] bytes = BitConverter.GetBytes(val);
-                    float floatVal = BitConverter.ToSingle(bytes, 0);
-                    return floatVal.ToString(CultureInfo.InvariantCulture);
+                case 1: return BitConverter.ToSingle(BitConverter.GetBytes(val), 0).ToString(CultureInfo.InvariantCulture);
                 case 2: return _workMap.ContainsKey(val) ? _workMap[val] : $"var_{val}";
                 case 3: return _flagMap.ContainsKey(val) ? _flagMap[val] : $"flag_{val}";
                 case 4: return _sysFlagMap.ContainsKey(val) ? _sysFlagMap[val] : $"sys_{val}";
                 case 5:
                     if (val >= 0 && val < stringTable.Count)
                     {
-                        string rawString = stringTable[val];
-                        byte[] rawBytes = Encoding.GetEncoding("iso-8859-1").GetBytes(rawString);
-                        return $"\"{Encoding.UTF8.GetString(rawBytes)}\"";
+                        return $"\"{Encoding.UTF8.GetString(Encoding.GetEncoding("iso-8859-1").GetBytes(stringTable[val]))}\"";
                     }
                     return $"\"<MISSING_STR_{val}>\"";
                 default: return val.ToString();
