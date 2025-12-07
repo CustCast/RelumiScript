@@ -15,6 +15,14 @@ namespace RelumiScript
         [JsonProperty("Id")] public int Id { get; set; }
         [JsonProperty("Name")] public string Name { get; set; }
     }
+
+    // NEW: Class to model the structure of file_names.json
+    public class FileNameDef
+    {
+        [JsonProperty("FileName")] public string FileName { get; set; }
+        [JsonProperty("FriendlyName")] public string FriendlyName { get; set; }
+    }
+
     public class FileNode { public string Name { get; set; } public List<ScriptNode> Scripts { get; set; } = new List<ScriptNode>(); }
     public class ScriptNode { public string Label { get; set; } public string Content { get; set; } }
 
@@ -25,15 +33,19 @@ namespace RelumiScript
         private Dictionary<int, string> _flagMap = new Dictionary<int, string>();
         private Dictionary<int, string> _sysFlagMap = new Dictionary<int, string>();
         private Dictionary<int, string> _workMap = new Dictionary<int, string>();
+        // NEW: Dictionary to store friendly file names
+        private Dictionary<string, string> _fileNamesMap = new Dictionary<string, string>();
 
         public string InitLog { get; private set; } = "Not Initialized";
-        public string InitSummary => $"Cmds: {_commandMap.Count}, Flags: {_flagMap.Count}";
+        // UPDATED: Include count of loaded file names
+        public string InitSummary => $"Cmds: {_commandMap.Count}, Files: {_fileNamesMap.Count}";
 
         public AssetBundleService() { _manager = new AssetsManager(); }
 
         public void Initialize(string jsonDir)
         {
-            _commandMap.Clear(); _flagMap.Clear(); _sysFlagMap.Clear(); _workMap.Clear();
+            // UPDATED: Clear the new map
+            _commandMap.Clear(); _flagMap.Clear(); _sysFlagMap.Clear(); _workMap.Clear(); _fileNamesMap.Clear();
             try
             {
                 // Strictly load from Root JSON folder
@@ -41,6 +53,10 @@ namespace RelumiScript
                 LoadMap(jsonDir, "flags.json", _flagMap);
                 LoadMap(jsonDir, "sys_flags.json", _sysFlagMap);
                 LoadMap(jsonDir, "work.json", _workMap);
+
+                // NEW: Load file names map
+                LoadFileNamesMap(jsonDir, "file_names.json", _fileNamesMap);
+
                 InitLog = $"Backend Ready. {_commandMap.Count} cmds.";
             }
             catch (Exception ex) { InitLog = ex.Message; }
@@ -55,6 +71,28 @@ namespace RelumiScript
                 {
                     var list = JsonConvert.DeserializeObject<List<NameDef>>(File.ReadAllText(p));
                     if (list != null) foreach (var d in list) if (!map.ContainsKey(d.Id)) map[d.Id] = d.Name;
+                }
+                catch { }
+            }
+        }
+
+        // NEW: Specialized method to load the file name dictionary
+        private void LoadFileNamesMap(string dir, string f, Dictionary<string, string> map)
+        {
+            string p = Path.Combine(dir, f);
+            if (File.Exists(p))
+            {
+                try
+                {
+                    var list = JsonConvert.DeserializeObject<List<FileNameDef>>(File.ReadAllText(p));
+                    if (list != null)
+                    {
+                        foreach (var d in list)
+                        {
+                            if (!string.IsNullOrEmpty(d.FileName) && !map.ContainsKey(d.FileName))
+                                map[d.FileName] = d.FriendlyName;
+                        }
+                    }
                 }
                 catch { }
             }
@@ -80,6 +118,13 @@ namespace RelumiScript
                         var name = nameField.AsString;
                         if (string.IsNullOrEmpty(name) || name.StartsWith("EvCam")) continue;
 
+                        // NEW: Use friendly name if available, otherwise fall back to original name
+                        string friendlyName = name;
+                        if (_fileNamesMap.ContainsKey(name))
+                        {
+                            friendlyName = _fileNamesMap[name];
+                        }
+
                         var strListField = baseField["StrList"];
                         List<string> stringTable = new List<string>();
                         if (!strListField.IsDummy)
@@ -92,7 +137,8 @@ namespace RelumiScript
                         if (scriptsField.IsDummy) continue;
                         if (scriptsField.Children.Count == 1 && scriptsField.Children[0].FieldName == "Array") scriptsField = scriptsField.Children[0];
 
-                        var fileNode = new FileNode { Name = name };
+                        // Use the friendly name for the FileNode
+                        var fileNode = new FileNode { Name = friendlyName };
 
                         for (int i = 0; i < scriptsField.Children.Count; i++)
                         {
