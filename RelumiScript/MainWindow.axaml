@@ -34,7 +34,7 @@
 
 			<GridSplitter Grid.Column="1" Background="#444" ResizeDirection="Columns"/>
 
-			<Grid Grid.Column="2" RowDefinitions="Auto, *, 5, 200">
+			<Grid Grid.Column="2" RowDefinitions="Auto, *, 5, Auto">
 
 				<StackPanel Grid.Row="0" Orientation="Horizontal" Background="#2D2D2D">
 					<RadioButton Name="TabCode" Content="Code (EV-AS)"
@@ -56,11 +56,12 @@
 				<GridSplitter Grid.Row="2" Background="#444" ResizeDirection="Rows"/>
 
 				<Border Grid.Row="3" Background="#252526" BorderBrush="#333" BorderThickness="0,1,0,0">
-					<Grid RowDefinitions="Auto, *">
-						<TextBlock Text="Message Preview" Foreground="#AAA" FontSize="12" Margin="5" FontWeight="Bold"/>
-						<ScrollViewer Grid.Row="1" Name="MessagePreviewScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-							<StackPanel Name="MessagePreviewContent" Orientation="Vertical" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20"/>
-						</ScrollViewer>
+					<Grid RowDefinitions="Auto, Auto">
+						<TextBlock Grid.Row="0" Text="Message Preview" Foreground="#AAA" FontSize="12" Margin="5" FontWeight="Bold"/>
+
+						<Border Grid.Row="1" Name="MessagePreviewContainer" IsVisible="False" Padding="0" VerticalAlignment="Top">
+							<Grid Name="MessagePreviewContent" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
+						</Border>
 					</Grid>
 				</Border>
 

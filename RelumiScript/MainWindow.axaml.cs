@@ -21,7 +21,6 @@ namespace RelumiScript
         private bool _isBlocklyReady = false;
         private string _currentScriptContent = "";
 
-        // Store messages in memory, but don't show in Tree
         private List<FileNode> _loadedMessages = new List<FileNode>();
 
         public MainWindow()
@@ -70,6 +69,7 @@ namespace RelumiScript
 
         private async Task InjectMonacoListeners()
         {
+            // FIX: Added 'else' block to send HIDE_PREVIEW
             string script = @"
                 editor.onDidChangeCursorPosition((e) => {
                     var model = editor.getModel();
@@ -77,6 +77,8 @@ namespace RelumiScript
                     var match = lineContent.match(/_TALKMSG\s*\(\s*@([^%]+)%([^)]+)\s*\)/);
                     if (match) {
                         window.chrome.webview.postMessage('PREVIEW:' + match[1] + '%' + match[2]);
+                    } else {
+                        window.chrome.webview.postMessage('HIDE_PREVIEW');
                     }
                 });
             ";
@@ -87,6 +89,13 @@ namespace RelumiScript
         {
             string msg = e.Message;
             if (string.IsNullOrEmpty(msg)) return;
+
+            // FIX: Handle Hide Request
+            if (msg == "HIDE_PREVIEW")
+            {
+                MessagePreviewContainer.IsVisible = false;
+                return;
+            }
 
             if (msg.StartsWith("PREVIEW:"))
             {
@@ -100,15 +109,13 @@ namespace RelumiScript
             TryInitMessageRenderer();
             if (_messageRenderer == null) return;
 
-            // Search in the hidden message list
             var targetFile = _loadedMessages.FirstOrDefault(f => f.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
             if (targetFile != null)
             {
                 var targetScript = targetFile.Scripts.FirstOrDefault(s => s.Label.Equals(label, StringComparison.OrdinalIgnoreCase));
                 if (targetScript != null)
                 {
-                    // Render to the bottom panel without hiding the editor
-                    MessagePreviewScroller.IsVisible = true;
+                    MessagePreviewContainer.IsVisible = true;
                     MessagePreviewContent.Children.Clear();
                     MessagePreviewContent.Children.Add(_messageRenderer.Render(targetScript.Content));
 
@@ -186,7 +193,6 @@ namespace RelumiScript
             Editor.IsVisible = codeMode;
             BlockEditor.IsVisible = !codeMode;
 
-            // Sync content when switching
             SetEditorText(_currentScriptContent);
         }
 
@@ -244,15 +250,12 @@ namespace RelumiScript
 
             var loadedScripts = await Task.Run(() => _service.LoadAndDecompile(evScriptPath));
 
-            // LOAD MESSAGES INTO HIDDEN LIST
             if (!string.IsNullOrEmpty(scriptMsgPath))
             {
                 _loadedMessages = await Task.Run(() => _service.LoadMessageFiles(scriptMsgPath));
             }
 
-            // Only add scripts to the tree
             ScriptTree.ItemsSource = loadedScripts.OrderBy(x => x.Name).ToList();
-
             StatusText.Text = $"Loaded {loadedScripts.Count} scripts. ({_loadedMessages.Count} message files ready)";
         }
 
@@ -260,12 +263,10 @@ namespace RelumiScript
         {
             if (ScriptTree.SelectedItem is ScriptNode s)
             {
-                // Logic for when you click a script function in the tree
                 SetEditorText(s.Content);
             }
             else if (ScriptTree.SelectedItem is FileNode f)
             {
-                // Logic for when you click a script file container
                 StringBuilder sb = new StringBuilder();
                 foreach (var script in f.Scripts) { sb.AppendLine(script.Content); sb.AppendLine(); }
                 SetEditorText(sb.ToString());
