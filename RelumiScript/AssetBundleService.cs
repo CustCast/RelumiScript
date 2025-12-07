@@ -10,19 +10,19 @@ using System.Text;
 
 namespace RelumiScript
 {
-    public class NameDef { [JsonProperty("Id")] public int Id { get; set; } [JsonProperty("Name")] public string Name { get; set; } }
-    public class FileNameDef { public string FileName { get; set; } public string FriendlyName { get; set; } }
+    public class NameDef { [JsonProperty("Id")] public int Id { get; set; } [JsonProperty("Name")] public string? Name { get; set; } }
+    public class FileNameDef { public string FileName { get; set; } = ""; public string FriendlyName { get; set; } = ""; }
 
     public class FileNode
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = "Unknown";
         public bool IsMessage { get; set; }
         public List<ScriptNode> Scripts { get; set; } = new List<ScriptNode>();
         public string Icon => IsMessage ? "💬" : "📜";
         public string Color => IsMessage ? "#569CD6" : "#4EC9B0";
     }
 
-    public class ScriptNode { public string Label { get; set; } public string Content { get; set; } }
+    public class ScriptNode { public string Label { get; set; } = ""; public string Content { get; set; } = ""; }
 
     public class AssetBundleService
     {
@@ -32,10 +32,12 @@ namespace RelumiScript
         private Dictionary<int, string> _sysFlagMap = new Dictionary<int, string>();
         private Dictionary<int, string> _workMap = new Dictionary<int, string>();
         private Dictionary<string, string> _fileNameMap = new Dictionary<string, string>();
+
         public Dictionary<int, string> PokemonMap { get; private set; } = new Dictionary<int, string>();
+        public Dictionary<int, string> ItemMap { get; private set; } = new Dictionary<int, string>();
 
         public string InitLog { get; private set; } = "Not Initialized";
-        public string InitSummary => $"Cmds: {_commandMap.Count}, Files: {_fileNameMap.Count}, Pokes: {PokemonMap.Count}";
+        public string InitSummary => $"Cmds: {_commandMap.Count}, Files: {_fileNameMap.Count}, Pokes: {PokemonMap.Count}, Items: {ItemMap.Count}";
 
         public AssetBundleService() { _manager = new AssetsManager(); }
 
@@ -61,7 +63,7 @@ namespace RelumiScript
                 try
                 {
                     var list = JsonConvert.DeserializeObject<List<NameDef>>(File.ReadAllText(p));
-                    if (list != null) foreach (var d in list) if (!map.ContainsKey(d.Id)) map[d.Id] = d.Name;
+                    if (list != null) foreach (var d in list) if (!map.ContainsKey(d.Id) && d.Name != null) map[d.Id] = d.Name;
                 }
                 catch { }
             }
@@ -80,10 +82,12 @@ namespace RelumiScript
             }
         }
 
-        // Loads Pokemon Names from common_msbt
-        public void LoadPokemonData(string msgBundlePath)
+        // Renamed from LoadPokemonData to LoadGameData to reflect broader purpose
+        public void LoadGameData(string msgBundlePath)
         {
             PokemonMap.Clear();
+            ItemMap.Clear();
+
             if (!File.Exists(msgBundlePath)) return;
             try
             {
@@ -94,37 +98,51 @@ namespace RelumiScript
                 foreach (var info in afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour))
                 {
                     var baseField = _manager.GetBaseField(afile, info);
-                    if (baseField["m_Name"].AsString == "english_ss_monsname")
+                    string assetName = baseField["m_Name"].AsString;
+
+                    // CHECK 1: Pokemon Names
+                    if (assetName == "english_ss_monsname")
                     {
-                        // Handle wrapped arrays
-                        var entries = baseField["labelDataArray"];
-                        if (entries.IsDummy) entries = baseField["entries"];
-                        if (!entries.IsDummy && entries.Children.Count == 1 && entries.Children[0].FieldName == "Array")
-                            entries = entries.Children[0];
-
-                        if (!entries.IsDummy)
-                        {
-                            foreach (var item in entries.Children)
-                            {
-                                var idx = item["arrayIndex"];
-                                var words = item["wordDataArray"];
-                                if (!words.IsDummy && words.Children.Count > 0 && words.Children[0].FieldName == "Array")
-                                    words = words.Children[0]; // Unwrap word array
-
-                                if (!idx.IsDummy && !words.IsDummy && words.Children.Count > 0)
-                                {
-                                    PokemonMap[idx.AsInt] = words.Children[0]["str"].AsString;
-                                }
-                            }
-                        }
-                        break;
+                        ParseStringList(baseField, PokemonMap);
+                    }
+                    // CHECK 2: Item Names (matches ss_itemname, ss_itemname_acc, etc.)
+                    else if (assetName.Contains("ss_itemname"))
+                    {
+                        ParseStringList(baseField, ItemMap);
                     }
                 }
             }
-            catch (Exception ex) { Console.WriteLine("PokeLoad Error: " + ex.Message); }
+            catch (Exception ex) { Console.WriteLine("GameDataLoad Error: " + ex.Message); }
         }
 
-        // Loads Messages from english (or any msbt bundle)
+        // Helper to parse the standard MSBT array structure
+        private void ParseStringList(AssetTypeValueField baseField, Dictionary<int, string> targetMap)
+        {
+            var entries = baseField["labelDataArray"];
+            if (entries.IsDummy) entries = baseField["entries"];
+            if (!entries.IsDummy && entries.Children.Count == 1 && entries.Children[0].FieldName == "Array")
+                entries = entries.Children[0];
+
+            if (!entries.IsDummy)
+            {
+                foreach (var item in entries.Children)
+                {
+                    var idx = item["arrayIndex"];
+                    var words = item["wordDataArray"];
+                    if (!words.IsDummy && words.Children.Count > 0 && words.Children[0].FieldName == "Array")
+                        words = words.Children[0];
+
+                    if (!idx.IsDummy && !words.IsDummy && words.Children.Count > 0)
+                    {
+                        string val = words.Children[0]["str"].AsString;
+                        // Avoid overwriting if we have duplicates (first one usually wins or is main)
+                        if (!targetMap.ContainsKey(idx.AsInt))
+                            targetMap[idx.AsInt] = val;
+                    }
+                }
+            }
+        }
+
         public List<FileNode> LoadMessageFiles(string bundlePath)
         {
             var output = new List<FileNode>();

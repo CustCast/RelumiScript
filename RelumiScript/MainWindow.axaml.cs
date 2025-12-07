@@ -13,10 +13,18 @@ using WebViewCore.Events;
 
 namespace RelumiScript
 {
-    public partial class MainWindow : Window
+    public class SearchResult
+    {
+        public string Type { get; set; } = "UNK"; // PKM, ITM
+        public string Color { get; set; } = "White";
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+    }
+
+    public partial class MainWindow : Avalonia.Controls.Window
     {
         private AssetBundleService _service;
-        private MessageRenderer _messageRenderer;
+        private MessageRenderer? _messageRenderer;
         private bool _isEditorReady = false;
         private bool _isBlocklyReady = false;
         private string _currentScriptContent = "";
@@ -35,7 +43,7 @@ namespace RelumiScript
         private void TryInitMessageRenderer()
         {
             if (_messageRenderer != null) return;
-            string jsonDir = FindJsonFolder();
+            string? jsonDir = FindJsonFolder();
             if (!string.IsNullOrEmpty(jsonDir))
             {
                 string assetsDir = Path.GetFullPath(Path.Combine(jsonDir, "..", "Assets"));
@@ -69,7 +77,6 @@ namespace RelumiScript
 
         private async Task InjectMonacoListeners()
         {
-            // FIX: Added 'else' block to send HIDE_PREVIEW
             string script = @"
                 editor.onDidChangeCursorPosition((e) => {
                     var model = editor.getModel();
@@ -85,15 +92,19 @@ namespace RelumiScript
             await Editor.ExecuteScriptAsync(script);
         }
 
-        private void OnEditorMessageReceived(object sender, WebViewMessageReceivedEventArgs e)
+        private void OnEditorMessageReceived(object? sender, WebViewMessageReceivedEventArgs e)
         {
-            string msg = e.Message;
+            string? msg = e.Message;
             if (string.IsNullOrEmpty(msg)) return;
 
-            // FIX: Handle Hide Request
             if (msg == "HIDE_PREVIEW")
             {
-                MessagePreviewContainer.IsVisible = false;
+                if (MessagePreviewContainer.IsVisible)
+                {
+                    MessagePreviewContainer.IsVisible = false;
+                    if (MainContentGrid.RowDefinitions.Count > 3)
+                        MainContentGrid.RowDefinitions[3].Height = GridLength.Auto;
+                }
                 return;
             }
 
@@ -116,13 +127,68 @@ namespace RelumiScript
                 if (targetScript != null)
                 {
                     MessagePreviewContainer.IsVisible = true;
-                    MessagePreviewContent.Children.Clear();
-                    MessagePreviewContent.Children.Add(_messageRenderer.Render(targetScript.Content));
+                    if (MainContentGrid.RowDefinitions.Count > 3)
+                        MainContentGrid.RowDefinitions[3].Height = GridLength.Auto;
 
+                    MessagePreviewContent.Content = _messageRenderer.Render(targetScript.Content);
                     StatusText.Text = $"Previewing: {label}";
                 }
             }
         }
+
+        // --- Search Logic ---
+
+        private void BtnSearch_Click(object? sender, RoutedEventArgs e)
+        {
+            SearchPanel.IsVisible = !SearchPanel.IsVisible;
+            if (SearchPanel.IsVisible)
+            {
+                SearchBox.Focus();
+                PerformSearch(SearchBox.Text);
+            }
+        }
+
+        private void SearchBox_TextChanged(object? sender, TextChangedEventArgs e)
+        {
+            PerformSearch(SearchBox.Text);
+        }
+
+        private void PerformSearch(string? query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                SearchResultsList.ItemsSource = null;
+                return;
+            }
+
+            var results = new List<SearchResult>();
+            query = query.Trim();
+            bool isIdSearch = int.TryParse(query, out int searchId);
+
+            // 1. Search Pokemon
+            if (isIdSearch && _service.PokemonMap.TryGetValue(searchId, out string? pName))
+                results.Add(new SearchResult { Type = "PKM", Color = "#569CD6", Id = searchId, Name = pName });
+
+            var pMatches = _service.PokemonMap
+                .Where(kvp => kvp.Value.Contains(query, StringComparison.OrdinalIgnoreCase) && kvp.Key != searchId)
+                .Take(20);
+            foreach (var kvp in pMatches)
+                results.Add(new SearchResult { Type = "PKM", Color = "#569CD6", Id = kvp.Key, Name = kvp.Value });
+
+            // 2. Search Items
+            if (isIdSearch && _service.ItemMap.TryGetValue(searchId, out string? iName))
+                results.Add(new SearchResult { Type = "ITM", Color = "#CE9178", Id = searchId, Name = iName });
+
+            var iMatches = _service.ItemMap
+                .Where(kvp => kvp.Value.Contains(query, StringComparison.OrdinalIgnoreCase) && kvp.Key != searchId)
+                .Take(20);
+            foreach (var kvp in iMatches)
+                results.Add(new SearchResult { Type = "ITM", Color = "#CE9178", Id = kvp.Key, Name = kvp.Value });
+
+            SearchResultsList.ItemsSource = results;
+        }
+
+        // --- Standard Logic ---
 
         private void InitializeBlockly()
         {
@@ -134,11 +200,11 @@ namespace RelumiScript
             {
                 BlockEditor.Url = new Uri($"file:///{blocklyPath.Replace("\\", "/")}");
                 BlockEditor.NavigationCompleted += (sender, args) => { if (args.IsSuccess) _isBlocklyReady = true; };
-                BlockEditor.WebMessageReceived += (s, e) => { _currentScriptContent = e.Message; };
+                BlockEditor.WebMessageReceived += (s, e) => { _currentScriptContent = e.Message ?? ""; };
             }
         }
 
-        private string FindJsonFolder()
+        private string? FindJsonFolder()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             string[] candidates = { Path.Combine(baseDir, "JSON"), Path.Combine(baseDir, "..", "..", "..", "JSON"), Path.Combine(Directory.GetCurrentDirectory(), "JSON") };
@@ -156,7 +222,7 @@ namespace RelumiScript
         {
             try
             {
-                string jsonDir = FindJsonFolder();
+                string? jsonDir = FindJsonFolder();
                 if (string.IsNullOrEmpty(jsonDir)) return;
 
                 if (_service.InitSummary.Contains("Cmds: 0"))
@@ -171,11 +237,13 @@ namespace RelumiScript
                     string flags = LoadCleanJson(Path.Combine(jsonDir, "flags.json"));
                     string sys = LoadCleanJson(Path.Combine(jsonDir, "sys_flags.json"));
                     string work = LoadCleanJson(Path.Combine(jsonDir, "work.json"));
+                    // Embed both maps for JS autocomplete if needed
                     string pokes = JsonConvert.SerializeObject(_service.PokemonMap, Formatting.None);
+                    string items = JsonConvert.SerializeObject(_service.ItemMap, Formatting.None);
 
                     string appDir = AppDomain.CurrentDomain.BaseDirectory;
                     string monacoPath = Path.Combine(appDir, "Monaco", "syntax_data.js");
-                    string content = $"window.RELUMI_DATA = {{ commands: {cmds}, flags: {flags}, sysflags: {sys}, works: {work}, pokes: {pokes} }}; window.RELUMI_DATA_LOADED = true;";
+                    string content = $"window.RELUMI_DATA = {{ commands: {cmds}, flags: {flags}, sysflags: {sys}, works: {work}, pokes: {pokes}, items: {items} }}; window.RELUMI_DATA_LOADED = true;";
                     File.WriteAllText(monacoPath, content, Encoding.UTF8);
                 });
 
@@ -187,12 +255,11 @@ namespace RelumiScript
             catch (Exception ex) { Avalonia.Threading.Dispatcher.UIThread.Post(() => { StatusText.Text = "Init Error: " + ex.Message; }); }
         }
 
-        private void OnTabChanged(object sender, RoutedEventArgs e)
+        private void OnTabChanged(object? sender, RoutedEventArgs e)
         {
             bool codeMode = TabCode.IsChecked == true;
             Editor.IsVisible = codeMode;
             BlockEditor.IsVisible = !codeMode;
-
             SetEditorText(_currentScriptContent);
         }
 
@@ -209,7 +276,7 @@ namespace RelumiScript
             if (_isBlocklyReady && BlockEditor.IsVisible) await BlockEditor.ExecuteScriptAsync($"loadScript({safe});");
         }
 
-        private string FindFileInStructure(string root, string[] segments)
+        private string? FindFileInStructure(string root, string[] segments)
         {
             string full = Path.Combine(root, Path.Combine(segments));
             if (File.Exists(full)) return full;
@@ -221,30 +288,32 @@ namespace RelumiScript
             try { return Directory.EnumerateFiles(root, segments.Last(), SearchOption.AllDirectories).FirstOrDefault(); } catch { return null; }
         }
 
-        private async void BtnLoad_Click(object sender, RoutedEventArgs e)
+        private async void BtnLoad_Click(object? sender, RoutedEventArgs e)
         {
-            var topLevel = TopLevel.GetTopLevel(this);
+            var topLevel = Avalonia.Controls.TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
             var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Dump Folder" });
             if (folders.Count == 0) return;
 
             StatusText.Text = "Scanning...";
             var rootPath = folders[0].Path.LocalPath;
 
-            string evScriptPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Dpr", "ev_script" });
-            string pokemonMsgPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Message", "common_msbt" });
-            string scriptMsgPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Message", "english" });
+            string? evScriptPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Dpr", "ev_script" });
+            string? pokemonMsgPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Message", "common_msbt" });
+            string? scriptMsgPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Message", "english" });
 
             if (string.IsNullOrEmpty(evScriptPath)) { StatusText.Text = "Error: 'ev_script' not found."; return; }
 
             if (_service.InitSummary.Contains("Cmds: 0"))
             {
-                string jsonDir = FindJsonFolder();
+                string? jsonDir = FindJsonFolder();
                 if (!string.IsNullOrEmpty(jsonDir)) _service.Initialize(jsonDir);
             }
 
             if (!string.IsNullOrEmpty(pokemonMsgPath))
             {
-                await Task.Run(() => _service.LoadPokemonData(pokemonMsgPath));
+                // Changed from LoadPokemonData to LoadGameData
+                await Task.Run(() => _service.LoadGameData(pokemonMsgPath));
                 await GenerateAndInjectSyntax();
             }
 
@@ -259,7 +328,7 @@ namespace RelumiScript
             StatusText.Text = $"Loaded {loadedScripts.Count} scripts. ({_loadedMessages.Count} message files ready)";
         }
 
-        private void ScriptTree_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void ScriptTree_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             if (ScriptTree.SelectedItem is ScriptNode s)
             {

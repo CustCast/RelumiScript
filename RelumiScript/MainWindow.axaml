@@ -9,10 +9,11 @@
 	<Grid RowDefinitions="Auto, *">
 		<StackPanel Grid.Row="0" Orientation="Horizontal" Background="#333" Height="40">
 			<Button Name="BtnLoad" Content="Load Bundle" Margin="10,5" Click="BtnLoad_Click"/>
+			<Button Name="BtnSearch" Content="Search" Margin="10,5" Click="BtnSearch_Click" Background="#444"/>
 			<TextBlock Name="StatusText" Text="Ready..." VerticalAlignment="Center" Foreground="#AAA" Margin="10,0"/>
 		</StackPanel>
 
-		<Grid Grid.Row="1" ColumnDefinitions="300, 5, *">
+		<Grid Grid.Row="1" ColumnDefinitions="300, 5, *, Auto">
 
 			<TreeView Name="ScriptTree" Grid.Column="0" Background="#222" SelectionChanged="ScriptTree_SelectionChanged">
 				<TreeView.DataTemplates>
@@ -34,7 +35,13 @@
 
 			<GridSplitter Grid.Column="1" Background="#444" ResizeDirection="Columns"/>
 
-			<Grid Grid.Column="2" RowDefinitions="Auto, *, 5, Auto">
+			<Grid x:Name="MainContentGrid" Grid.Column="2">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="Auto"/>
+					<RowDefinition Height="*"/>
+					<RowDefinition Height="5"/>
+					<RowDefinition Height="Auto"/>
+				</Grid.RowDefinitions>
 
 				<StackPanel Grid.Row="0" Orientation="Horizontal" Background="#2D2D2D">
 					<RadioButton Name="TabCode" Content="Code (EV-AS)"
@@ -58,14 +65,36 @@
 				<Border Grid.Row="3" Background="#252526" BorderBrush="#333" BorderThickness="0,1,0,0">
 					<Grid RowDefinitions="Auto, Auto">
 						<TextBlock Grid.Row="0" Text="Message Preview" Foreground="#AAA" FontSize="12" Margin="5" FontWeight="Bold"/>
-
-						<Border Grid.Row="1" Name="MessagePreviewContainer" IsVisible="False" Padding="0" VerticalAlignment="Top">
-							<Grid Name="MessagePreviewContent" HorizontalAlignment="Stretch" VerticalAlignment="Top"/>
+						<Border Grid.Row="1" Name="MessagePreviewContainer" IsVisible="False" Padding="0" VerticalAlignment="Top" MaxHeight="230">
+							<Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left" VerticalAlignment="Top">
+								<ContentControl Name="MessagePreviewContent" />
+							</Viewbox>
 						</Border>
 					</Grid>
 				</Border>
-
 			</Grid>
+
+			<Border Name="SearchPanel" Grid.Column="3" Width="250" Background="#252526" BorderBrush="#444" BorderThickness="1,0,0,0" IsVisible="False">
+				<Grid RowDefinitions="Auto, Auto, *">
+					<TextBlock Grid.Row="0" Text="Universal Search" Foreground="#DDD" FontWeight="Bold" Margin="10"/>
+
+					<TextBox Grid.Row="1" Name="SearchBox" Watermark="Search Pokemon or Item..." Margin="10,0,10,10" TextChanged="SearchBox_TextChanged"/>
+
+					<ListBox Grid.Row="2" Name="SearchResultsList" Background="Transparent" Margin="0,5">
+						<ListBox.ItemTemplate>
+							<DataTemplate>
+								<StackPanel Orientation="Horizontal">
+									<Border Background="#333" CornerRadius="3" Padding="3,0" Margin="0,0,5,0">
+										<TextBlock Text="{Binding Type}" Foreground="{Binding Color}" FontSize="10" FontWeight="Bold"/>
+									</Border>
+									<TextBlock Text="{Binding Id}" Foreground="#AAA" Width="30" Margin="0,0,5,0"/>
+									<TextBlock Text="{Binding Name}" Foreground="#E0E0E0"/>
+								</StackPanel>
+							</DataTemplate>
+						</ListBox.ItemTemplate>
+					</ListBox>
+				</Grid>
+			</Border>
 
 		</Grid>
 	</Grid>

@@ -14,7 +14,7 @@ namespace RelumiScript
     public class AtlasData
     {
         [JsonProperty("size")] public int Size { get; set; }
-        [JsonProperty("glyphs")] public Dictionary<string, GlyphData> Glyphs { get; set; }
+        [JsonProperty("glyphs")] public Dictionary<string, GlyphData>? Glyphs { get; set; }
     }
 
     public class GlyphData
@@ -39,7 +39,6 @@ namespace RelumiScript
         private const string CalibrationPhrase = "Oh. And it needs to be found and caught down";
         private const double TextScale = 0.75;
 
-        // FIX: Default to 230 to prevent empty space if image fails to load
         private double _canvasWidth = 1500;
         private double _canvasHeight = 230;
 
@@ -47,8 +46,8 @@ namespace RelumiScript
         private double _pixelsPerUnitCalculated = 1.88;
 
         private string _assetDir;
-        private Bitmap _bgImage;
-        private AtlasData _atlasData;
+        private Bitmap? _bgImage;
+        private AtlasData? _atlasData;
         private List<Bitmap> _atlasPages = new List<Bitmap>();
 
         public MessageRenderer(string assetRoot)
@@ -102,17 +101,12 @@ namespace RelumiScript
                 {
                     _bgImage = new Bitmap(path);
                     _canvasWidth = _bgImage.PixelSize.Width;
-                    _canvasHeight = _bgImage.PixelSize.Height;
-                    Console.WriteLine($"[MessageRenderer] Loaded Background: {_canvasWidth}x{_canvasHeight}");
+                    _canvasHeight = 230;
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[MessageRenderer] Failed to load bg: {ex.Message}");
                 }
-            }
-            else
-            {
-                Console.WriteLine($"[MessageRenderer] textbox.png NOT FOUND at {path}");
             }
         }
 
@@ -128,9 +122,12 @@ namespace RelumiScript
                     string json = File.ReadAllText(mapPath);
                     _atlasData = JsonConvert.DeserializeObject<AtlasData>(json);
 
-                    var safeMap = new Dictionary<string, GlyphData>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var kvp in _atlasData.Glyphs) safeMap[kvp.Key] = kvp.Value;
-                    _atlasData.Glyphs = safeMap;
+                    if (_atlasData?.Glyphs != null)
+                    {
+                        var safeMap = new Dictionary<string, GlyphData>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var kvp in _atlasData.Glyphs) safeMap[kvp.Key] = kvp.Value;
+                        _atlasData.Glyphs = safeMap;
+                    }
 
                     int pageIndex = 0;
                     while (true)
@@ -167,26 +164,26 @@ namespace RelumiScript
             return width;
         }
 
-        public Control Render(string rawText)
+        public Canvas Render(string rawText)
         {
-            // FIX: Use Transparent instead of Gray for fallback background
             var canvas = new Canvas
             {
                 Width = _canvasWidth,
                 Height = _canvasHeight,
+                ClipToBounds = true,
                 Background = _bgImage != null
                     ? new ImageBrush { Source = _bgImage, Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }
                     : Brushes.Transparent
             };
 
             if (string.IsNullOrEmpty(rawText)) return canvas;
-            if (_atlasData == null && _atlasPages.Count == 0) return canvas;
+            if (_atlasData?.Glyphs == null || _atlasPages.Count == 0) return canvas;
 
             var lines = rawText.Replace("{n}", "\n").Replace("\\r", "").Split('\n');
 
             double currentY = 40;
             double startX = 100;
-            double refSize = _atlasData?.Size ?? 64.0;
+            double refSize = _atlasData.Size;
 
             foreach (var line in lines)
             {
@@ -217,7 +214,7 @@ namespace RelumiScript
 
                     string hex = ((int)c).ToString("X4");
 
-                    if (_atlasData != null && _atlasData.Glyphs.TryGetValue(hex, out GlyphData data) && data.Page < _atlasPages.Count)
+                    if (_atlasData.Glyphs.TryGetValue(hex, out GlyphData? data) && data != null && data.Page < _atlasPages.Count)
                     {
                         var croppedBitmap = new CroppedBitmap(_atlasPages[data.Page], new PixelRect(data.X, data.Y, data.Width, data.Height));
                         var img = new Image
@@ -247,12 +244,7 @@ namespace RelumiScript
                 currentY += (targetFontSize + 10);
             }
 
-            return new Viewbox
-            {
-                Child = canvas,
-                Stretch = Stretch.Uniform,
-                StretchDirection = StretchDirection.DownOnly
-            };
+            return canvas;
         }
     }
 }
