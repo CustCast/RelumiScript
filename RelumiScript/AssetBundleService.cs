@@ -16,47 +16,56 @@ namespace RelumiScript
         [JsonProperty("Name")] public string Name { get; set; }
     }
 
-    // NEW: Class to model the structure of file_names.json
     public class FileNameDef
     {
-        [JsonProperty("FileName")] public string FileName { get; set; }
-        [JsonProperty("FriendlyName")] public string FriendlyName { get; set; }
+        public string FileName { get; set; }
+        public string FriendlyName { get; set; }
     }
 
-    public class FileNode { public string Name { get; set; } public List<ScriptNode> Scripts { get; set; } = new List<ScriptNode>(); }
-    public class ScriptNode { public string Label { get; set; } public string Content { get; set; } }
+    public class FileNode
+    {
+        public string Name { get; set; }
+        public bool IsMessage { get; set; }
+        public List<ScriptNode> Scripts { get; set; } = new List<ScriptNode>();
+
+        // UI Helpers
+        public string Icon => IsMessage ? "💬" : "📜";
+        public string Color => IsMessage ? "#569CD6" : "#4EC9B0";
+    }
+
+    public class ScriptNode
+    {
+        public string Label { get; set; }
+        public string Content { get; set; }
+    }
 
     public class AssetBundleService
     {
         private AssetsManager _manager;
+
         private Dictionary<int, string> _commandMap = new Dictionary<int, string>();
         private Dictionary<int, string> _flagMap = new Dictionary<int, string>();
         private Dictionary<int, string> _sysFlagMap = new Dictionary<int, string>();
         private Dictionary<int, string> _workMap = new Dictionary<int, string>();
-        // NEW: Dictionary to store friendly file names
-        private Dictionary<string, string> _fileNamesMap = new Dictionary<string, string>();
+        private Dictionary<string, string> _fileNameMap = new Dictionary<string, string>();
+
+        public Dictionary<int, string> PokemonMap { get; private set; } = new Dictionary<int, string>();
 
         public string InitLog { get; private set; } = "Not Initialized";
-        // UPDATED: Include count of loaded file names
-        public string InitSummary => $"Cmds: {_commandMap.Count}, Files: {_fileNamesMap.Count}";
+        public string InitSummary => $"Cmds: {_commandMap.Count}, Files: {_fileNameMap.Count}, Pokes: {PokemonMap.Count}";
 
         public AssetBundleService() { _manager = new AssetsManager(); }
 
         public void Initialize(string jsonDir)
         {
-            // UPDATED: Clear the new map
-            _commandMap.Clear(); _flagMap.Clear(); _sysFlagMap.Clear(); _workMap.Clear(); _fileNamesMap.Clear();
+            _commandMap.Clear(); _flagMap.Clear(); _sysFlagMap.Clear(); _workMap.Clear(); _fileNameMap.Clear();
             try
             {
-                // Strictly load from Root JSON folder
                 LoadMap(jsonDir, "commands.json", _commandMap);
                 LoadMap(jsonDir, "flags.json", _flagMap);
                 LoadMap(jsonDir, "sys_flags.json", _sysFlagMap);
                 LoadMap(jsonDir, "work.json", _workMap);
-
-                // NEW: Load file names map
-                LoadFileNamesMap(jsonDir, "file_names.json", _fileNamesMap);
-
+                LoadFileMap(jsonDir, "file_names.json");
                 InitLog = $"Backend Ready. {_commandMap.Count} cmds.";
             }
             catch (Exception ex) { InitLog = ex.Message; }
@@ -76,8 +85,7 @@ namespace RelumiScript
             }
         }
 
-        // NEW: Specialized method to load the file name dictionary
-        private void LoadFileNamesMap(string dir, string f, Dictionary<string, string> map)
+        private void LoadFileMap(string dir, string f)
         {
             string p = Path.Combine(dir, f);
             if (File.Exists(p))
@@ -89,8 +97,8 @@ namespace RelumiScript
                     {
                         foreach (var d in list)
                         {
-                            if (!string.IsNullOrEmpty(d.FileName) && !map.ContainsKey(d.FileName))
-                                map[d.FileName] = d.FriendlyName;
+                            if (!string.IsNullOrEmpty(d.FileName) && !_fileNameMap.ContainsKey(d.FileName))
+                                _fileNameMap[d.FileName] = d.FriendlyName;
                         }
                     }
                 }
@@ -98,12 +106,131 @@ namespace RelumiScript
             }
         }
 
+        // --- POKEMON LOADER ---
+        public void LoadPokemonData(string msgBundlePath)
+        {
+            PokemonMap.Clear();
+            if (!File.Exists(msgBundlePath)) return;
+
+            try
+            {
+                if (_manager.Files.Any(f => f.path == msgBundlePath))
+                {
+                    _manager.UnloadAssetsFile(msgBundlePath);
+                    _manager.UnloadBundleFile(msgBundlePath);
+                }
+
+                var bundleInstance = _manager.LoadBundleFile(msgBundlePath);
+                var afile = _manager.LoadAssetsFileFromBundle(bundleInstance, 0);
+                var infos = afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour);
+
+                foreach (var info in infos)
+                {
+                    var baseField = _manager.GetBaseField(afile, info);
+                    var nameField = baseField["m_Name"];
+                    if (!nameField.IsDummy && nameField.AsString == "english_ss_monsname")
+                    {
+                        var entries = baseField["labelDataArray"]; // Primary check
+                        if (entries.IsDummy) entries = baseField["entries"];
+                        if (entries.IsDummy) entries = baseField["data"];
+                        if (entries.IsDummy) entries = baseField["Array"];
+
+                        if (!entries.IsDummy && entries.Children.Count > 0)
+                        {
+                            var items = (entries.Children[0].FieldName == "Array") ? entries.Children[0] : entries;
+                            foreach (var item in items.Children)
+                            {
+                                var indexField = item["arrayIndex"];
+                                var wordDataArray = item["wordDataArray"];
+
+                                if (!indexField.IsDummy && !wordDataArray.IsDummy && wordDataArray.Children.Count > 0)
+                                {
+                                    int id = indexField.AsInt;
+                                    var firstWord = wordDataArray.Children[0];
+                                    if (firstWord.FieldName == "Array") firstWord = firstWord.Children[0];
+                                    var strField = firstWord["str"];
+                                    if (!strField.IsDummy) PokemonMap[id] = strField.AsString;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) { Console.WriteLine("Error loading pokemon: " + ex.Message); }
+        }
+
+        // --- MESSAGE FILES LOADER ---
+        public List<FileNode> LoadMessageFiles(string bundlePath)
+        {
+            var output = new List<FileNode>();
+            try
+            {
+                if (!_manager.Files.Any(f => f.path == bundlePath))
+                {
+                    var bundle = _manager.LoadBundleFile(bundlePath);
+                    _manager.LoadAssetsFileFromBundle(bundle, 0);
+                }
+
+                var inst = _manager.Files.FirstOrDefault(f => f.path == bundlePath);
+                if (inst == null) return output;
+
+                var infos = inst.file.GetAssetsOfType(AssetClassID.MonoBehaviour);
+
+                foreach (var info in infos)
+                {
+                    var baseField = _manager.GetBaseField(inst, info);
+                    var nameField = baseField["m_Name"];
+                    if (nameField.IsDummy) continue;
+
+                    string name = nameField.AsString;
+                    if (!name.StartsWith("english_") || name == "english_ss_monsname") continue;
+
+                    var fileNode = new FileNode { Name = name.Replace("english_", ""), IsMessage = true };
+
+                    var entries = baseField["labelDataArray"];
+                    if (entries.IsDummy) entries = baseField["entries"];
+
+                    if (!entries.IsDummy && entries.Children.Count > 0)
+                    {
+                        var items = (entries.Children[0].FieldName == "Array") ? entries.Children[0] : entries;
+                        foreach (var item in items.Children)
+                        {
+                            string label = item["labelName"].AsString;
+                            string text = "";
+                            var wordDataArray = item["wordDataArray"];
+                            if (!wordDataArray.IsDummy && wordDataArray.Children.Count > 0)
+                            {
+                                var words = (wordDataArray.Children[0].FieldName == "Array") ? wordDataArray.Children[0] : wordDataArray;
+                                if (words.Children.Count > 0) text = words.Children[0]["str"].AsString;
+                            }
+                            fileNode.Scripts.Add(new ScriptNode { Label = label, Content = text });
+                        }
+                    }
+
+                    if (fileNode.Scripts.Count > 0)
+                    {
+                        fileNode.Scripts = fileNode.Scripts.OrderBy(s => s.Label).ToList();
+                        output.Add(fileNode);
+                    }
+                }
+            }
+            catch (Exception ex) { Console.WriteLine("Msg Load Error: " + ex.Message); }
+            return output.OrderBy(f => f.Name).ToList();
+        }
+
+        // --- SCRIPT LOADER ---
         public List<FileNode> LoadAndDecompile(string bundlePath)
         {
             var output = new List<FileNode>();
             try
             {
-                _manager.UnloadAll();
+                if (_manager.Files.Any(f => f.path == bundlePath))
+                {
+                    _manager.UnloadAssetsFile(bundlePath);
+                    _manager.UnloadBundleFile(bundlePath);
+                }
+
                 var bundleInstance = _manager.LoadBundleFile(bundlePath);
                 var afile = _manager.LoadAssetsFileFromBundle(bundleInstance, 0);
                 var infos = afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour);
@@ -115,15 +242,12 @@ namespace RelumiScript
                         var baseField = _manager.GetBaseField(afile, info);
                         var nameField = baseField["m_Name"];
                         if (nameField.IsDummy) continue;
-                        var name = nameField.AsString;
-                        if (string.IsNullOrEmpty(name) || name.StartsWith("EvCam")) continue;
 
-                        // NEW: Use friendly name if available, otherwise fall back to original name
-                        string friendlyName = name;
-                        if (_fileNamesMap.ContainsKey(name))
-                        {
-                            friendlyName = _fileNamesMap[name];
-                        }
+                        var internalName = nameField.AsString;
+                        if (string.IsNullOrEmpty(internalName) || internalName.StartsWith("EvCam")) continue;
+
+                        string displayName = internalName;
+                        if (_fileNameMap.ContainsKey(internalName)) displayName = $"{_fileNameMap[internalName]} ({internalName})";
 
                         var strListField = baseField["StrList"];
                         List<string> stringTable = new List<string>();
@@ -137,14 +261,13 @@ namespace RelumiScript
                         if (scriptsField.IsDummy) continue;
                         if (scriptsField.Children.Count == 1 && scriptsField.Children[0].FieldName == "Array") scriptsField = scriptsField.Children[0];
 
-                        // Use the friendly name for the FileNode
-                        var fileNode = new FileNode { Name = friendlyName };
+                        var fileNode = new FileNode { Name = displayName, IsMessage = false };
 
                         for (int i = 0; i < scriptsField.Children.Count; i++)
                         {
                             var script = scriptsField[i];
                             var sb = new StringBuilder();
-                            string label = $"{name}_seq_{i}";
+                            string label = $"{internalName}_seq_{i}";
                             var labelField = script["Label"];
                             if (!labelField.IsDummy && !string.IsNullOrEmpty(labelField.AsString)) label = labelField.AsString;
 
@@ -204,17 +327,8 @@ namespace RelumiScript
                     if (val >= 0 && val < stringTable.Count)
                     {
                         string rawString = stringTable[val];
-
-                        // 1. Convert the string to a byte array using Latin1/ISO-8859-1.
-                        // This treats the string as a collection of raw bytes, preventing C# from discarding them.
                         byte[] rawBytes = Encoding.GetEncoding("iso-8859-1").GetBytes(rawString);
-
-                        // 2. Convert the raw bytes back to a string using UTF-8.
-                        // This forces the proper multi-byte decoding, fixing the '' characters.
-                        string decodedString = Encoding.UTF8.GetString(rawBytes);
-
-                        // 3. Apply URI unescaping (as originally intended).
-                        return $"\"{stringTable[val]}\"";
+                        return $"\"{Encoding.UTF8.GetString(rawBytes)}\"";
                     }
                     return $"\"<MISSING_STR_{val}>\"";
                 default: return val.ToString();

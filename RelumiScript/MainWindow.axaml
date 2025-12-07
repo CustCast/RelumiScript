@@ -17,13 +17,16 @@
 			<TreeView Name="ScriptTree" Grid.Column="0" Background="#222" SelectionChanged="ScriptTree_SelectionChanged">
 				<TreeView.DataTemplates>
 					<TreeDataTemplate DataType="local:FileNode" ItemsSource="{Binding Scripts}">
-						<TextBlock Text="{Binding Name}" Foreground="#4EC9B0" FontWeight="Bold" Padding="2"/>
+						<StackPanel Orientation="Horizontal">
+							<TextBlock Text="{Binding Icon}" Foreground="{Binding Color}" Margin="0,0,5,0"/>
+							<TextBlock Text="{Binding Name}" Foreground="{Binding Color}" FontWeight="Bold"/>
+						</StackPanel>
 					</TreeDataTemplate>
 
 					<DataTemplate DataType="local:ScriptNode">
 						<StackPanel Orientation="Horizontal">
-							<TextBlock Text="⚡ " Foreground="Yellow" FontSize="10" VerticalAlignment="Center"/>
-							<TextBlock Text="{Binding Label}" Foreground="#DDD" Padding="2"/>
+							<TextBlock Text="•" Foreground="#666" Margin="0,0,5,0"/>
+							<TextBlock Text="{Binding Label}" Foreground="#DDD"/>
 						</StackPanel>
 					</DataTemplate>
 				</TreeView.DataTemplates>
@@ -48,6 +51,10 @@
 				<Panel Grid.Row="1" Background="#1E1E1E">
 					<webview:WebView Name="Editor" IsVisible="True"/>
 					<webview:WebView Name="BlockEditor" IsVisible="False"/>
+
+					<ScrollViewer Name="MessagePreviewScroller" IsVisible="False" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+						<StackPanel Name="MessagePreviewContent" Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="20"/>
+					</ScrollViewer>
 				</Panel>
 			</Grid>
 
