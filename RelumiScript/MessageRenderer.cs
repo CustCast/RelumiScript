@@ -26,24 +26,25 @@ namespace RelumiScript
         [JsonProperty("h")] public int Height { get; set; }
         [JsonProperty("ox")] public int OffsetX { get; set; }
         [JsonProperty("oy")] public int OffsetY { get; set; }
+        [JsonProperty("ax")] public double AdvanceX { get; set; }
     }
 
     public class MessageRenderer
     {
-        private Dictionary<string, double> _metrics = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        // FIX: Removed StringComparer.OrdinalIgnoreCase to allow 'U' and 'u' to have different widths
+        private Dictionary<string, double> _metrics = new Dictionary<string, double>();
 
-        // Constants derived from main.py logic
+        // Configuration
         private const double BaseFontSize = 54.0;
-        private const double BaseMetric = 573.0;
         private const double MaxWidth = 1080.0;
+        private const string CalibrationPhrase = "Oh. And it needs to be found and caught down";
 
-        // Conversion factor: Game Units -> Screen Pixels
-        // 1080px / 573 units = ~1.8848 pixels per unit
-        private const double PixelsPerUnit = MaxWidth / BaseMetric;
+        // Calculated at runtime
+        private double _baseMetric = 573.0; // Default fallback
+        private double _pixelsPerUnit = 1.88;
 
         private string _assetDir;
         private Bitmap _bgImage;
-
         private AtlasData _atlasData;
         private List<Bitmap> _atlasPages = new List<Bitmap>();
 
@@ -51,6 +52,7 @@ namespace RelumiScript
         {
             _assetDir = assetRoot;
             LoadMetrics();
+            CalibrateMetrics();
             LoadBackground();
             LoadAtlas();
         }
@@ -58,16 +60,43 @@ namespace RelumiScript
         private void LoadMetrics()
         {
             string path = Path.Combine(_assetDir, "strlength.txt");
-            if (File.Exists(path))
+            if (!File.Exists(path)) return;
+
+            var lines = File.ReadAllLines(path);
+            foreach (var line in lines)
             {
-                foreach (var line in File.ReadAllLines(path))
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith("//")) continue;
+
+                // SPECIAL HANDLE: Space character line usually looks like " 8.671875"
+                if (line.StartsWith(" ") && line.TrimStart().Length > 0 && char.IsDigit(line.TrimStart()[0]))
                 {
-                    if (string.IsNullOrWhiteSpace(line) || line.StartsWith("//")) continue;
-                    var parts = line.Split(new[] { ' ', ',' }, 2, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length == 2 && double.TryParse(parts[1], out double width))
-                        _metrics[parts[0]] = width;
+                    if (double.TryParse(line.Trim(), out double val))
+                        _metrics[" "] = val;
+                    continue;
+                }
+
+                // Normal parsing
+                var parts = line.Split(new[] { ' ', ',' }, 2, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 2 && double.TryParse(parts[1], out double width))
+                {
+                    _metrics[parts[0]] = width;
                 }
             }
+
+            // Ensure space exists
+            if (!_metrics.ContainsKey(" ")) _metrics[" "] = 8.671875;
+        }
+
+        private void CalibrateMetrics()
+        {
+            // Calculate what the game thinks the "Full Line" width is
+            _baseMetric = MeasureText(CalibrationPhrase);
+
+            // Calculate scaling factor: How many Screen Pixels equal 1 Game Unit?
+            if (_baseMetric > 0)
+                _pixelsPerUnit = MaxWidth / _baseMetric;
+
+            Console.WriteLine($"[MessageRenderer] BaseMetric: {_baseMetric}, PPU: {_pixelsPerUnit:F4}");
         }
 
         private void LoadBackground()
@@ -110,12 +139,19 @@ namespace RelumiScript
             double width = 0;
             for (int i = 0; i < text.Length; i++)
             {
-                if (i + 2 < text.Length && text.Substring(i, 3) == "{n}") { width += 343.6875; i += 2; continue; }
+                if (i + 2 < text.Length && text.Substring(i, 3) == "{n}")
+                {
+                    width += 343.6875;
+                    i += 2;
+                    continue;
+                }
+
                 string c = text[i].ToString();
                 if (c == "'") c = "’";
+
                 if (_metrics.TryGetValue(c, out double val)) width += val;
                 else if (char.IsDigit(c[0])) width += 15.0;
-                else width += _metrics.GetValueOrDefault(" ", 8.67);
+                else width += 8.67; // Fallback
             }
             return width;
         }
@@ -130,22 +166,20 @@ namespace RelumiScript
             };
 
             if (string.IsNullOrEmpty(rawText)) return canvas;
-            if (_atlasData == null || _atlasPages.Count == 0)
-            {
-                canvas.Children.Add(new TextBlock { Text = "Atlas Missing", Foreground = Brushes.Red, FontSize = 30, Margin = new Thickness(50) });
-                return canvas;
-            }
+            if (_atlasData == null && _atlasPages.Count == 0) return canvas;
 
             var lines = rawText.Replace("{n}", "\n").Replace("\\r", "").Split('\n');
 
             double currentY = 50;
             double startX = 110;
-            double refSize = _atlasData.Size;
+            double refSize = _atlasData?.Size ?? 64.0;
 
             foreach (var line in lines)
             {
                 double lineWidth = MeasureText(line);
-                double lineScale = lineWidth > BaseMetric ? (BaseMetric / lineWidth) : 1.0;
+
+                // Scale Logic from Python Script
+                double lineScale = lineWidth > _baseMetric ? (_baseMetric / lineWidth) : 1.0;
 
                 double targetFontSize = BaseFontSize * lineScale;
                 double renderScale = targetFontSize / refSize;
@@ -157,13 +191,13 @@ namespace RelumiScript
                     string charStr = c.ToString();
                     if (charStr == "'") charStr = "’";
 
-                    // 1. Get Metric (Game Units)
+                    // 1. Get Metric Width (Game Units)
                     double metricWidth = 8.67;
                     if (_metrics.TryGetValue(charStr, out double w)) metricWidth = w;
                     else if (char.IsDigit(c)) metricWidth = 15.0;
 
-                    // 2. Convert to Pixels: Metric * Ratio * Scale
-                    double advancePx = metricWidth * PixelsPerUnit * lineScale;
+                    // 2. Convert to Pixels
+                    double advancePx = metricWidth * _pixelsPerUnit * lineScale;
 
                     if (c == ' ')
                     {
@@ -173,7 +207,7 @@ namespace RelumiScript
 
                     string hex = ((int)c).ToString("X4");
 
-                    if (_atlasData.Glyphs.TryGetValue(hex, out GlyphData data) && data.Page < _atlasPages.Count)
+                    if (_atlasData != null && _atlasData.Glyphs.TryGetValue(hex, out GlyphData data) && data.Page < _atlasPages.Count)
                     {
                         var croppedBitmap = new CroppedBitmap(_atlasPages[data.Page], new PixelRect(data.X, data.Y, data.Width, data.Height));
                         var img = new Image
@@ -190,6 +224,12 @@ namespace RelumiScript
                         Canvas.SetLeft(img, drawX);
                         Canvas.SetTop(img, drawY);
                         canvas.Children.Add(img);
+                    }
+                    else
+                    {
+                        var err = new Border { Background = Brushes.Red, Width = 10, Height = targetFontSize };
+                        Canvas.SetLeft(err, cursorX); Canvas.SetTop(err, currentY);
+                        canvas.Children.Add(err);
                     }
 
                     cursorX += advancePx;
