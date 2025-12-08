@@ -74,7 +74,6 @@ function getSignatureData(cmd) {
     };
 }
 
-// Helper to determine active parameter index based on cursor position
 function getActiveContext(model, position) {
     const textUntilPosition = model.getValueInRange({
         startLineNumber: position.lineNumber,
@@ -90,7 +89,6 @@ function getActiveContext(model, position) {
     const lastMatch = match[match.length - 1];
     const cmdName = lastMatch.replace('(', '').trim();
 
-    // Ensure we are inside parens
     const openParenIndex = textUntilPosition.lastIndexOf('(');
     const textAfterOpenParen = textUntilPosition.substring(openParenIndex);
     if (textAfterOpenParen.includes(')')) return null;
@@ -105,7 +103,7 @@ function getActiveContext(model, position) {
 
 // --- PROVIDERS REGISTRATION ---
 
-// 4. Completion Item Provider (Commands & Pokemon)
+// 4. Completion Item Provider
 monaco.languages.registerCompletionItemProvider('bdsp', {
     triggerCharacters: ['(', ','],
     provideCompletionItems: function (model, position) {
@@ -123,8 +121,12 @@ monaco.languages.registerCompletionItemProvider('bdsp', {
         if (ctx) {
             const activeArg = (ctx.cmd.Args && ctx.cmd.Args[ctx.argIndex]) ? ctx.cmd.Args[ctx.argIndex] : null;
 
-            // SPECIAL LOGIC: Only suggest Pokemon if the argument asks for a Monsno/Species
-            if (activeArg && (ctx.cmd.Name === "_ADD_POKEMON_UI_EXTRA" || activeArg.TentativeName === "Monsno" || activeArg.TentativeName === "Species")) {
+            // SPECIAL LOGIC: Suggest Pokemon for _ADD_POKEMON_UI_EXTRA (Arg 0), _POKEMON_NAME_FORM (Arg 1 via Monsno check), or explicit types
+            if (activeArg && (
+                (ctx.cmd.Name === "_ADD_POKEMON_UI_EXTRA" && ctx.argIndex === 0) ||
+                activeArg.TentativeName === "Monsno" ||
+                activeArg.TentativeName === "Species"
+            )) {
                 var suggestions = Object.keys(pokeReverseMap).map(name => {
                     let id = pokeReverseMap[name];
                     return {
@@ -132,7 +134,7 @@ monaco.languages.registerCompletionItemProvider('bdsp', {
                         kind: monaco.languages.CompletionItemKind.EnumMember,
                         detail: `ID: ${id}`,
                         documentation: `Insert ID for ${name}`,
-                        insertText: id.toString(),
+                        insertText: id.toString(), // Always insert ID to keep script valid
                         range: range
                     };
                 });
@@ -140,7 +142,7 @@ monaco.languages.registerCompletionItemProvider('bdsp', {
             }
         }
 
-        // B. COMMAND SUGGESTIONS (Default)
+        // B. COMMAND SUGGESTIONS
         var suggestions = Object.values(commandLookup).map(cmd => {
             let sigData = getSignatureData(cmd);
             let snippetArgs = (cmd.Args || []).map((arg, i) => {
@@ -162,13 +164,13 @@ monaco.languages.registerCompletionItemProvider('bdsp', {
     }
 });
 
-// 5. Hover Provider (Docs & Context-Aware Pokemon Lookup)
+// 5. Hover Provider
 monaco.languages.registerHoverProvider('bdsp', {
     provideHover: function (model, position) {
         const word = model.getWordAtPosition(position);
         if (!word) return;
 
-        // A. Is it a Command?
+        // Command Hover
         const cmd = commandLookup[word.word];
         if (cmd) {
             const data = getSignatureData(cmd);
@@ -180,17 +182,12 @@ monaco.languages.registerHoverProvider('bdsp', {
             };
         }
 
-        // B. Is it a number? Check context before showing Pokemon info!
+        // Pokemon ID Hover
         if (/^\d+$/.test(word.word)) {
             const id = parseInt(word.word);
-
-            // Check context
             const ctx = getActiveContext(model, position);
-
             if (ctx && pokeMap[id]) {
                 const activeArg = (ctx.cmd.Args && ctx.cmd.Args[ctx.argIndex]) ? ctx.cmd.Args[ctx.argIndex] : null;
-
-                // Only show Pokemon info if this argument is actually a Monsno/Species
                 if (activeArg && (activeArg.TentativeName === "Monsno" || activeArg.TentativeName === "Species")) {
                     return {
                         contents: [
@@ -212,15 +209,13 @@ monaco.languages.registerSignatureHelpProvider('bdsp', {
         if (!ctx) return { value: null, dispose: () => { } };
 
         const data = getSignatureData(ctx.cmd);
-
-        // Enhance param doc if it's a Monsno
         let activeIdx = Math.min(ctx.argIndex, data.parameters.length - 1);
         if (activeIdx >= 0) {
             let p = data.parameters[activeIdx];
             let argDef = ctx.cmd.Args[activeIdx];
 
             if (argDef && (argDef.TentativeName === "Monsno" || argDef.TentativeName === "Species")) {
-                p.documentation.value += "\n\n💡 **Hint**: Type a Pokémon name to autocomplete its ID.";
+                p.documentation.value += "\n\n💡 **Hint**: Type a Pokémon name to autocomplete.";
             }
         }
 
@@ -236,6 +231,52 @@ monaco.languages.registerSignatureHelpProvider('bdsp', {
             },
             dispose: () => { }
         };
+    }
+});
+
+// 7. Inlay Hints Provider
+monaco.languages.registerInlayHintsProvider('bdsp', {
+    provideInlayHints: function (model, range, token) {
+        let hints = [];
+
+        // Helper to add hint
+        const addHint = (idStr, endColumn, lineNum) => {
+            const id = parseInt(idStr);
+            const name = pokeMap[id];
+            if (name) {
+                hints.push({
+                    kind: monaco.languages.InlayHintKind.Type,
+                    position: { lineNumber: lineNum, column: endColumn },
+                    label: `: ${name}`,
+                    paddingLeft: true,
+                    tooltip: `ID ${id} is ${name}`
+                });
+            }
+        };
+
+        for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
+            const lineContent = model.getLineContent(i);
+
+            // 1. _ADD_POKEMON_UI_EXTRA( ID )
+            // Capture Group 1: ID
+            const regexAdd = /_ADD_POKEMON_UI_EXTRA\s*\(\s*(\d+)/g;
+            let match;
+            while ((match = regexAdd.exec(lineContent)) !== null) {
+                // Position after the ID
+                const endCol = match.index + match[0].length + 1;
+                addHint(match[1], endCol, i);
+            }
+
+            // 2. _POKEMON_NAME_FORM( Tag, ID )
+            // Skips first arg (non-comma chars), captures second arg (digits)
+            const regexName = /_POKEMON_NAME_FORM\s*\(\s*[^,]+,\s*(\d+)/g;
+            while ((match = regexName.exec(lineContent)) !== null) {
+                // Position after the ID
+                const endCol = match.index + match[0].length + 1;
+                addHint(match[1], endCol, i);
+            }
+        }
+        return { hints: hints };
     }
 });
 
@@ -310,6 +351,7 @@ function applySyntaxData(data) {
             }
         });
 
+        // Refresh model to trigger inlay hints
         if (window.editor) {
             var m = window.editor.getModel();
             monaco.editor.setModelLanguage(m, 'plaintext');
@@ -322,73 +364,46 @@ function applySyntaxData(data) {
 // --- LEGACY CONVERTER ---
 window.formatLegacyScript = function (text) {
     if (!text) return "";
-
     return text.split('\n').map(line => {
         const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith(';') || trimmed.startsWith('//') || trimmed.endsWith(':')) {
-            return line;
-        }
-
+        if (!trimmed || trimmed.startsWith(';') || trimmed.startsWith('//') || trimmed.endsWith(':')) { return line; }
         const match = trimmed.match(/^([A-Z_][A-Z0-9_]*)(?:\s+(.*))?$/);
         if (!match) return line;
-
         const cmdName = match[1];
         const argsStr = match[2];
         const cmdDef = commandLookup[cmdName];
-
         if (!cmdDef) return line;
-
-        if (!argsStr) {
-            const indent = line.match(/^\s*/)[0];
-            return `${indent}${cmdName}()`;
-        }
-
+        if (!argsStr) { const indent = line.match(/^\s*/)[0]; return `${indent}${cmdName}()`; }
         const args = [];
         const regex = /"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'|[^\s]+/g;
         let m;
-        while ((m = regex.exec(argsStr)) !== null) {
-            args.push(m[0]);
-        }
-
+        while ((m = regex.exec(argsStr)) !== null) { args.push(m[0]); }
         const formattedArgs = args.map((arg, index) => {
             const argDef = (cmdDef.Args && cmdDef.Args[index]) ? cmdDef.Args[index] : null;
             if (!argDef) return arg;
-
             const types = argDef.Type || [];
-
             if (/^-?\d+$/.test(arg)) {
                 if (types.includes("Number")) return arg;
                 if (types.includes("Work")) return "!" + arg;
                 if (types.includes("Flag") || types.includes("SysFlag")) return "#" + arg;
                 return arg;
             }
-
             if (arg.startsWith('"') || arg.startsWith("'")) {
                 const unquoted = arg.slice(1, -1);
                 if (unquoted.length <= 4 && unquoted === unquoted.toUpperCase()) return arg;
                 if (types.includes("Label")) return "@" + unquoted;
                 return arg;
             }
-
-            if (types.includes("Flag") || types.includes("System") || types.includes("SysFlag")) {
-                return "#" + arg;
-            }
-
+            if (types.includes("Flag") || types.includes("System") || types.includes("SysFlag")) return "#" + arg;
             if (types.includes("Work") && types.includes("Label")) {
-                if (arg.startsWith("ev_") || arg.startsWith("lbl_") || arg.startsWith("common_")) {
-                    return "@" + arg;
-                }
+                if (arg.startsWith("ev_") || arg.startsWith("lbl_") || arg.startsWith("common_")) return "@" + arg;
                 return "!" + arg;
             }
-
             if (types.includes("Work")) return "!" + arg;
             if (types.includes("Label")) return "@" + arg;
-
             return arg;
         });
-
         const indent = line.match(/^\s*/)[0];
         return `${indent}${cmdName}(${formattedArgs.join(', ')})`;
-
     }).join('\n');
 };

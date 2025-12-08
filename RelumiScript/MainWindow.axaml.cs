@@ -13,6 +13,7 @@ using WebViewCore.Events;
 
 namespace RelumiScript
 {
+    // Helper class for search results
     public class SearchResult
     {
         public string Type { get; set; } = "UNK"; // PKM, ITM
@@ -21,6 +22,7 @@ namespace RelumiScript
         public string Name { get; set; } = "";
     }
 
+    // FIX: Explicitly inherit from Avalonia.Controls.Window to avoid GTK conflict
     public partial class MainWindow : Avalonia.Controls.Window
     {
         private AssetBundleService _service;
@@ -77,11 +79,15 @@ namespace RelumiScript
 
         private async Task InjectMonacoListeners()
         {
+            // FIX: Updated Regex to support both _TALKMSG and _TALK_KEYWAIT
             string script = @"
                 editor.onDidChangeCursorPosition((e) => {
                     var model = editor.getModel();
                     var lineContent = model.getLineContent(e.position.lineNumber);
-                    var match = lineContent.match(/_TALKMSG\s*\(\s*@([^%]+)%([^)]+)\s*\)/);
+                    
+                    // Matches _TALKMSG(...) OR _TALK_KEYWAIT(...)
+                    var match = lineContent.match(/(?:_TALKMSG|_TALK_KEYWAIT)\s*\(\s*@([^%]+)%([^)]+)\s*\)/);
+                    
                     if (match) {
                         window.chrome.webview.postMessage('PREVIEW:' + match[1] + '%' + match[2]);
                     } else {
@@ -237,7 +243,6 @@ namespace RelumiScript
                     string flags = LoadCleanJson(Path.Combine(jsonDir, "flags.json"));
                     string sys = LoadCleanJson(Path.Combine(jsonDir, "sys_flags.json"));
                     string work = LoadCleanJson(Path.Combine(jsonDir, "work.json"));
-                    // Embed both maps for JS autocomplete if needed
                     string pokes = JsonConvert.SerializeObject(_service.PokemonMap, Formatting.None);
                     string items = JsonConvert.SerializeObject(_service.ItemMap, Formatting.None);
 
@@ -312,7 +317,6 @@ namespace RelumiScript
 
             if (!string.IsNullOrEmpty(pokemonMsgPath))
             {
-                // Changed from LoadPokemonData to LoadGameData
                 await Task.Run(() => _service.LoadGameData(pokemonMsgPath));
                 await GenerateAndInjectSyntax();
             }
