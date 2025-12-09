@@ -60,6 +60,10 @@ namespace RelumiScript
         private AtlasData? _atlasData;
         private List<Bitmap> _atlasPages = new List<Bitmap>();
 
+        /// <summary>
+        /// Initializes a new instance of the MessageRenderer with font atlas and metrics.
+        /// </summary>
+        /// <param name="assetRoot">Root directory containing Assets folder with font data.</param>
         public MessageRenderer(string assetRoot)
         {
             _assetDir = assetRoot;
@@ -115,7 +119,7 @@ namespace RelumiScript
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[MessageRenderer] Failed to load bg: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"[MessageRenderer] Failed to load background: {ex.Message}");
                 }
             }
         }
@@ -148,10 +152,18 @@ namespace RelumiScript
                         pageIndex++;
                     }
                 }
-                catch (Exception ex) { Console.WriteLine($"Atlas Load Error: {ex.Message}"); }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MessageRenderer] Atlas Load Error: {ex.Message}");
+                }
             }
         }
 
+        /// <summary>
+        /// Measures the width of text in game units using font metrics.
+        /// </summary>
+        /// <param name="text">Text to measure, may include {n} newline tokens.</param>
+        /// <returns>Total width in game units.</returns>
         public double MeasureText(string text)
         {
             double width = 0;
@@ -174,6 +186,11 @@ namespace RelumiScript
             return width;
         }
 
+        /// <summary>
+        /// Renders in-game message text to an Avalonia Canvas using bitmap font atlas.
+        /// </summary>
+        /// <param name="rawText">Raw message text with {n} representing newlines.</param>
+        /// <returns>Canvas containing rendered text with proper glyph positioning and scaling.</returns>
         public Canvas Render(string rawText)
         {
             var canvas = new Canvas

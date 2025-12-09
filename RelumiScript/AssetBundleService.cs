@@ -40,6 +40,7 @@ namespace RelumiScript
     /// <summary>
     /// Service for loading and decompiling Pokémon BDSP asset bundles.
     /// Handles Unity AssetBundle parsing, script decompilation, and message file loading.
+    /// Note: Asset bundles are automatically unloaded when reloading the same file.
     /// </summary>
     public class AssetBundleService
     {
@@ -60,6 +61,10 @@ namespace RelumiScript
 
         public AssetBundleService() { _manager = new AssetsManager(); }
 
+        /// <summary>
+        /// Initializes the service by loading JSON mapping files for commands, flags, and other game data.
+        /// </summary>
+        /// <param name="jsonDir">Directory containing JSON mapping files.</param>
         public void Initialize(string jsonDir)
         {
             _commandMap.Clear(); _flagMap.Clear(); _sysFlagMap.Clear(); _workMap.Clear(); _fileNameMap.Clear();
@@ -82,11 +87,20 @@ namespace RelumiScript
                 try
                 {
                     var list = JsonConvert.DeserializeObject<List<NameDef>>(File.ReadAllText(p));
-                    if (list != null) foreach (var d in list) if (!map.ContainsKey(d.Id) && d.Name != null) map[d.Id] = d.Name;
+                    if (list != null)
+                    {
+                        foreach (var d in list)
+                        {
+                            if (!map.ContainsKey(d.Id) && d.Name != null)
+                                map[d.Id] = d.Name;
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error loading {f}: {ex.Message}");
+                    InitLog = $"Error loading {f}: {ex.Message}";
+                    // Log to debug output in debug mode
+                    System.Diagnostics.Debug.WriteLine($"[AssetBundleService] Error loading {f}: {ex.Message}");
                 }
             }
         }
@@ -98,16 +112,28 @@ namespace RelumiScript
                 try
                 {
                     var list = JsonConvert.DeserializeObject<List<FileNameDef>>(File.ReadAllText(p));
-                    if (list != null) foreach (var d in list) if (!_fileNameMap.ContainsKey(d.FileName)) _fileNameMap[d.FileName] = d.FriendlyName;
+                    if (list != null)
+                    {
+                        foreach (var d in list)
+                        {
+                            if (!_fileNameMap.ContainsKey(d.FileName))
+                                _fileNameMap[d.FileName] = d.FriendlyName;
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error loading {f}: {ex.Message}");
+                    InitLog = $"Error loading {f}: {ex.Message}";
+                    System.Diagnostics.Debug.WriteLine($"[AssetBundleService] Error loading {f}: {ex.Message}");
                 }
             }
         }
 
         // Renamed from LoadPokemonData to LoadGameData to reflect broader purpose
+        /// <summary>
+        /// Loads Pokémon names and item names from the message bundle file.
+        /// </summary>
+        /// <param name="msgBundlePath">Path to the message bundle containing Pokémon and item data.</param>
         public void LoadGameData(string msgBundlePath)
         {
             PokemonMap.Clear();
@@ -137,7 +163,11 @@ namespace RelumiScript
                     }
                 }
             }
-            catch (Exception ex) { Console.WriteLine("GameDataLoad Error: " + ex.Message); }
+            catch (Exception ex)
+            {
+                InitLog = $"GameData Load Error: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"[AssetBundleService] GameData Load Error: {ex.Message}");
+            }
         }
 
         // Helper to parse the standard MSBT array structure
@@ -159,15 +189,23 @@ namespace RelumiScript
 
                     if (!idx.IsDummy && !words.IsDummy && words.Children.Count > 0)
                     {
-                        string val = words.Children[0]["str"].AsString;
+                        int idxValue = idx.AsInt;
                         // Avoid overwriting if we have duplicates (first one usually wins or is main)
-                        if (!targetMap.ContainsKey(idx.AsInt))
-                            targetMap[idx.AsInt] = val;
+                        if (!targetMap.ContainsKey(idxValue))
+                        {
+                            string val = words.Children[0]["str"].AsString;
+                            targetMap[idxValue] = val;
+                        }
                     }
                 }
             }
         }
 
+        /// <summary>
+        /// Loads message files from a bundle and organizes them into file nodes.
+        /// </summary>
+        /// <param name="bundlePath">Path to the message bundle file.</param>
+        /// <returns>List of FileNode objects containing message scripts.</returns>
         public List<FileNode> LoadMessageFiles(string bundlePath)
         {
             var output = new List<FileNode>();
@@ -208,15 +246,24 @@ namespace RelumiScript
                     }
                     if (node.Scripts.Count > 0)
                     {
-                        node.Scripts.Sort((a, b) => string.Compare(a.Label, b.Label));
+                        node.Scripts.Sort((a, b) => string.Compare(a.Label, b.Label, StringComparison.Ordinal));
                         output.Add(node);
                     }
                 }
             }
-            catch (Exception ex) { Console.WriteLine("MsgLoad Error: " + ex.Message); }
+            catch (Exception ex)
+            {
+                InitLog = $"Message Load Error: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"[AssetBundleService] Message Load Error: {ex.Message}");
+            }
             return output.OrderBy(f => f.Name).ToList();
         }
 
+        /// <summary>
+        /// Loads and decompiles event scripts from a bundle file.
+        /// </summary>
+        /// <param name="bundlePath">Path to the ev_script bundle file.</param>
+        /// <returns>List of FileNode objects containing decompiled scripts.</returns>
         public List<FileNode> LoadAndDecompile(string bundlePath)
         {
             var output = new List<FileNode>();
@@ -270,12 +317,12 @@ namespace RelumiScript
                                 {
                                     int id = args[0]["data"].AsInt;
                                     string cmdName = _commandMap.ContainsKey(id) ? _commandMap[id] : $"cmd_{id}";
-                                    var argList = new List<string>();
+                                    var argList = new List<string>(args.Children.Count - 1);
                                     for (int k = 1; k < args.Children.Count; k++)
                                     {
                                         argList.Add(FormatArg(args[k]["argType"].AsInt, args[k]["data"].AsInt, strings));
                                     }
-                                    sb.AppendLine($"\t{cmdName} {string.Join(" ", argList)}");
+                                    sb.Append('\t').Append(cmdName).Append(' ').AppendJoin(' ', argList).AppendLine();
                                 }
                             }
                         }

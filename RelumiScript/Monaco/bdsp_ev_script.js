@@ -75,6 +75,8 @@ function getSignatureData(cmd) {
 }
 
 function getActiveContext(model, position) {
+  if (!model || !position) return null;
+
   const textUntilPosition = model.getValueInRange({
     startLineNumber: position.lineNumber,
     startColumn: 1,
@@ -317,28 +319,48 @@ function loadSyntaxFromFile(filename) {
   script.src = filename;
 
   script.onload = function () {
-    if (window.RELUMI_DATA) applySyntaxData(window.RELUMI_DATA);
+    if (window.RELUMI_DATA) {
+      try {
+        applySyntaxData(window.RELUMI_DATA);
+      } catch (e) {
+        console.error("[bdsp_ev_script] Failed to apply syntax data:", e);
+      }
+    }
   };
+
+  script.onerror = function () {
+    console.error("[bdsp_ev_script] Failed to load syntax file:", filename);
+  };
+
   document.head.appendChild(script);
 }
 
 function applySyntaxData(data) {
   try {
+    if (!data) {
+      console.warn("[bdsp_ev_script] No data provided to applySyntaxData");
+      return;
+    }
+
     loadedData.commands = safeMap(data.commands);
     loadedData.flags = safeMap(data.flags);
     loadedData.sysflags = safeMap(data.sysflags);
     loadedData.works = safeMap(data.works);
 
-    if (data.commands) {
+    if (data.commands && Array.isArray(data.commands)) {
       data.commands.forEach((cmd) => {
-        commandLookup[cmd.Name] = cmd;
+        if (cmd && cmd.Name) {
+          commandLookup[cmd.Name] = cmd;
+        }
       });
     }
 
     pokeMap = data.pokes || {};
     pokeReverseMap = {};
     for (let id in pokeMap) {
-      pokeReverseMap[pokeMap[id]] = parseInt(id);
+      if (pokeMap.hasOwnProperty(id)) {
+        pokeReverseMap[pokeMap[id]] = parseInt(id);
+      }
     }
 
     monaco.languages.setMonarchTokensProvider("bdsp", {

@@ -174,7 +174,8 @@ namespace RelumiScript
 
         private void SelectCommandInList(string commandName)
         {
-            if (!ScriptTrackerPanel.IsVisible || _allCommandUsages.Count == 0) return;
+            if (string.IsNullOrWhiteSpace(commandName) || !ScriptTrackerPanel.IsVisible || _allCommandUsages.Count == 0)
+                return;
 
             var target = _allCommandUsages.FirstOrDefault(f => f.CommandName.Equals(commandName, StringComparison.OrdinalIgnoreCase));
             if (target != null)
@@ -249,6 +250,9 @@ namespace RelumiScript
 
         private async Task InjectMonacoListeners()
         {
+            if (!_isEditorReady || Editor == null)
+                return;
+
             string script = @"
                 // 1. Message Preview on Cursor Position
                 editor.onDidChangeCursorPosition((e) => {
@@ -351,10 +355,8 @@ namespace RelumiScript
 
         private void SelectFlagInList(string flagName)
         {
-            if (!FlagTrackerPanel.IsVisible || _allFlagUsages.Count == 0)
-            {
-                if (!FlagTrackerPanel.IsVisible) return;
-            }
+            if (string.IsNullOrWhiteSpace(flagName) || !FlagTrackerPanel.IsVisible || _allFlagUsages.Count == 0)
+                return;
 
             // Fuzzy match (ignore case)
             var target = _allFlagUsages.FirstOrDefault(f => f.FlagName.Equals(flagName, StringComparison.OrdinalIgnoreCase));
@@ -593,10 +595,17 @@ namespace RelumiScript
 
                 // 2. Jump to line
                 await Task.Delay(150); // Small delay for WebView to load new content
-                if (_isEditorReady)
+                if (_isEditorReady && Editor != null)
                 {
                     string script = $"editor.revealLineInCenter({loc.LineNumber}); editor.setPosition({{lineNumber: {loc.LineNumber}, column: 1}}); editor.focus();";
-                    await Editor.ExecuteScriptAsync(script);
+                    try
+                    {
+                        await Editor.ExecuteScriptAsync(script);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[MainWindow] Failed to jump to line: {ex.Message}");
+                    }
                 }
             }
         }
@@ -680,8 +689,22 @@ namespace RelumiScript
 
         private string LoadCleanJson(string path)
         {
-            if (!File.Exists(path)) return "[]";
-            try { return JsonConvert.SerializeObject(JsonConvert.DeserializeObject(File.ReadAllText(path)), Formatting.None); } catch { return "[]"; }
+            if (!File.Exists(path))
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] JSON file not found: {path}");
+                return "[]";
+            }
+            try
+            {
+                var content = File.ReadAllText(path);
+                var deserialized = JsonConvert.DeserializeObject(content);
+                return JsonConvert.SerializeObject(deserialized, Formatting.None);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] Failed to load JSON from {path}: {ex.Message}");
+                return "[]";
+            }
         }
 
         private async Task GenerateAndInjectSyntax()
@@ -689,7 +712,11 @@ namespace RelumiScript
             try
             {
                 string? jsonDir = FindJsonFolder();
-                if (string.IsNullOrEmpty(jsonDir)) return;
+                if (string.IsNullOrEmpty(jsonDir))
+                {
+                    System.Diagnostics.Debug.WriteLine("[MainWindow] JSON folder not found");
+                    return;
+                }
 
                 if (_service.InitSummary.Contains("Cmds: 0"))
                 {
@@ -712,12 +739,26 @@ namespace RelumiScript
                     File.WriteAllText(monacoPath, content, Encoding.UTF8);
                 });
 
-                if (_isEditorReady) await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={DateTime.Now.Ticks}');");
+                if (_isEditorReady && Editor != null)
+                {
+                    try
+                    {
+                        await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={DateTime.Now.Ticks}');");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[MainWindow] Failed to inject syntax: {ex.Message}");
+                    }
+                }
 
                 if (!_service.InitSummary.Contains("Cmds: 0"))
                     Dispatcher.UIThread.Post(() => { StatusText.Text = $"Ready. Backend: {_service.InitSummary}"; });
             }
-            catch (Exception ex) { Dispatcher.UIThread.Post(() => { StatusText.Text = "Init Error: " + ex.Message; }); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] GenerateAndInjectSyntax error: {ex.Message}");
+                Dispatcher.UIThread.Post(() => { StatusText.Text = "Init Error: " + ex.Message; });
+            }
         }
 
         private void OnTabChanged(object? sender, RoutedEventArgs e)
@@ -733,17 +774,34 @@ namespace RelumiScript
 
         private async void SetEditorText(string content)
         {
-            _currentScriptContent = content;
-            if (FlagTrackerPanel.IsVisible) UpdateFlagUi(content); // Direct update since we have source of truth
+            _currentScriptContent = content ?? string.Empty;
+            if (FlagTrackerPanel.IsVisible) UpdateFlagUi(_currentScriptContent); // Direct update since we have source of truth
 
-            string safe = JsonConvert.ToString(content);
-            if (_isEditorReady)
+            string safe = JsonConvert.ToString(_currentScriptContent);
+            if (_isEditorReady && Editor != null)
             {
-                string jsCommand = $"editor.setValue(window.formatLegacyScript ? window.formatLegacyScript({safe}) : {safe});";
-                await Editor.ExecuteScriptAsync(jsCommand);
-                await Editor.ExecuteScriptAsync("editor.updateOptions({readOnly: false});");
+                try
+                {
+                    string jsCommand = $"editor.setValue(window.formatLegacyScript ? window.formatLegacyScript({safe}) : {safe});";
+                    await Editor.ExecuteScriptAsync(jsCommand);
+                    await Editor.ExecuteScriptAsync("editor.updateOptions({readOnly: false});");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MainWindow] Failed to set editor text: {ex.Message}");
+                }
             }
-            if (_isBlocklyReady && BlockEditor.IsVisible) await BlockEditor.ExecuteScriptAsync($"loadScript({safe});");
+            if (_isBlocklyReady && BlockEditor.IsVisible && BlockEditor != null)
+            {
+                try
+                {
+                    await BlockEditor.ExecuteScriptAsync($"loadScript({safe});");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[MainWindow] Failed to set Blockly text: {ex.Message}");
+                }
+            }
         }
 
         private void UpdateFlagUi(string content)

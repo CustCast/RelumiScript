@@ -10,13 +10,14 @@ Usage: python generate_blocks.py
 import json
 import os
 import sys
+from typing import Dict, List, Any, Optional
 
 # --- CONFIGURATION ---
 INPUT_JSON = "JSON/commands.json"
 OUTPUT_JS = "Blockly/block_defs.js"
 
 # --- CUSTOM BLOCKS ---
-CUSTOM_BLOCKS = {
+CUSTOM_BLOCKS: Dict[str, Dict[str, Any]] = {
     # 1. SPECIAL LABEL BLOCK
     "bdsp_label": {
         "type": "bdsp_label",
@@ -30,8 +31,12 @@ CUSTOM_BLOCKS = {
 }
 
 
-def generate_js():
-    """Generate Blockly block definitions from commands JSON file."""
+def generate_js() -> bool:
+    """Generate Blockly block definitions from commands JSON file.
+
+    Returns:
+        bool: True if generation was successful, False otherwise.
+    """
     if not os.path.exists(INPUT_JSON):
         print(f"Error: {INPUT_JSON} not found", file=sys.stderr)
         return False
