@@ -45,7 +45,7 @@ namespace RelumiScript
         public string Command { get; set; } = "";
         public string Content { get; set; } = "";
         public string FileName { get; set; } = "";     // For display/logic
-        public object NodeObject { get; set; }         // For navigation (FileNode or ScriptNode)
+        public object? NodeObject { get; set; }         // For navigation (FileNode or ScriptNode)
     }
 
     // FIX: Explicitly inherit from Avalonia.Controls.Window to avoid GTK conflict
@@ -122,7 +122,7 @@ namespace RelumiScript
                         .OrderBy(c => c.CommandName)
                         .ToList();
 
-                    FilterCommands(ScriptSearchBox.Text); // Reusing search box binding for now
+                    FilterCommands(ScriptSearchBox.Text ?? "");
                     StatusText.Text = $"Command Tracker: Found {_allCommandUsages.Count} unique commands.";
                 });
             });
@@ -194,7 +194,10 @@ namespace RelumiScript
                             ScriptList.ScrollIntoView(target);
                             ScriptList.SelectedItem = target;
                         }
-                        catch { }
+                        catch
+                        {
+                            // Ignore scroll errors if item is not visible or list is not ready
+                        }
                     }, DispatcherPriority.ApplicationIdle);
                 }, DispatcherPriority.Background);
             }
@@ -440,12 +443,12 @@ namespace RelumiScript
 
         private void FlagSearchBox_TextChanged(object? sender, TextChangedEventArgs e)
         {
-            FilterFlags(FlagSearchBox.Text);
+            FilterFlags(FlagSearchBox.Text ?? "");
         }
 
         private void ScriptSearchBox_TextChanged(object? sender, TextChangedEventArgs e)
         {
-            FilterCommands(ScriptSearchBox.Text); // Renamed
+            FilterCommands(ScriptSearchBox.Text ?? "");
         }
 
         private void FilterFlags(string query)
@@ -534,7 +537,7 @@ namespace RelumiScript
                         .ThenBy(f => f.FlagName)
                         .ToList();
 
-                    FilterFlags(FlagSearchBox.Text);
+                    FilterFlags(FlagSearchBox.Text ?? "");
 
                     int usedCount = _allFlagUsages.Count(f => f.Locations.Count > 0);
                     StatusText.Text = $"Flag Tracker: Found {usedCount} used / {_allFlagUsages.Count} total.";
@@ -573,22 +576,6 @@ namespace RelumiScript
                 }
             }
         }
-
-        private async void RefreshScripts()
-        {
-            StatusText.Text = "Script Tracker: Scanning...";
-            ScriptList.ItemsSource = null;
-
-            List<object> nodesToScan = new List<object>();
-
-        }
-
-
-
-
-
-
-
 
         private async void JumpToLocation_Click(object? sender, RoutedEventArgs e)
         {

@@ -309,7 +309,6 @@ function safeMap(array) {
 }
 
 function loadSyntaxFromFile(filename) {
-  console.log("[JS] Loading: " + filename);
   var old = document.getElementById("syntax_script");
   if (old) old.remove();
 
@@ -341,12 +340,6 @@ function applySyntaxData(data) {
     for (let id in pokeMap) {
       pokeReverseMap[pokeMap[id]] = parseInt(id);
     }
-
-    console.log(
-      `[JS] Cmds: ${loadedData.commands.length}, Pokes: ${
-        Object.keys(pokeMap).length
-      }`
-    );
 
     monaco.languages.setMonarchTokensProvider("bdsp", {
       commands: loadedData.commands,

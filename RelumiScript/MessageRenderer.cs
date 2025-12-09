@@ -11,12 +11,18 @@ using System.Linq;
 
 namespace RelumiScript
 {
+    /// <summary>
+    /// Atlas metadata for font rendering.
+    /// </summary>
     public class AtlasData
     {
         [JsonProperty("size")] public int Size { get; set; }
         [JsonProperty("glyphs")] public Dictionary<string, GlyphData>? Glyphs { get; set; }
     }
 
+    /// <summary>
+    /// Glyph data containing position, size, and rendering information.
+    /// </summary>
     public class GlyphData
     {
         [JsonProperty("p")] public int Page { get; set; }
@@ -29,6 +35,10 @@ namespace RelumiScript
         [JsonProperty("ax")] public double AdvanceX { get; set; }
     }
 
+    /// <summary>
+    /// Renders in-game messages using custom bitmap font atlas.
+    /// Handles text measurement, scaling, and multi-line rendering with proper glyph positioning.
+    /// </summary>
     public class MessageRenderer
     {
         private Dictionary<string, double> _metrics = new Dictionary<string, double>();

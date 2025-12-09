@@ -10,9 +10,19 @@ using System.Text;
 
 namespace RelumiScript
 {
+    /// <summary>
+    /// Represents a named definition with an ID and name, used for JSON deserialization.
+    /// </summary>
     public class NameDef { [JsonProperty("Id")] public int Id { get; set; } [JsonProperty("Name")] public string? Name { get; set; } }
+
+    /// <summary>
+    /// Represents a file name mapping with internal and friendly names.
+    /// </summary>
     public class FileNameDef { public string FileName { get; set; } = ""; public string FriendlyName { get; set; } = ""; }
 
+    /// <summary>
+    /// Represents a file node containing multiple scripts.
+    /// </summary>
     public class FileNode
     {
         public string Name { get; set; } = "Unknown";
@@ -22,8 +32,15 @@ namespace RelumiScript
         public string Color => IsMessage ? "#569CD6" : "#4EC9B0";
     }
 
+    /// <summary>
+    /// Represents a single script with a label and content.
+    /// </summary>
     public class ScriptNode { public string Label { get; set; } = ""; public string Content { get; set; } = ""; }
 
+    /// <summary>
+    /// Service for loading and decompiling Pokémon BDSP asset bundles.
+    /// Handles Unity AssetBundle parsing, script decompilation, and message file loading.
+    /// </summary>
     public class AssetBundleService
     {
         private AssetsManager _manager;
@@ -67,7 +84,10 @@ namespace RelumiScript
                     var list = JsonConvert.DeserializeObject<List<NameDef>>(File.ReadAllText(p));
                     if (list != null) foreach (var d in list) if (!map.ContainsKey(d.Id) && d.Name != null) map[d.Id] = d.Name;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error loading {f}: {ex.Message}");
+                }
             }
         }
         private void LoadFileMap(string dir, string f)
@@ -80,7 +100,10 @@ namespace RelumiScript
                     var list = JsonConvert.DeserializeObject<List<FileNameDef>>(File.ReadAllText(p));
                     if (list != null) foreach (var d in list) if (!_fileNameMap.ContainsKey(d.FileName)) _fileNameMap[d.FileName] = d.FriendlyName;
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error loading {f}: {ex.Message}");
+                }
             }
         }
 
