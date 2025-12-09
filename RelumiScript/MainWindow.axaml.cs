@@ -28,12 +28,12 @@ namespace RelumiScript
         public string FlagName { get; set; } = "";
         public string CountString => $"({Locations.Count})";
         public List<FlagLocation> Locations { get; set; } = new List<FlagLocation>();
-        
+
         private bool _isExpanded;
-        public bool IsExpanded 
-        { 
-            get => _isExpanded; 
-            set { _isExpanded = value; PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(IsExpanded))); } 
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set { _isExpanded = value; PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(IsExpanded))); }
         }
 
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
@@ -53,34 +53,34 @@ namespace RelumiScript
     {
         private AssetBundleService _service;
         private MessageRenderer? _messageRenderer;
-        
+
         private bool _isEditorReady = false;
         private bool _isBlocklyReady = false;
-        
+
         private string _currentScriptContent = "";
         private List<FileNode> _loadedMessages = new List<FileNode>();
-        
+
         // Caches for search
         private List<FlagUsageInfo> _allFlagUsages = new List<FlagUsageInfo>();
         private List<CommandUsageInfo> _allCommandUsages = new List<CommandUsageInfo>();
 
-    public class CommandUsageInfo : System.ComponentModel.INotifyPropertyChanged
-    {
-        public string CommandName { get; set; } = "";
-        public string CountString => $"({Locations.Count} uses)";
-        public List<FlagLocation> Locations { get; set; } = new List<FlagLocation>();
-        
-        private bool _isExpanded;
-        public bool IsExpanded 
-        { 
-            get => _isExpanded; 
-            set { _isExpanded = value; PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(IsExpanded))); } 
+        public class CommandUsageInfo : System.ComponentModel.INotifyPropertyChanged
+        {
+            public string CommandName { get; set; } = "";
+            public string CountString => $"({Locations.Count} uses)";
+            public List<FlagLocation> Locations { get; set; } = new List<FlagLocation>();
+
+            private bool _isExpanded;
+            public bool IsExpanded
+            {
+                get => _isExpanded;
+                set { _isExpanded = value; PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(IsExpanded))); }
+            }
+
+            public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
         }
 
-        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
-    }
-
-// ... [Constructor and other methods unchanged] ...
+        // ... [Constructor and other methods unchanged] ...
 
         private async void RefreshCommands()
         {
@@ -135,20 +135,20 @@ namespace RelumiScript
             {
                 string line = lines[i];
                 if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("//") || line.TrimStart().StartsWith(";")) continue;
-                
+
                 // Identify Command: First word of the line
                 var match = System.Text.RegularExpressions.Regex.Match(line.Trim(), @"^([A-Za-z0-9_]+)");
                 if (match.Success)
                 {
                     string cmd = match.Groups[1].Value;
-                    
+
                     // Filter out likely labels (definitions often end in :)
                     // But here we are just looking for the first word. Labels ARE parsed as first word.
                     // If it ends with ':', it's a label def.
-                    if (line.Trim().StartsWith(cmd + ":")) continue; 
+                    if (line.Trim().StartsWith(cmd + ":")) continue;
 
                     if (!results.ContainsKey(cmd)) results[cmd] = new CommandUsageInfo { CommandName = cmd };
-                    
+
                     results[cmd].Locations.Add(new FlagLocation
                     {
                         LineNumber = i + 1 + lineOffset,
@@ -174,17 +174,17 @@ namespace RelumiScript
 
         private void SelectCommandInList(string commandName)
         {
-             if (!ScriptTrackerPanel.IsVisible || _allCommandUsages.Count == 0) return;
+            if (!ScriptTrackerPanel.IsVisible || _allCommandUsages.Count == 0) return;
 
             var target = _allCommandUsages.FirstOrDefault(f => f.CommandName.Equals(commandName, StringComparison.OrdinalIgnoreCase));
             if (target != null)
             {
-                 if (ScriptList.Items.Count != _allCommandUsages.Count && !ScriptList.Items.Contains(target))
+                if (ScriptList.Items.Count != _allCommandUsages.Count && !ScriptList.Items.Contains(target))
                 {
-                     ScriptSearchBox.Text = ""; 
+                    ScriptSearchBox.Text = "";
                 }
 
-                Dispatcher.UIThread.Post(() => 
+                Dispatcher.UIThread.Post(() =>
                 {
                     target.IsExpanded = true;
                     Dispatcher.UIThread.Post(() =>
@@ -246,12 +246,21 @@ namespace RelumiScript
 
         private async Task InjectMonacoListeners()
         {
-            // FIX: Removed cursor movement listener
-            // ADDED: Context menu "Look Up"
             string script = @"
-                // 1. Message Preview (Keep this one? Or remove if unnecessary? Let's keep it for now but maybe context menu it too?)
-                // Actually user said 'Also the peek functionality... For both of them, can we add a right click Look Up'.
-                // So auto-peek might be annoying if it pops up everywhere. But let's keep it for now unless requested.
+                // 1. Message Preview on Cursor Position
+                editor.onDidChangeCursorPosition((e) => {
+                    var model = editor.getModel();
+                    var lineContent = model.getLineContent(e.position.lineNumber);
+                    
+                    // Matches _TALKMSG(...) OR _TALK_KEYWAIT(...) with @filename%label OR ""filename%label""
+                    var match = lineContent.match(/(?:_TALKMSG|_TALK_KEYWAIT)\s*\(\s*[@""]([^%]+)%([^)""]+)[""]?\s*\)/);
+                    
+                    if (match) {
+                        window.chrome.webview.postMessage('PREVIEW:' + match[1] + '%' + match[2]);
+                    } else {
+                        window.chrome.webview.postMessage('HIDE_PREVIEW');
+                    }
+                });
 
                 // 2. Context Menu Action: Look Up
                 var lookupAction = {
@@ -266,11 +275,7 @@ namespace RelumiScript
                         
                         if (wordInfo) {
                            var word = wordInfo.word;
-                           // Check for Flag prefix
                            var lineContent = model.getLineContent(pos.lineNumber);
-                           // var charBefore = lineContent.charAt(wordInfo.startColumn - 2); // 1-based minus 2? 
-                           // Word start column is 1-based.
-                           // If word starts at 5. Char at index 4 is the first char of word. Char at index 3 is charBefore.
                            
                            var charBefore = '';
                            if (wordInfo.startColumn > 1) {
@@ -280,7 +285,6 @@ namespace RelumiScript
                            if (charBefore === '#' || charBefore === '$') {
                                window.chrome.webview.postMessage('LOOKUP_FLAG:' + charBefore + word);
                            } else {
-                               // Assuming Command or Label
                                window.chrome.webview.postMessage('LOOKUP_CMD:' + word);
                            }
                         }
@@ -344,9 +348,9 @@ namespace RelumiScript
 
         private void SelectFlagInList(string flagName)
         {
-             if (!FlagTrackerPanel.IsVisible || _allFlagUsages.Count == 0)
+            if (!FlagTrackerPanel.IsVisible || _allFlagUsages.Count == 0)
             {
-                 if (!FlagTrackerPanel.IsVisible) return;
+                if (!FlagTrackerPanel.IsVisible) return;
             }
 
             // Fuzzy match (ignore case)
@@ -356,14 +360,14 @@ namespace RelumiScript
                 // Unfilter if hidden by filter
                 if (FlagList.Items.Count != _allFlagUsages.Count && !FlagList.Items.Contains(target))
                 {
-                     FlagSearchBox.Text = ""; // clear filter to show all
+                    FlagSearchBox.Text = ""; // clear filter to show all
                 }
 
                 // Defer logic to allow UI to update
-                Dispatcher.UIThread.Post(() => 
+                Dispatcher.UIThread.Post(() =>
                 {
                     target.IsExpanded = true;
-                    
+
                     // Defer Scroll again to ensure Layout updated
                     // Use ApplicationIdle to wait for all rendering/layout passes
                     Dispatcher.UIThread.Post(() =>
@@ -418,9 +422,9 @@ namespace RelumiScript
             ScriptTrackerPanel.IsVisible = !ScriptTrackerPanel.IsVisible;
             if (ScriptTrackerPanel.IsVisible)
             {
-                 SearchPanel.IsVisible = false;
-                 FlagTrackerPanel.IsVisible = false;
-                 RefreshCommands(); // Renamed
+                SearchPanel.IsVisible = false;
+                FlagTrackerPanel.IsVisible = false;
+                RefreshCommands(); // Renamed
             }
         }
 
@@ -456,7 +460,7 @@ namespace RelumiScript
             var filtered = _allFlagUsages
                 .Where(f => f.FlagName.ToLower().Contains(lowerQ))
                 .ToList();
-            
+
             FlagList.ItemsSource = filtered;
         }
 
@@ -480,49 +484,49 @@ namespace RelumiScript
             var knownFlags = _service.FlagMap;
             var knownSysFlags = _service.SysFlagMap;
 
-            await Task.Run(() => 
+            await Task.Run(() =>
             {
                 var combinedResults = new Dictionary<string, FlagUsageInfo>();
 
                 // 1. Pre-populate with all known flags
-                foreach (var kvp in knownFlags) 
+                foreach (var kvp in knownFlags)
                 {
                     // FIX: Ensure no double ## if the value already has one
                     string raw = kvp.Value;
                     string f = raw.StartsWith("#") ? raw : $"#{raw}";
                     combinedResults[f] = new FlagUsageInfo { FlagName = f };
                 }
-                foreach (var kvp in knownSysFlags) 
+                foreach (var kvp in knownSysFlags)
                 {
                     string raw = kvp.Value;
                     string f = raw.StartsWith("$") ? raw : $"${raw}";
                     combinedResults[f] = new FlagUsageInfo { FlagName = f };
                 }
-                
+
                 // 2. Scan Scripts
                 foreach (var node in nodesToScan)
                 {
                     if (node is FileNode fNode) // Folder/File containing scripts
                     {
                         int currentLineOffset = 0;
-                        foreach (var s in fNode.Scripts) 
+                        foreach (var s in fNode.Scripts)
                         {
                             // Pass the current offset to ScanScript
                             ScanScript(s.Content, fNode.Name, fNode, combinedResults, currentLineOffset);
-                            
+
                             // Calculate new offset: content lines + 1 blank line (as per SelectionChanged logic)
                             var lines = s.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-                            currentLineOffset += lines.Length + 1; 
+                            currentLineOffset += lines.Length + 1;
                         }
                     }
                     else if (node is ScriptNode sNode) // Root level script?
                     {
-                         ScanScript(sNode.Content, "Root", sNode, combinedResults, 0);
+                        ScanScript(sNode.Content, "Root", sNode, combinedResults, 0);
                     }
                 }
-                 
+
                 // Update UI on main thread
-                Dispatcher.UIThread.Post(() => 
+                Dispatcher.UIThread.Post(() =>
                 {
                     // Sort: Unused (Count=0) first, then Alphabetical
                     _allFlagUsages = combinedResults.Values
@@ -531,7 +535,7 @@ namespace RelumiScript
                         .ToList();
 
                     FilterFlags(FlagSearchBox.Text);
-                    
+
                     int usedCount = _allFlagUsages.Count(f => f.Locations.Count > 0);
                     StatusText.Text = $"Flag Tracker: Found {usedCount} used / {_allFlagUsages.Count} total.";
                 });
@@ -557,7 +561,7 @@ namespace RelumiScript
                 {
                     string fullFlag = m.Value; // Regex ensures it starts with # or $
                     if (!results.ContainsKey(fullFlag)) results[fullFlag] = new FlagUsageInfo { FlagName = fullFlag };
-                    
+
                     results[fullFlag].Locations.Add(new FlagLocation
                     {
                         LineNumber = i + 1 + lineOffset, // Apply offset
@@ -595,11 +599,11 @@ namespace RelumiScript
                 {
                     // Manually select it in the tree
                     ScriptTree.SelectedItem = loc.NodeObject;
-                    
+
                     // Force Editor update immediately if possible, but SelectionChanged should handle it
                     // Give it a moment to render
                 }
-                
+
                 // 2. Jump to line
                 await Task.Delay(150); // Small delay for WebView to load new content
                 if (_isEditorReady)
@@ -735,7 +739,7 @@ namespace RelumiScript
             Editor.IsVisible = codeMode;
             BlockEditor.IsVisible = !codeMode;
             SetEditorText(_currentScriptContent);
-            
+
             // Refresh flags if panel is open
             if (FlagTrackerPanel.IsVisible) RefreshFlags();
         }
@@ -744,7 +748,7 @@ namespace RelumiScript
         {
             _currentScriptContent = content;
             if (FlagTrackerPanel.IsVisible) UpdateFlagUi(content); // Direct update since we have source of truth
-            
+
             string safe = JsonConvert.ToString(content);
             if (_isEditorReady)
             {
@@ -757,9 +761,9 @@ namespace RelumiScript
 
         private void UpdateFlagUi(string content)
         {
-             // Optional logic to update flags in real-time for CURRENT file only
-             // But we are focusing on global search, so we might skip this or implement partial update
-             // For now, let's just leave it empty or minimal to avoid conflicting with global search logic
+            // Optional logic to update flags in real-time for CURRENT file only
+            // But we are focusing on global search, so we might skip this or implement partial update
+            // For now, let's just leave it empty or minimal to avoid conflicting with global search logic
         }
 
         private string? FindFileInStructure(string root, string[] segments)

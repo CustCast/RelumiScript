@@ -132,10 +132,10 @@
                         <Border Grid.Row="0" Padding="10,5" Background="#252526" BorderBrush="#333" BorderThickness="0,1,0,0">
                             <TextBlock Text="PREVIEW" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11"/>
                         </Border>
-                        <Border Grid.Row="1" x:Name="MessagePreviewContainer" IsVisible="False" Padding="0" VerticalAlignment="Top" MaxHeight="230">
-                            <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left" VerticalAlignment="Top">
+                        <Border Grid.Row="1" x:Name="MessagePreviewContainer" IsVisible="False" Padding="10" VerticalAlignment="Top" MaxHeight="250" Background="#1E1E1E">
+                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                                 <ContentControl x:Name="MessagePreviewContent" />
-                            </Viewbox>
+                            </ScrollViewer>
                         </Border>
                     </Grid>
                 </Grid>

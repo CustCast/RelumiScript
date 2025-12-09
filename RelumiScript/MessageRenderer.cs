@@ -231,15 +231,20 @@ namespace RelumiScript
                         Canvas.SetLeft(img, drawX);
                         Canvas.SetTop(img, drawY);
                         canvas.Children.Add(img);
+
+                        // Use AdvanceX from atlas data for proper spacing
+                        cursorX += data.AdvanceX * renderScale;
                     }
                     else
                     {
                         var err = new Border { Background = Brushes.Red, Width = 10, Height = targetFontSize };
                         Canvas.SetLeft(err, cursorX); Canvas.SetTop(err, currentY);
                         canvas.Children.Add(err);
-                    }
 
-                    cursorX += advancePx;
+                        // Fallback advance using metrics
+                        double fallbackWidth = _metrics.TryGetValue(charStr, out double fw) ? fw : (char.IsDigit(c) ? 15.0 : 8.67);
+                        cursorX += (fallbackWidth * _pixelsPerUnitCalculated * lineScale) * TextScale;
+                    }
                 }
                 currentY += (targetFontSize + 10);
             }

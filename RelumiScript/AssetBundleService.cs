@@ -271,8 +271,8 @@ namespace RelumiScript
             {
                 case 1: return BitConverter.ToSingle(BitConverter.GetBytes(val), 0).ToString(CultureInfo.InvariantCulture);
                 case 2: return _workMap.ContainsKey(val) ? _workMap[val] : $"var_{val}";
-                case 3: return _flagMap.ContainsKey(val) ? $"#{_flagMap[val]}" : $"#flag_{val}";
-                case 4: return _sysFlagMap.ContainsKey(val) ? $"${_sysFlagMap[val]}" : $"$sys_{val}";
+                case 3: return _flagMap.ContainsKey(val) ? $"#{_flagMap[val]}" : $"#{val}";
+                case 4: return _sysFlagMap.ContainsKey(val) ? $"${_sysFlagMap[val]}" : $"${val}";
                 case 5:
                     if (val >= 0 && val < stringTable.Count)
                     {
