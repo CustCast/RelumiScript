@@ -112,7 +112,7 @@ namespace RelumiScript
                         {
                             ScanForCommands(s.Content, fNode.Name, fNode, combinedResults, offset);
                             var lines = s.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-                            offset += lines.Length + 1;
+                            offset += lines.Length;
                         }
                     }
                     else if (node is ScriptNode sNode)
@@ -575,9 +575,9 @@ namespace RelumiScript
                             // Pass the current offset to ScanScript
                             ScanScript(s.Content, fNode.Name, fNode, combinedResults, currentLineOffset);
 
-                            // Calculate new offset: content lines + 1 blank line (as per SelectionChanged logic)
+                            // Calculate new offset: content lines (AppendLine adds newline, not blank line)
                             var lines = s.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-                            currentLineOffset += lines.Length + 1;
+                            currentLineOffset += lines.Length;
                         }
                     }
                     else if (node is ScriptNode sNode) // Root level script?
