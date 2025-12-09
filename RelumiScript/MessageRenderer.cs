@@ -52,6 +52,10 @@ namespace RelumiScript
         private double _canvasWidth = 1500;
         private double _canvasHeight = 230;
 
+        // Dialogue page settings (BDSP typically shows 2-3 lines per textbox)
+        private const int MaxLinesPerPage = 2;
+        private const double LineHeight = 60.0; // Approximate height per line including spacing
+
         private double _baseMetricCalculated = BaseMetric;
         private double _pixelsPerUnitCalculated = 1.88;
 
@@ -160,6 +164,31 @@ namespace RelumiScript
         }
 
         /// <summary>
+        /// Splits dialogue text into pages based on line breaks.
+        /// In BDSP, each {n} token represents a line break, and text is displayed progressively.
+        /// This method treats the entire text as pages split by {n} tokens, with MaxLinesPerPage lines per page.
+        /// </summary>
+        /// <param name="rawText">Raw message text with {n} representing newlines.</param>
+        /// <returns>List of text pages, each containing up to MaxLinesPerPage lines.</returns>
+        public List<string> SplitIntoPages(string rawText)
+        {
+            var pages = new List<string>();
+            if (string.IsNullOrEmpty(rawText)) return pages;
+
+            // Split by {n} tokens to get individual lines
+            var lines = rawText.Split(new[] { "{n}" }, StringSplitOptions.None);
+
+            // Group lines into pages (MaxLinesPerPage lines each)
+            for (int i = 0; i < lines.Length; i += MaxLinesPerPage)
+            {
+                var pageLines = lines.Skip(i).Take(MaxLinesPerPage);
+                pages.Add(string.Join("\n", pageLines));
+            }
+
+            return pages;
+        }
+
+        /// <summary>
         /// Measures the width of text in game units using font metrics.
         /// </summary>
         /// <param name="text">Text to measure, may include {n} newline tokens.</param>
@@ -187,7 +216,118 @@ namespace RelumiScript
         }
 
         /// <summary>
+        /// Renders a single page of dialogue text.
+        /// </summary>
+        /// <param name="pageText">Text for this page (already split, no {n} tokens).</param>
+        /// <param name="pageNumber">Current page number (1-indexed).</param>
+        /// <param name="totalPages">Total number of pages.</param>
+        /// <returns>Canvas containing rendered text.</returns>
+        public Canvas RenderPage(string pageText, int pageNumber, int totalPages)
+        {
+            var canvas = new Canvas
+            {
+                Width = _canvasWidth,
+                Height = _canvasHeight,
+                ClipToBounds = true,
+                Background = _bgImage != null
+                    ? new ImageBrush { Source = _bgImage, Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }
+                    : Brushes.Transparent
+            };
+
+            if (string.IsNullOrEmpty(pageText)) return canvas;
+            if (_atlasData?.Glyphs == null || _atlasPages.Count == 0) return canvas;
+
+            // Split lines (already processed from pages)
+            var lines = pageText.Split(new[] { '\n' }, StringSplitOptions.None);
+
+            double currentY = 40;
+            double startX = 100;
+            double refSize = _atlasData.Size;
+
+            foreach (var line in lines)
+            {
+                double lineWidth = MeasureText(line);
+                double lineScale = lineWidth > _baseMetricCalculated ? (_baseMetricCalculated / lineWidth) : 1.0;
+
+                double targetFontSize = (BaseFontSize * lineScale) * TextScale;
+                double renderScale = targetFontSize / refSize;
+
+                double cursorX = startX;
+
+                foreach (char c in line)
+                {
+                    string charStr = c.ToString();
+                    if (charStr == "'") charStr = "'";
+
+                    double metricWidth = 8.67;
+                    if (_metrics.TryGetValue(charStr, out double w)) metricWidth = w;
+                    else if (char.IsDigit(c)) metricWidth = 15.0;
+
+                    double advancePx = (metricWidth * _pixelsPerUnitCalculated * lineScale) * TextScale;
+
+                    if (c == ' ')
+                    {
+                        cursorX += advancePx;
+                        continue;
+                    }
+
+                    string hex = ((int)c).ToString("X4");
+
+                    if (_atlasData.Glyphs.TryGetValue(hex, out GlyphData? data) && data != null && data.Page < _atlasPages.Count)
+                    {
+                        var croppedBitmap = new CroppedBitmap(_atlasPages[data.Page], new PixelRect(data.X, data.Y, data.Width, data.Height));
+                        var img = new Image
+                        {
+                            Source = croppedBitmap,
+                            Width = data.Width * renderScale,
+                            Height = data.Height * renderScale,
+                            Stretch = Stretch.Fill
+                        };
+
+                        double drawX = cursorX + (data.OffsetX * renderScale);
+                        double drawY = currentY + (data.OffsetY * renderScale);
+
+                        Canvas.SetLeft(img, drawX);
+                        Canvas.SetTop(img, drawY);
+                        canvas.Children.Add(img);
+
+                        cursorX += data.AdvanceX * renderScale;
+                    }
+                    else
+                    {
+                        var err = new Border { Background = Brushes.Red, Width = 10, Height = targetFontSize };
+                        Canvas.SetLeft(err, cursorX); Canvas.SetTop(err, currentY);
+                        canvas.Children.Add(err);
+
+                        double fallbackWidth = _metrics.TryGetValue(charStr, out double fw) ? fw : (char.IsDigit(c) ? 15.0 : 8.67);
+                        cursorX += (fallbackWidth * _pixelsPerUnitCalculated * lineScale) * TextScale;
+                    }
+                }
+                currentY += (targetFontSize + 10);
+            }
+
+            // Add page indicator in bottom-right corner if multiple pages
+            if (totalPages > 1)
+            {
+                var pageIndicator = new TextBlock
+                {
+                    Text = $"Page {pageNumber}/{totalPages}",
+                    Foreground = Brushes.White,
+                    FontSize = 12,
+                    FontWeight = FontWeight.Bold,
+                    Opacity = 0.7
+                };
+                Canvas.SetRight(pageIndicator, 20);
+                Canvas.SetBottom(pageIndicator, 15);
+                canvas.Children.Add(pageIndicator);
+            }
+
+            return canvas;
+        }
+
+        /// <summary>
         /// Renders in-game message text to an Avalonia Canvas using bitmap font atlas.
+        /// This method renders all text on a single canvas (legacy behavior).
         /// </summary>
         /// <param name="rawText">Raw message text with {n} representing newlines.</param>
         /// <returns>Canvas containing rendered text with proper glyph positioning and scaling.</returns>

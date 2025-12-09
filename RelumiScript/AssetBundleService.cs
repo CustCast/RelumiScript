@@ -232,15 +232,23 @@ namespace RelumiScript
                     {
                         foreach (var item in entries.Children)
                         {
-                            string txt = "";
                             var words = item["wordDataArray"];
                             if (!words.IsDummy && words.Children.Count > 0 && words.Children[0].FieldName == "Array")
                                 words = words.Children[0];
 
+                            // Concatenate all wordDataArray entries with {n} tokens
+                            var lines = new List<string>();
                             if (!words.IsDummy && words.Children.Count > 0)
                             {
-                                txt = words.Children[0]["str"].AsString;
+                                foreach (var word in words.Children)
+                                {
+                                    string str = word["str"].AsString;
+                                    if (!string.IsNullOrEmpty(str))
+                                        lines.Add(str);
+                                }
                             }
+
+                            string txt = string.Join("{n}", lines);
                             node.Scripts.Add(new ScriptNode { Label = item["labelName"].AsString, Content = txt });
                         }
                     }

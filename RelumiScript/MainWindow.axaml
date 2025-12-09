@@ -128,13 +128,22 @@
 
                 <!-- Message Preview -->
                 <Grid Grid.Row="3" Background="#1E1E1E">
-                    <Grid RowDefinitions="Auto, *">
+                    <Grid RowDefinitions="Auto, *, Auto">
                         <Border Grid.Row="0" Padding="10,5" Background="#252526" BorderBrush="#333" BorderThickness="0,1,0,0">
-                            <TextBlock Text="PREVIEW" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11"/>
+                            <Grid ColumnDefinitions="*, Auto">
+                                <TextBlock Text="PREVIEW" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5">
+                                    <Button x:Name="BtnPrevPage" Content="◀" Padding="8,2" Background="Transparent" BorderThickness="0" 
+                                            Click="BtnPrevPage_Click" IsVisible="False" ToolTip.Tip="Previous page"/>
+                                    <TextBlock x:Name="PageIndicator" Text="" VerticalAlignment="Center" Foreground="#888" FontSize="11" IsVisible="False"/>
+                                    <Button x:Name="BtnNextPage" Content="▶" Padding="8,2" Background="Transparent" BorderThickness="0" 
+                                            Click="BtnNextPage_Click" IsVisible="False" ToolTip.Tip="Next page"/>
+                                </StackPanel>
+                            </Grid>
                         </Border>
-                        <Border Grid.Row="1" x:Name="MessagePreviewContainer" IsVisible="False" Padding="10" VerticalAlignment="Top" MaxHeight="250" Background="#1E1E1E">
+                        <Border Grid.Row="1" x:Name="MessagePreviewContainer" IsVisible="False" Padding="10" VerticalAlignment="Top" Background="#1E1E1E">
                             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                                <ContentControl x:Name="MessagePreviewContent" />
+                                <ContentControl x:Name="MessagePreviewContent" FontFamily="UDKakugoC80Pro-DB, Segoe UI, Segoe UI Emoji, Segoe UI Symbol" />
                             </ScrollViewer>
                         </Border>
                     </Grid>

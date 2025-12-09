@@ -60,6 +60,11 @@ namespace RelumiScript
         private string _currentScriptContent = "";
         private List<FileNode> _loadedMessages = new List<FileNode>();
 
+        // Message preview pagination state
+        private List<string> _currentMessagePages = new List<string>();
+        private int _currentPageIndex = 0;
+        private string _currentMessageLabel = "";
+
         // Caches for search
         private List<FlagUsageInfo> _allFlagUsages = new List<FlagUsageInfo>();
         private List<CommandUsageInfo> _allCommandUsages = new List<CommandUsageInfo>();
@@ -259,8 +264,8 @@ namespace RelumiScript
                     var model = editor.getModel();
                     var lineContent = model.getLineContent(e.position.lineNumber);
                     
-                    // Matches _TALKMSG(...) OR _TALK_KEYWAIT(...) with @filename%label OR ""filename%label""
-                    var match = lineContent.match(/(?:_TALKMSG|_TALK_KEYWAIT)\s*\(\s*[@""]([^%]+)%([^)""]+)[""]?\s*\)/);
+                    // Matches _TALKMSG, _TALK_KEYWAIT, _EASY_OBJ_MSG, _EASY_BOARD_MSG with @filename%label OR ""filename%label""
+                    var match = lineContent.match(/(?:_TALKMSG|_TALK_KEYWAIT|_EASY_OBJ_MSG|_EASY_BOARD_MSG)\s*\(\s*[@""]([^%]+)%([^)""]+)[""]?\s*\)/);
                     
                     if (match) {
                         window.chrome.webview.postMessage('PREVIEW:' + match[1] + '%' + match[2]);
@@ -399,13 +404,64 @@ namespace RelumiScript
                 var targetScript = targetFile.Scripts.FirstOrDefault(s => s.Label.Equals(label, StringComparison.OrdinalIgnoreCase));
                 if (targetScript != null)
                 {
+                    // Split dialogue into pages
+                    _currentMessagePages = _messageRenderer.SplitIntoPages(targetScript.Content);
+                    _currentPageIndex = 0;
+                    _currentMessageLabel = label;
+
+                    // Show the preview container
                     MessagePreviewContainer.IsVisible = true;
                     if (MainContentGrid.RowDefinitions.Count > 3)
                         MainContentGrid.RowDefinitions[3].Height = GridLength.Auto;
 
-                    MessagePreviewContent.Content = _messageRenderer.Render(targetScript.Content);
-                    StatusText.Text = $"Previewing: {label}";
+                    // Render first page
+                    RenderCurrentPage();
+                    StatusText.Text = $"Previewing: {label} ({_currentMessagePages.Count} pages)";
                 }
+            }
+        }
+
+        private void RenderCurrentPage()
+        {
+            if (_messageRenderer == null || _currentMessagePages.Count == 0) return;
+
+            // Ensure page index is valid
+            if (_currentPageIndex < 0) _currentPageIndex = 0;
+            if (_currentPageIndex >= _currentMessagePages.Count) _currentPageIndex = _currentMessagePages.Count - 1;
+
+            // Render the current page
+            string pageText = _currentMessagePages[_currentPageIndex];
+            MessagePreviewContent.Content = _messageRenderer.RenderPage(pageText, _currentPageIndex + 1, _currentMessagePages.Count);
+
+            // Update navigation controls
+            bool hasMultiplePages = _currentMessagePages.Count > 1;
+            BtnPrevPage.IsVisible = hasMultiplePages;
+            BtnNextPage.IsVisible = hasMultiplePages;
+            PageIndicator.IsVisible = hasMultiplePages;
+
+            if (hasMultiplePages)
+            {
+                PageIndicator.Text = $"{_currentPageIndex + 1} / {_currentMessagePages.Count}";
+                BtnPrevPage.IsEnabled = _currentPageIndex > 0;
+                BtnNextPage.IsEnabled = _currentPageIndex < _currentMessagePages.Count - 1;
+            }
+        }
+
+        private void BtnPrevPage_Click(object? sender, RoutedEventArgs e)
+        {
+            if (_currentPageIndex > 0)
+            {
+                _currentPageIndex--;
+                RenderCurrentPage();
+            }
+        }
+
+        private void BtnNextPage_Click(object? sender, RoutedEventArgs e)
+        {
+            if (_currentPageIndex < _currentMessagePages.Count - 1)
+            {
+                _currentPageIndex++;
+                RenderCurrentPage();
             }
         }
 
