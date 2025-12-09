@@ -871,7 +871,7 @@ namespace RelumiScript
             else if (ScriptTree.SelectedItem is FileNode f)
             {
                 StringBuilder sb = new StringBuilder();
-                foreach (var script in f.Scripts) { sb.AppendLine(script.Content); sb.AppendLine(); }
+                foreach (var script in f.Scripts) { sb.AppendLine(script.Content); }
                 SetEditorText(sb.ToString());
             }
         }

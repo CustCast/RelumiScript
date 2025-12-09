@@ -21,23 +21,8 @@ monaco.languages.setLanguageConfiguration("bdsp", {
   ],
 });
 
-// 3. Initial Tokenizer
-monaco.languages.setMonarchTokensProvider("bdsp", {
-  tokenizer: {
-    root: [
-      [/[A-Z_][\w]*\s*(?=\()/, "keyword"],
-      [/![a-zA-Z0-9_]+/, "regexp"], // !Work
-      [/@[a-zA-Z0-9_]+/, "string"], // @Label
-      [/#[a-zA-Z0-9_]+/, "type"], // #Flag
-      [/\$[a-zA-Z0-9_]+/, "variable"], // $SysFlag
-      [/"[^"]*"/, "string"],
-      [/\d+/, "number"],
-      [/[(),]/, "delimiter"],
-      [/[;].*$/, "comment"],
-      [/\/\/.*$/, "comment"],
-    ],
-  },
-});
+// Note: Tokenizer is set dynamically in applySyntaxData() after JSON data loads
+// This allows the tokenizer to include command names for proper highlighting
 
 // --- GLOBAL STATE ---
 var loadedData = { commands: [], flags: [], sysflags: [], works: [] };
@@ -363,27 +348,30 @@ function applySyntaxData(data) {
       }
     }
 
+    // Register the BDSP tokenizer with syntax highlighting rules
+    // This is the authoritative tokenizer definition that includes loaded command names
+    // Theme colors are defined in editor_init.js (bdsp-dark theme)
     monaco.languages.setMonarchTokensProvider("bdsp", {
       commands: loadedData.commands,
       tokenizer: {
         root: [
+          [/^[a-zA-Z0-9_]+:/, "bdsp-scriptlabel"], // Script labels: ev_label: → Blue (bold)
           [
             /[A-Z_][\w\-\.]*(?=\()/,
             {
               cases: {
-                "@commands": "bdsp-command",
+                "@commands": "bdsp-command", // _COMMAND(...) → Purple (bold)
                 "@default": "identifier",
               },
             },
           ],
-          [/![a-zA-Z0-9_\-]+/, "bdsp-work"],
-          [/@[a-zA-Z0-9_\-]+/, "bdsp-label"],
-          [/#[a-zA-Z0-9_\-]+/, "bdsp-flag"],
-          [/\$[a-zA-Z0-9_\-]+/, "bdsp-sysflag"],
+          [/@[a-zA-Z0-9_\-]+/, "bdsp-workvar"], // @Work variables → Gold
+          [/#[a-zA-Z0-9_\-]+/, "bdsp-flag"], // #Flag → Green
+          [/\$[a-zA-Z0-9_\-]+/, "bdsp-sysflag"], // $SysFlag → Cyan (italic)
           { include: "@whitespace" },
-          [/\d*\.\d+([eE][\-+]?\d+)?/, "bdsp-number"],
+          [/\d*\.\d+([eE][\-+]?\d+)?/, "bdsp-number"], // Numbers → Orange
           [/\d+/, "bdsp-number"],
-          [/"[^"]*"/, "bdsp-string"],
+          [/"[^"]*"/, "bdsp-string"], // Strings → Yellow
           [/[,()]/, "delimiter"],
         ],
         whitespace: [
