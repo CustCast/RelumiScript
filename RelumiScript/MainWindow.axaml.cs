@@ -10,17 +10,31 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using AvaloniaWebView;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using WebViewCore.Events;
+using Avalonia.Media;
+using System.Collections.ObjectModel;
 
 namespace RelumiScript
 {
     // Helper class for search results
-    public class SearchResult
+    public class SearchResult : System.ComponentModel.INotifyPropertyChanged
     {
-        public string Type { get; set; } = "UNK"; // PKM, ITM
+        public string Type { get; set; } = "UNK"; // PKM, ITM, FLG, CMD, WRK
         public string Color { get; set; } = "White";
-        public int Id { get; set; }
+        public int Id { get; set; } // 0 if not applicable
         public string Name { get; set; } = "";
+
+        public ObservableCollection<FlagLocation> Locations { get; set; } = new ObservableCollection<FlagLocation>();
+
+        private bool _isExpanded;
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set { _isExpanded = value; PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(IsExpanded))); }
+        }
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }
 
     public class FlagUsageInfo : System.ComponentModel.INotifyPropertyChanged
@@ -44,11 +58,10 @@ namespace RelumiScript
         public int LineNumber { get; set; }
         public string Command { get; set; } = "";
         public string Content { get; set; } = "";
-        public string FileName { get; set; } = "";     // For display/logic
-        public object? NodeObject { get; set; }         // For navigation (FileNode or ScriptNode)
+        public string FileName { get; set; } = "";
+        public object? NodeObject { get; set; }
     }
 
-    // FIX: Explicitly inherit from Avalonia.Controls.Window to avoid GTK conflict
     public partial class MainWindow : Avalonia.Controls.Window
     {
         private AssetBundleService _service;
@@ -68,6 +81,12 @@ namespace RelumiScript
         // Caches for search
         private List<FlagUsageInfo> _allFlagUsages = new List<FlagUsageInfo>();
         private List<CommandUsageInfo> _allCommandUsages = new List<CommandUsageInfo>();
+        private List<FlagUsageInfo> _allWorkUsages = new List<FlagUsageInfo>();
+
+        // ID Map for Works (populated from work.json)
+        private Dictionary<int, string> _workIdMap = new Dictionary<int, string>();
+
+        private ThemeEditorViewModel _themeVm = new ThemeEditorViewModel();
 
         public class CommandUsageInfo : System.ComponentModel.INotifyPropertyChanged
         {
@@ -85,14 +104,28 @@ namespace RelumiScript
             public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
         }
 
-        // ... [Constructor and other methods unchanged] ...
-
-        private async void RefreshCommands()
+        public MainWindow()
         {
-            StatusText.Text = "Command Tracker: Scanning...";
-            // Note: UI List name will change later
-            // ScriptList.ItemsSource = null; 
+            InitializeComponent();
+            _service = new AssetBundleService();
+            InitializeEditor();
+            InitializeBlockly();
+            TryInitMessageRenderer();
 
+            ThemePanel.DataContext = _themeVm;
+        }
+
+        // --- Core Logic ---
+
+        private async void RefreshAllTrackers()
+        {
+            // Run indexing in background
+            await RefreshFlagsAndWorks();
+            await RefreshCommands();
+        }
+
+        private async Task RefreshCommands()
+        {
             List<object> nodesToScan = new List<object>();
             if (ScriptTree.ItemsSource is System.Collections.IEnumerable items)
             {
@@ -101,35 +134,43 @@ namespace RelumiScript
 
             await Task.Run(() =>
             {
-                var combinedResults = new Dictionary<string, CommandUsageInfo>();
-
-                foreach (var node in nodesToScan)
+                try
                 {
-                    if (node is FileNode fNode)
+                    var combinedResults = new Dictionary<string, CommandUsageInfo>(StringComparer.OrdinalIgnoreCase);
+
+                    foreach (var node in nodesToScan)
                     {
-                        int offset = 0;
-                        foreach (var s in fNode.Scripts)
+                        if (node is FileNode fNode)
                         {
-                            ScanForCommands(s.Content, fNode.Name, fNode, combinedResults, offset);
-                            var lines = s.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-                            offset += lines.Length;
+                            int offset = 0;
+                            foreach (var s in fNode.Scripts)
+                            {
+                                ScanForCommands(s.Content, fNode.Name, fNode, combinedResults, offset);
+                                var lines = s.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                                offset += lines.Length;
+                            }
+                        }
+                        else if (node is ScriptNode sNode)
+                        {
+                            ScanForCommands(sNode.Content, "Root", sNode, combinedResults, 0);
                         }
                     }
-                    else if (node is ScriptNode sNode)
+
+                    Dispatcher.UIThread.Post(() =>
                     {
-                        ScanForCommands(sNode.Content, "Root", sNode, combinedResults, 0);
-                    }
+                        _allCommandUsages = combinedResults.Values
+                            .OrderByDescending(c => c.Locations.Count > 0)
+                            .ThenBy(c => c.CommandName)
+                            .ToList();
+
+                        if (ScriptTrackerPanel.IsVisible)
+                            FilterCommands(ScriptSearchBox.Text ?? "");
+                    });
                 }
-
-                Dispatcher.UIThread.Post(() =>
+                catch (Exception ex)
                 {
-                    _allCommandUsages = combinedResults.Values
-                        .OrderBy(c => c.CommandName)
-                        .ToList();
-
-                    FilterCommands(ScriptSearchBox.Text ?? "");
-                    StatusText.Text = $"Command Tracker: Found {_allCommandUsages.Count} unique commands.";
-                });
+                    System.Diagnostics.Debug.WriteLine($"[Tracker] Command Scan Error: {ex}");
+                }
             });
         }
 
@@ -141,15 +182,10 @@ namespace RelumiScript
                 string line = lines[i];
                 if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("//") || line.TrimStart().StartsWith(";")) continue;
 
-                // Identify Command: First word of the line
                 var match = System.Text.RegularExpressions.Regex.Match(line.Trim(), @"^([A-Za-z0-9_]+)");
                 if (match.Success)
                 {
                     string cmd = match.Groups[1].Value;
-
-                    // Filter out likely labels (definitions often end in :)
-                    // But here we are just looking for the first word. Labels ARE parsed as first word.
-                    // If it ends with ':', it's a label def.
                     if (line.Trim().StartsWith(cmd + ":")) continue;
 
                     if (!results.ContainsKey(cmd)) results[cmd] = new CommandUsageInfo { CommandName = cmd };
@@ -170,7 +206,7 @@ namespace RelumiScript
         {
             if (string.IsNullOrWhiteSpace(query))
             {
-                ScriptList.ItemsSource = _allCommandUsages; // Reusing List
+                ScriptList.ItemsSource = _allCommandUsages;
                 return;
             }
             var lowerQ = query.ToLower();
@@ -200,22 +236,10 @@ namespace RelumiScript
                             ScriptList.ScrollIntoView(target);
                             ScriptList.SelectedItem = target;
                         }
-                        catch
-                        {
-                            // Ignore scroll errors if item is not visible or list is not ready
-                        }
+                        catch { }
                     }, DispatcherPriority.ApplicationIdle);
                 }, DispatcherPriority.Background);
             }
-        }
-
-        public MainWindow()
-        {
-            InitializeComponent();
-            _service = new AssetBundleService();
-            InitializeEditor();
-            InitializeBlockly();
-            TryInitMessageRenderer();
         }
 
         private void TryInitMessageRenderer()
@@ -247,6 +271,7 @@ namespace RelumiScript
                         _isEditorReady = true;
                         await GenerateAndInjectSyntax();
                         await InjectMonacoListeners();
+                        await InjectTheme();
                     }
                 };
             }
@@ -255,50 +280,41 @@ namespace RelumiScript
 
         private async Task InjectMonacoListeners()
         {
-            if (!_isEditorReady || Editor == null)
-                return;
-
+            if (!_isEditorReady || Editor == null) return;
             string script = @"
-                // 1. Message Preview on Cursor Position
                 editor.onDidChangeCursorPosition((e) => {
                     var model = editor.getModel();
                     var lineContent = model.getLineContent(e.position.lineNumber);
-                    
-                    // Matches _TALKMSG, _TALK_KEYWAIT, _EASY_OBJ_MSG, _EASY_BOARD_MSG with @filename%label OR ""filename%label""
                     var match = lineContent.match(/(?:_TALKMSG|_TALK_KEYWAIT|_EASY_OBJ_MSG|_EASY_BOARD_MSG)\s*\(\s*[@""]([^%]+)%([^)""]+)[""]?\s*\)/);
-                    
-                    if (match) {
-                        window.chrome.webview.postMessage('PREVIEW:' + match[1] + '%' + match[2]);
-                    } else {
-                        window.chrome.webview.postMessage('HIDE_PREVIEW');
-                    }
+                    if (match) { window.chrome.webview.postMessage('PREVIEW:' + match[1] + '%' + match[2]); } 
+                    else { window.chrome.webview.postMessage('HIDE_PREVIEW'); }
                 });
-
-                // 2. Context Menu Action: Look Up
+                
+                // UNIFIED LOOKUP ACTION
+                // This replaces the individual lookup actions and routes everything to the global search
                 var lookupAction = {
                     id: 'relumi-lookup',
-                    label: 'Look Up',
+                    label: 'Search in Global View',
                     contextMenuGroupId: 'navigation',
                     contextMenuOrder: 1.5,
                     run: function(ed) {
                         var pos = ed.getPosition();
                         var model = ed.getModel();
                         var wordInfo = model.getWordAtPosition(pos);
-                        
                         if (wordInfo) {
                            var word = wordInfo.word;
                            var lineContent = model.getLineContent(pos.lineNumber);
-                           
                            var charBefore = '';
-                           if (wordInfo.startColumn > 1) {
-                               charBefore = lineContent.charAt(wordInfo.startColumn - 2);
+                           if (wordInfo.startColumn > 1) { charBefore = lineContent.charAt(wordInfo.startColumn - 2); }
+                           
+                           // Check for prefix
+                           var prefix = '';
+                           if (charBefore === '#' || charBefore === '$' || charBefore === '@') {
+                               prefix = charBefore;
                            }
-
-                           if (charBefore === '#' || charBefore === '$') {
-                               window.chrome.webview.postMessage('LOOKUP_FLAG:' + charBefore + word);
-                           } else {
-                               window.chrome.webview.postMessage('LOOKUP_CMD:' + word);
-                           }
+                           
+                           // Send GLOBAL_SEARCH with the prefix + word
+                           window.chrome.webview.postMessage('GLOBAL_SEARCH:' + prefix + word);
                         }
                     }
                 };
@@ -330,23 +346,23 @@ namespace RelumiScript
                 return;
             }
 
-            if (msg.StartsWith("FLAG_SELECTED:") || msg.StartsWith("LOOKUP_FLAG:"))
+            // UNIFIED SEARCH ROUTER
+            // Routes all lookup commands to the Global Search Panel
+            if (msg.StartsWith("GLOBAL_SEARCH:") || msg.StartsWith("LOOKUP_FLAG:") || msg.StartsWith("LOOKUP_CMD:"))
             {
-                string flagName = msg.Substring(msg.IndexOf(':') + 1).Trim();
-                FlagTrackerPanel.IsVisible = true;
-                SearchPanel.IsVisible = false;
-                ScriptTrackerPanel.IsVisible = false;
-                SelectFlagInList(flagName);
-                return;
-            }
+                string searchTerm = msg.Substring(msg.IndexOf(':') + 1).Trim();
 
-            if (msg.StartsWith("LOOKUP_CMD:"))
-            {
-                string cmdName = msg.Substring(11).Trim();
-                ScriptTrackerPanel.IsVisible = true;
-                SearchPanel.IsVisible = false;
+                // Hide other panels
                 FlagTrackerPanel.IsVisible = false;
-                SelectCommandInList(cmdName);
+                ScriptTrackerPanel.IsVisible = false;
+                ThemePanel.IsVisible = false;
+
+                // Show Search Panel
+                SearchPanel.IsVisible = true;
+
+                // Execute Search
+                SearchBox.Text = searchTerm;
+                SearchBox.Focus();
                 return;
             }
 
@@ -360,26 +376,21 @@ namespace RelumiScript
 
         private void SelectFlagInList(string flagName)
         {
+            // Legacy method kept for safety, but primary path is now GLOBAL_SEARCH
             if (string.IsNullOrWhiteSpace(flagName) || !FlagTrackerPanel.IsVisible || _allFlagUsages.Count == 0)
                 return;
 
-            // Fuzzy match (ignore case)
             var target = _allFlagUsages.FirstOrDefault(f => f.FlagName.Equals(flagName, StringComparison.OrdinalIgnoreCase));
             if (target != null)
             {
-                // Unfilter if hidden by filter
                 if (FlagList.Items.Count != _allFlagUsages.Count && !FlagList.Items.Contains(target))
                 {
-                    FlagSearchBox.Text = ""; // clear filter to show all
+                    FlagSearchBox.Text = "";
                 }
 
-                // Defer logic to allow UI to update
                 Dispatcher.UIThread.Post(() =>
                 {
                     target.IsExpanded = true;
-
-                    // Defer Scroll again to ensure Layout updated
-                    // Use ApplicationIdle to wait for all rendering/layout passes
                     Dispatcher.UIThread.Post(() =>
                     {
                         try
@@ -387,7 +398,7 @@ namespace RelumiScript
                             FlagList.ScrollIntoView(target);
                             FlagList.SelectedItem = target;
                         }
-                        catch { /* Ignore scroll errors */ }
+                        catch { }
                     }, DispatcherPriority.ApplicationIdle);
                 }, DispatcherPriority.Background);
             }
@@ -404,17 +415,14 @@ namespace RelumiScript
                 var targetScript = targetFile.Scripts.FirstOrDefault(s => s.Label.Equals(label, StringComparison.OrdinalIgnoreCase));
                 if (targetScript != null)
                 {
-                    // Split dialogue into pages
                     _currentMessagePages = _messageRenderer.SplitIntoPages(targetScript.Content);
                     _currentPageIndex = 0;
                     _currentMessageLabel = label;
 
-                    // Show the preview container
                     MessagePreviewContainer.IsVisible = true;
                     if (MainContentGrid.RowDefinitions.Count > 3)
                         MainContentGrid.RowDefinitions[3].Height = GridLength.Auto;
 
-                    // Render first page
                     RenderCurrentPage();
                     StatusText.Text = $"Previewing: {label} ({_currentMessagePages.Count} pages)";
                 }
@@ -425,15 +433,12 @@ namespace RelumiScript
         {
             if (_messageRenderer == null || _currentMessagePages.Count == 0) return;
 
-            // Ensure page index is valid
             if (_currentPageIndex < 0) _currentPageIndex = 0;
             if (_currentPageIndex >= _currentMessagePages.Count) _currentPageIndex = _currentMessagePages.Count - 1;
 
-            // Render the current page
             string pageText = _currentMessagePages[_currentPageIndex];
             MessagePreviewContent.Content = _messageRenderer.RenderPage(pageText, _currentPageIndex + 1, _currentMessagePages.Count);
 
-            // Update navigation controls
             bool hasMultiplePages = _currentMessagePages.Count > 1;
             BtnPrevPage.IsVisible = hasMultiplePages;
             BtnNextPage.IsVisible = hasMultiplePages;
@@ -447,7 +452,7 @@ namespace RelumiScript
             }
         }
 
-        private void BtnPrevPage_Click(object? sender, RoutedEventArgs e)
+        public void BtnPrevPage_Click(object? sender, RoutedEventArgs e)
         {
             if (_currentPageIndex > 0)
             {
@@ -456,7 +461,7 @@ namespace RelumiScript
             }
         }
 
-        private void BtnNextPage_Click(object? sender, RoutedEventArgs e)
+        public void BtnNextPage_Click(object? sender, RoutedEventArgs e)
         {
             if (_currentPageIndex < _currentMessagePages.Count - 1)
             {
@@ -465,221 +470,22 @@ namespace RelumiScript
             }
         }
 
-        // --- Flag Tracker Logic ---
-
-        private void BtnFlags_Click(object? sender, RoutedEventArgs e)
-        {
-            FlagTrackerPanel.IsVisible = !FlagTrackerPanel.IsVisible;
-            if (FlagTrackerPanel.IsVisible)
-            {
-                SearchPanel.IsVisible = false;
-                ScriptTrackerPanel.IsVisible = false;
-                RefreshFlags();
-            }
-        }
-
-        private void BtnScripts_Click(object? sender, RoutedEventArgs e)
-        {
-            ScriptTrackerPanel.IsVisible = !ScriptTrackerPanel.IsVisible;
-            if (ScriptTrackerPanel.IsVisible)
-            {
-                SearchPanel.IsVisible = false;
-                FlagTrackerPanel.IsVisible = false;
-                RefreshCommands(); // Renamed
-            }
-        }
-
-        private void RefreshFlags_Click(object? sender, RoutedEventArgs e)
-        {
-            RefreshFlags();
-        }
-
-        private void RefreshScripts_Click(object? sender, RoutedEventArgs e)
-        {
-            RefreshCommands(); // Renamed
-        }
-
-        private void FlagSearchBox_TextChanged(object? sender, TextChangedEventArgs e)
-        {
-            FilterFlags(FlagSearchBox.Text ?? "");
-        }
-
-        private void ScriptSearchBox_TextChanged(object? sender, TextChangedEventArgs e)
-        {
-            FilterCommands(ScriptSearchBox.Text ?? "");
-        }
-
-        private void FilterFlags(string query)
-        {
-            if (string.IsNullOrWhiteSpace(query))
-            {
-                FlagList.ItemsSource = _allFlagUsages;
-                return;
-            }
-
-            var lowerQ = query.ToLower();
-            var filtered = _allFlagUsages
-                .Where(f => f.FlagName.ToLower().Contains(lowerQ))
-                .ToList();
-
-            FlagList.ItemsSource = filtered;
-        }
-
-        private async void RefreshFlags()
-        {
-            StatusText.Text = "Flag Tracker: Scanning...";
-            FlagList.ItemsSource = null;
-
-            // Capture data on UI thread to avoid cross-thread exception
-            List<object> nodesToScan = new List<object>();
-
-            if (ScriptTree.ItemsSource is System.Collections.IEnumerable items)
-            {
-                foreach (var item in items)
-                {
-                    nodesToScan.Add(item);
-                }
-            }
-
-            // Capture Maps for pre-population
-            var knownFlags = _service.FlagMap;
-            var knownSysFlags = _service.SysFlagMap;
-
-            await Task.Run(() =>
-            {
-                var combinedResults = new Dictionary<string, FlagUsageInfo>();
-
-                // 1. Pre-populate with all known flags
-                foreach (var kvp in knownFlags)
-                {
-                    // FIX: Ensure no double ## if the value already has one
-                    string raw = kvp.Value;
-                    string f = raw.StartsWith("#") ? raw : $"#{raw}";
-                    combinedResults[f] = new FlagUsageInfo { FlagName = f };
-                }
-                foreach (var kvp in knownSysFlags)
-                {
-                    string raw = kvp.Value;
-                    string f = raw.StartsWith("$") ? raw : $"${raw}";
-                    combinedResults[f] = new FlagUsageInfo { FlagName = f };
-                }
-
-                // 2. Scan Scripts
-                foreach (var node in nodesToScan)
-                {
-                    if (node is FileNode fNode) // Folder/File containing scripts
-                    {
-                        int currentLineOffset = 0;
-                        foreach (var s in fNode.Scripts)
-                        {
-                            // Pass the current offset to ScanScript
-                            ScanScript(s.Content, fNode.Name, fNode, combinedResults, currentLineOffset);
-
-                            // Calculate new offset: content lines (AppendLine adds newline, not blank line)
-                            var lines = s.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-                            currentLineOffset += lines.Length;
-                        }
-                    }
-                    else if (node is ScriptNode sNode) // Root level script?
-                    {
-                        ScanScript(sNode.Content, "Root", sNode, combinedResults, 0);
-                    }
-                }
-
-                // Update UI on main thread
-                Dispatcher.UIThread.Post(() =>
-                {
-                    // Sort: Unused (Count=0) first, then Alphabetical
-                    _allFlagUsages = combinedResults.Values
-                        .OrderBy(f => f.Locations.Count > 0) // False (Unused) comes before True (Used)
-                        .ThenBy(f => f.FlagName)
-                        .ToList();
-
-                    FilterFlags(FlagSearchBox.Text ?? "");
-
-                    int usedCount = _allFlagUsages.Count(f => f.Locations.Count > 0);
-                    StatusText.Text = $"Flag Tracker: Found {usedCount} used / {_allFlagUsages.Count} total.";
-                });
-            });
-        }
-
-        private void ScanScript(string content, string fileName, object nodeObj, Dictionary<string, FlagUsageInfo> results, int lineOffset)
-        {
-            var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-            for (int i = 0; i < lines.Length; i++)
-            {
-                string line = lines[i];
-                if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("//") || line.TrimStart().StartsWith(";")) continue;
-
-                var flagMatches = System.Text.RegularExpressions.Regex.Matches(line, @"([#$][A-Za-z0-9_]+)");
-                if (flagMatches.Count == 0) continue;
-
-                string command = "UNK";
-                var cmdMatch = System.Text.RegularExpressions.Regex.Match(line.Trim(), @"^([A-Z_][A-Z0-9_]*)");
-                if (cmdMatch.Success) command = cmdMatch.Groups[1].Value;
-
-                foreach (System.Text.RegularExpressions.Match m in flagMatches)
-                {
-                    string fullFlag = m.Value; // Regex ensures it starts with # or $
-                    if (!results.ContainsKey(fullFlag)) results[fullFlag] = new FlagUsageInfo { FlagName = fullFlag };
-
-                    results[fullFlag].Locations.Add(new FlagLocation
-                    {
-                        LineNumber = i + 1 + lineOffset, // Apply offset
-                        Command = command,
-                        Content = line.Trim(),
-                        FileName = fileName,
-                        NodeObject = nodeObj
-                    });
-                }
-            }
-        }
-
-        private async void JumpToLocation_Click(object? sender, RoutedEventArgs e)
-        {
-            if (sender is Control c && c.Tag is FlagLocation loc)
-            {
-                // 1. Switch to the file
-                if (loc.NodeObject != null)
-                {
-                    // Manually select it in the tree
-                    ScriptTree.SelectedItem = loc.NodeObject;
-
-                    // Force Editor update immediately if possible, but SelectionChanged should handle it
-                    // Give it a moment to render
-                }
-
-                // 2. Jump to line
-                await Task.Delay(150); // Small delay for WebView to load new content
-                if (_isEditorReady && Editor != null)
-                {
-                    string script = $"editor.revealLineInCenter({loc.LineNumber}); editor.setPosition({{lineNumber: {loc.LineNumber}, column: 1}}); editor.focus();";
-                    try
-                    {
-                        await Editor.ExecuteScriptAsync(script);
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"[MainWindow] Failed to jump to line: {ex.Message}");
-                    }
-                }
-            }
-        }
-
         // --- Search Logic ---
 
-        private void BtnSearch_Click(object? sender, RoutedEventArgs e)
+        public void BtnSearch_Click(object? sender, RoutedEventArgs e)
         {
             SearchPanel.IsVisible = !SearchPanel.IsVisible;
             if (SearchPanel.IsVisible)
             {
                 FlagTrackerPanel.IsVisible = false;
+                ThemePanel.IsVisible = false;
+                ScriptTrackerPanel.IsVisible = false;
                 SearchBox.Focus();
                 PerformSearch(SearchBox.Text);
             }
         }
 
-        private void SearchBox_TextChanged(object? sender, TextChangedEventArgs e)
+        public void SearchBox_TextChanged(object? sender, TextChangedEventArgs e)
         {
             PerformSearch(SearchBox.Text);
         }
@@ -716,10 +522,397 @@ namespace RelumiScript
             foreach (var kvp in iMatches)
                 results.Add(new SearchResult { Type = "ITM", Color = "#CE9178", Id = kvp.Key, Name = kvp.Value });
 
+            // 3. Search Works (ID & Name)
+            // ID Search
+            if (isIdSearch && _workIdMap.TryGetValue(searchId, out string? wName))
+            {
+                // Try to find usages for this work name (with or without @ prefix)
+                var usage = _allWorkUsages.FirstOrDefault(u =>
+                    u.FlagName.Equals("@" + wName, StringComparison.OrdinalIgnoreCase) ||
+                    u.FlagName.Equals(wName, StringComparison.OrdinalIgnoreCase));
+
+                results.Add(new SearchResult
+                {
+                    Type = "WRK",
+                    Color = "#FFD700",
+                    Id = searchId,
+                    Name = wName,
+                    Locations = usage != null ? new ObservableCollection<FlagLocation>(usage.Locations) : new ObservableCollection<FlagLocation>()
+                });
+            }
+
+            // Name Search
+            var wMatches = _allWorkUsages
+                .Where(w => w.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .Take(20);
+            foreach (var w in wMatches)
+                results.Add(new SearchResult
+                {
+                    Type = "WRK",
+                    Color = "#FFD700",
+                    Name = w.FlagName,
+                    Locations = new ObservableCollection<FlagLocation>(w.Locations)
+                });
+
+            // 4. Search Flags
+            var fMatches = _allFlagUsages
+                .Where(f => f.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .Take(20);
+            foreach (var f in fMatches)
+                results.Add(new SearchResult
+                {
+                    Type = "FLG",
+                    Color = "#50FA7B",
+                    Name = f.FlagName,
+                    Locations = new ObservableCollection<FlagLocation>(f.Locations)
+                });
+
+            // 5. Search Commands
+            var cMatches = _allCommandUsages
+                .Where(c => c.CommandName.Contains(query, StringComparison.OrdinalIgnoreCase))
+                .Take(20);
+            foreach (var c in cMatches)
+                results.Add(new SearchResult
+                {
+                    Type = "CMD",
+                    Color = "#BD93F9",
+                    Name = c.CommandName,
+                    Locations = new ObservableCollection<FlagLocation>(c.Locations)
+                });
+
             SearchResultsList.ItemsSource = results;
         }
 
-        // --- Standard Logic ---
+        // --- Theme Logic ---
+
+        public void BtnTheme_Click(object? sender, RoutedEventArgs e)
+        {
+            ThemePanel.IsVisible = !ThemePanel.IsVisible;
+            if (ThemePanel.IsVisible)
+            {
+                SearchPanel.IsVisible = false;
+                FlagTrackerPanel.IsVisible = false;
+                ScriptTrackerPanel.IsVisible = false;
+            }
+        }
+
+        public async void SaveTheme_Click(object? sender, RoutedEventArgs e)
+        {
+            var settings = _themeVm.ToSettings();
+
+            string? jsonDir = FindJsonFolder();
+            if (string.IsNullOrEmpty(jsonDir))
+            {
+                StatusText.Text = "Error: JSON folder not found. Cannot save.";
+                return;
+            }
+
+            string themePath = Path.Combine(jsonDir, "theme.json");
+
+            try
+            {
+                string json = JsonConvert.SerializeObject(settings, Formatting.Indented);
+                File.WriteAllText(themePath, json);
+
+                await InjectTheme(settings);
+
+                StatusText.Text = $"Theme saved to: {Path.GetFileName(themePath)}";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "Error saving theme: " + ex.Message;
+                System.Diagnostics.Debug.WriteLine(ex);
+            }
+        }
+
+        private string? FindJsonFolder()
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+
+            string sourcePath = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "JSON"));
+            if (Directory.Exists(sourcePath)) return sourcePath;
+
+            string localPath = Path.Combine(baseDir, "JSON");
+            if (Directory.Exists(localPath)) return localPath;
+
+            string currentPath = Path.Combine(Directory.GetCurrentDirectory(), "JSON");
+            if (Directory.Exists(currentPath)) return currentPath;
+
+            return null;
+        }
+
+        private async Task InjectTheme(ThemeSettings? directSettings = null)
+        {
+            try
+            {
+                ThemeSettings settings = directSettings ?? new ThemeSettings();
+
+                if (directSettings == null)
+                {
+                    string? jsonDir = FindJsonFolder();
+                    if (!string.IsNullOrEmpty(jsonDir))
+                    {
+                        string themePath = Path.Combine(jsonDir, "theme.json");
+                        if (File.Exists(themePath))
+                        {
+                            try
+                            {
+                                string content = File.ReadAllText(themePath);
+                                settings = JsonConvert.DeserializeObject<ThemeSettings>(content) ?? new ThemeSettings();
+                            }
+                            catch { }
+                        }
+                    }
+                }
+
+                _themeVm.LoadFromSettings(settings);
+
+                string safeJson = JsonConvert.SerializeObject(settings);
+                if (_isEditorReady && Editor != null)
+                {
+                    await Editor.ExecuteScriptAsync($"if (window.updateRelumiTheme) window.updateRelumiTheme({safeJson});");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[MainWindow] Failed to inject theme: {ex.Message}");
+            }
+        }
+
+        // --- Tracking / Tracker Logic ---
+
+        public void BtnFlags_Click(object? sender, RoutedEventArgs e)
+        {
+            FlagTrackerPanel.IsVisible = !FlagTrackerPanel.IsVisible;
+            if (FlagTrackerPanel.IsVisible)
+            {
+                SearchPanel.IsVisible = false;
+                ScriptTrackerPanel.IsVisible = false;
+                ThemePanel.IsVisible = false;
+            }
+        }
+
+        public void BtnScripts_Click(object? sender, RoutedEventArgs e)
+        {
+            ScriptTrackerPanel.IsVisible = !ScriptTrackerPanel.IsVisible;
+            if (ScriptTrackerPanel.IsVisible)
+            {
+                SearchPanel.IsVisible = false;
+                FlagTrackerPanel.IsVisible = false;
+                ThemePanel.IsVisible = false;
+            }
+        }
+
+        public void RefreshFlags_Click(object? sender, RoutedEventArgs e)
+        {
+            RefreshFlagsAndWorks();
+        }
+
+        public void RefreshScripts_Click(object? sender, RoutedEventArgs e)
+        {
+            RefreshCommands();
+        }
+
+        public void FlagSearchBox_TextChanged(object? sender, TextChangedEventArgs e)
+        {
+            FilterFlags(FlagSearchBox.Text ?? "");
+        }
+
+        public void ScriptSearchBox_TextChanged(object? sender, TextChangedEventArgs e)
+        {
+            FilterCommands(ScriptSearchBox.Text ?? "");
+        }
+
+        private void FilterFlags(string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                FlagList.ItemsSource = _allFlagUsages;
+                return;
+            }
+
+            var lowerQ = query.ToLower();
+            var filtered = _allFlagUsages
+                .Where(f => f.FlagName.ToLower().Contains(lowerQ))
+                .ToList();
+
+            FlagList.ItemsSource = filtered;
+        }
+
+        private async Task RefreshFlagsAndWorks()
+        {
+            StatusText.Text = "Scanner: Indexing Flags and Works...";
+            FlagList.ItemsSource = null;
+
+            List<object> nodesToScan = new List<object>();
+            if (ScriptTree.ItemsSource is System.Collections.IEnumerable items)
+            {
+                foreach (var item in items) nodesToScan.Add(item);
+            }
+
+            var knownFlags = _service.FlagMap;
+            var knownSysFlags = _service.SysFlagMap;
+
+            // Re-load Works into Class-Level Map for ID search
+            _workIdMap.Clear();
+            string? jsonDir = FindJsonFolder();
+            if (!string.IsNullOrEmpty(jsonDir))
+            {
+                try
+                {
+                    string workPath = Path.Combine(jsonDir, "work.json");
+                    if (File.Exists(workPath))
+                    {
+                        var content = File.ReadAllText(workPath);
+                        // Robust JSON loading using JArray
+                        var jArray = JArray.Parse(content);
+                        foreach (var item in jArray)
+                        {
+                            var idTok = item["Id"] ?? item["id"];
+                            var nameTok = item["Name"] ?? item["name"];
+                            if (idTok != null && nameTok != null)
+                            {
+                                int id = idTok.Value<int>();
+                                string name = nameTok.Value<string>() ?? "";
+                                if (!_workIdMap.ContainsKey(id)) _workIdMap.Add(id, name);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Scanner] JSON Load Error: {ex.Message}");
+                }
+            }
+
+            // Capture map for background thread
+            var localWorkMap = new Dictionary<int, string>(_workIdMap);
+
+            await Task.Run(() =>
+            {
+                try
+                {
+                    // CRITICAL FIX: Use Case-Insensitive Dictionary to match @SCWK_TEMP0 and @scwk_temp0
+                    var combinedFlags = new Dictionary<string, FlagUsageInfo>(StringComparer.OrdinalIgnoreCase);
+                    var combinedWorks = new Dictionary<string, FlagUsageInfo>(StringComparer.OrdinalIgnoreCase);
+
+                    // Pre-populate Flags
+                    foreach (var kvp in knownFlags)
+                    {
+                        string raw = kvp.Value;
+                        string f = raw.StartsWith("#") ? raw : $"#{raw}";
+                        if (!combinedFlags.ContainsKey(f))
+                            combinedFlags[f] = new FlagUsageInfo { FlagName = f };
+                    }
+                    foreach (var kvp in knownSysFlags)
+                    {
+                        string raw = kvp.Value;
+                        string f = raw.StartsWith("$") ? raw : $"${raw}";
+                        if (!combinedFlags.ContainsKey(f))
+                            combinedFlags[f] = new FlagUsageInfo { FlagName = f };
+                    }
+
+                    // Pre-populate Works
+                    foreach (var kvp in localWorkMap)
+                    {
+                        string raw = kvp.Value;
+                        string w = raw.StartsWith("@") ? raw : $"@{raw}";
+                        if (!combinedWorks.ContainsKey(w))
+                            combinedWorks[w] = new FlagUsageInfo { FlagName = w };
+                    }
+
+                    // Scan Scripts
+                    foreach (var node in nodesToScan)
+                    {
+                        if (node is FileNode fNode)
+                        {
+                            int currentLineOffset = 0;
+                            foreach (var s in fNode.Scripts)
+                            {
+                                ScanScriptForFlagsAndWorks(s.Content, fNode.Name, fNode, combinedFlags, combinedWorks, currentLineOffset);
+                                var lines = s.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                                currentLineOffset += lines.Length;
+                            }
+                        }
+                        else if (node is ScriptNode sNode)
+                        {
+                            ScanScriptForFlagsAndWorks(sNode.Content, "Root", sNode, combinedFlags, combinedWorks, 0);
+                        }
+                    }
+
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        _allFlagUsages = combinedFlags.Values
+                            .OrderByDescending(f => f.Locations.Count > 0) // Used first
+                            .ThenBy(f => f.FlagName)
+                            .ToList();
+
+                        _allWorkUsages = combinedWorks.Values
+                            .OrderByDescending(w => w.Locations.Count > 0) // Used first
+                            .ThenBy(w => w.FlagName)
+                            .ToList();
+
+                        if (FlagTrackerPanel.IsVisible)
+                            FilterFlags(FlagSearchBox.Text ?? "");
+
+                        StatusText.Text = $"Scanner: Indexed {_allFlagUsages.Count} flags and {_allWorkUsages.Count} works.";
+                    });
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Scanner] Error: {ex}");
+                }
+            });
+        }
+
+        private void ScanScriptForFlagsAndWorks(string content, string fileName, object nodeObj, Dictionary<string, FlagUsageInfo> flagResults, Dictionary<string, FlagUsageInfo> workResults, int lineOffset)
+        {
+            var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string line = lines[i];
+                if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("//") || line.TrimStart().StartsWith(";")) continue;
+
+                var flagMatches = System.Text.RegularExpressions.Regex.Matches(line, @"([#$][A-Za-z0-9_]+)");
+                var workMatches = System.Text.RegularExpressions.Regex.Matches(line, @"(@[A-Za-z0-9_]+)");
+
+                string command = "UNK";
+                var cmdMatch = System.Text.RegularExpressions.Regex.Match(line.Trim(), @"^([A-Z_][A-Z0-9_]*)");
+                if (cmdMatch.Success) command = cmdMatch.Groups[1].Value;
+
+                foreach (System.Text.RegularExpressions.Match m in flagMatches)
+                {
+                    string fullFlag = m.Value;
+                    if (!flagResults.ContainsKey(fullFlag)) flagResults[fullFlag] = new FlagUsageInfo { FlagName = fullFlag };
+
+                    flagResults[fullFlag].Locations.Add(new FlagLocation
+                    {
+                        LineNumber = i + 1 + lineOffset,
+                        Command = command,
+                        Content = line.Trim(),
+                        FileName = fileName,
+                        NodeObject = nodeObj
+                    });
+                }
+
+                foreach (System.Text.RegularExpressions.Match m in workMatches)
+                {
+                    string fullWork = m.Value;
+
+                    // Always add works found in code, even if not in JSON
+                    if (!workResults.ContainsKey(fullWork)) workResults[fullWork] = new FlagUsageInfo { FlagName = fullWork };
+
+                    workResults[fullWork].Locations.Add(new FlagLocation
+                    {
+                        LineNumber = i + 1 + lineOffset,
+                        Command = command,
+                        Content = line.Trim(),
+                        FileName = fileName,
+                        NodeObject = nodeObj
+                    });
+                }
+            }
+        }
 
         private void InitializeBlockly()
         {
@@ -733,14 +926,6 @@ namespace RelumiScript
                 BlockEditor.NavigationCompleted += (sender, args) => { if (args.IsSuccess) _isBlocklyReady = true; };
                 BlockEditor.WebMessageReceived += (s, e) => { _currentScriptContent = e.Message ?? ""; };
             }
-        }
-
-        private string? FindJsonFolder()
-        {
-            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            string[] candidates = { Path.Combine(baseDir, "JSON"), Path.Combine(baseDir, "..", "..", "..", "JSON"), Path.Combine(Directory.GetCurrentDirectory(), "JSON") };
-            foreach (var path in candidates) { if (Directory.Exists(path) && File.Exists(Path.Combine(path, "commands.json"))) return Path.GetFullPath(path); }
-            return null;
         }
 
         private string LoadCleanJson(string path)
@@ -817,21 +1002,18 @@ namespace RelumiScript
             }
         }
 
-        private void OnTabChanged(object? sender, RoutedEventArgs e)
+        public void OnTabChanged(object? sender, RoutedEventArgs e)
         {
             bool codeMode = TabCode.IsChecked == true;
             Editor.IsVisible = codeMode;
             BlockEditor.IsVisible = !codeMode;
             SetEditorText(_currentScriptContent);
-
-            // Refresh flags if panel is open
-            if (FlagTrackerPanel.IsVisible) RefreshFlags();
         }
 
         private async void SetEditorText(string content)
         {
             _currentScriptContent = content ?? string.Empty;
-            if (FlagTrackerPanel.IsVisible) UpdateFlagUi(_currentScriptContent); // Direct update since we have source of truth
+            if (FlagTrackerPanel.IsVisible) UpdateFlagUi(_currentScriptContent);
 
             string safe = JsonConvert.ToString(_currentScriptContent);
             if (_isEditorReady && Editor != null)
@@ -862,9 +1044,6 @@ namespace RelumiScript
 
         private void UpdateFlagUi(string content)
         {
-            // Optional logic to update flags in real-time for CURRENT file only
-            // But we are focusing on global search, so we might skip this or implement partial update
-            // For now, let's just leave it empty or minimal to avoid conflicting with global search logic
         }
 
         private string? FindFileInStructure(string root, string[] segments)
@@ -879,7 +1058,7 @@ namespace RelumiScript
             try { return Directory.EnumerateFiles(root, segments.Last(), SearchOption.AllDirectories).FirstOrDefault(); } catch { return null; }
         }
 
-        private async void BtnLoad_Click(object? sender, RoutedEventArgs e)
+        public async void BtnLoad_Click(object? sender, RoutedEventArgs e)
         {
             var topLevel = Avalonia.Controls.TopLevel.GetTopLevel(this);
             if (topLevel == null) return;
@@ -916,9 +1095,12 @@ namespace RelumiScript
 
             ScriptTree.ItemsSource = loadedScripts.OrderBy(x => x.Name).ToList();
             StatusText.Text = $"Loaded {loadedScripts.Count} scripts. ({_loadedMessages.Count} message files ready)";
+
+            // Trigger Indexing
+            RefreshAllTrackers();
         }
 
-        private void ScriptTree_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+        public void ScriptTree_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             if (ScriptTree.SelectedItem is ScriptNode s)
             {
@@ -930,6 +1112,210 @@ namespace RelumiScript
                 foreach (var script in f.Scripts) { sb.AppendLine(script.Content); }
                 SetEditorText(sb.ToString());
             }
+        }
+
+        public async void JumpToLocation_Click(object? sender, RoutedEventArgs e)
+        {
+            if (sender is Control c && c.Tag is FlagLocation loc)
+            {
+                if (loc.NodeObject != null)
+                {
+                    ScriptTree.SelectedItem = loc.NodeObject;
+                }
+
+                await Task.Delay(150);
+                if (_isEditorReady && Editor != null)
+                {
+                    string script = $"editor.revealLineInCenter({loc.LineNumber}); editor.setPosition({{lineNumber: {loc.LineNumber}, column: 1}}); editor.focus();";
+                    try
+                    {
+                        await Editor.ExecuteScriptAsync(script);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[MainWindow] Failed to jump to line: {ex.Message}");
+                    }
+                }
+            }
+        }
+
+        // --- Helper Classes for JSON Serialization ---
+
+        public class ThemeSettings
+        {
+            public ThemeColors Colors { get; set; } = new ThemeColors();
+            public SyntaxTheme Syntax { get; set; } = new SyntaxTheme();
+        }
+
+        public class ThemeColors
+        {
+            public string Background { get; set; } = "#FF282A36";
+            public string Foreground { get; set; } = "#FFF8F8F2";
+        }
+
+        public class SyntaxTheme
+        {
+            public TokenStyle ScriptLabel { get; set; } = new TokenStyle { Color = "#FF569CD6", Style = "bold" };
+            public TokenStyle WorkVar { get; set; } = new TokenStyle { Color = "#FFFFD700" };
+            public TokenStyle Flag { get; set; } = new TokenStyle { Color = "#FF50FA7B" };
+            public TokenStyle SysFlag { get; set; } = new TokenStyle { Color = "#FF8BE9FD", Style = "italic" };
+            public TokenStyle Command { get; set; } = new TokenStyle { Color = "#FFBD93F9", Style = "bold" };
+            public TokenStyle Number { get; set; } = new TokenStyle { Color = "#FFFFB86C" };
+            public TokenStyle String { get; set; } = new TokenStyle { Color = "#FFF1FA8C" };
+            public TokenStyle Comment { get; set; } = new TokenStyle { Color = "#FF6272A4" };
+        }
+
+        public class TokenStyle
+        {
+            public string Color { get; set; } = "";
+            public string Style { get; set; } = "";
+        }
+
+        // --- View Model for Avalonia Bindings ---
+
+        public class ThemeEditorViewModel : System.ComponentModel.INotifyPropertyChanged
+        {
+            public ThemeColorsVM Colors { get; set; } = new ThemeColorsVM();
+            public SyntaxThemeVM Syntax { get; set; } = new SyntaxThemeVM();
+
+            public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+            public void LoadFromSettings(ThemeSettings s)
+            {
+                if (Color.TryParse(s.Colors.Background, out var bg)) Colors.BackgroundColor = bg;
+                if (Color.TryParse(s.Colors.Foreground, out var fg)) Colors.ForegroundColor = fg;
+
+                Syntax.ScriptLabel.Load(s.Syntax.ScriptLabel);
+                Syntax.WorkVar.Load(s.Syntax.WorkVar);
+                Syntax.Flag.Load(s.Syntax.Flag);
+                Syntax.SysFlag.Load(s.Syntax.SysFlag);
+                Syntax.Command.Load(s.Syntax.Command);
+                Syntax.Number.Load(s.Syntax.Number);
+                Syntax.String.Load(s.Syntax.String);
+                Syntax.Comment.Load(s.Syntax.Comment);
+            }
+
+            public ThemeSettings ToSettings()
+            {
+                return new ThemeSettings
+                {
+                    Colors = new ThemeColors
+                    {
+                        Background = ThemeColorsVM.ToHex(Colors.BackgroundColor),
+                        Foreground = ThemeColorsVM.ToHex(Colors.ForegroundColor)
+                    },
+                    Syntax = new SyntaxTheme
+                    {
+                        ScriptLabel = Syntax.ScriptLabel.ToModel(),
+                        WorkVar = Syntax.WorkVar.ToModel(),
+                        Flag = Syntax.Flag.ToModel(),
+                        SysFlag = Syntax.SysFlag.ToModel(),
+                        Command = Syntax.Command.ToModel(),
+                        Number = Syntax.Number.ToModel(),
+                        String = Syntax.String.ToModel(),
+                        Comment = Syntax.Comment.ToModel()
+                    }
+                };
+            }
+        }
+
+        public class ThemeColorsVM : System.ComponentModel.INotifyPropertyChanged
+        {
+            private Color _bg = Color.Parse("#FF282A36");
+            public Color BackgroundColor
+            {
+                get => _bg;
+                set { _bg = value; OnPropertyChanged(nameof(BackgroundColor)); }
+            }
+
+            private Color _fg = Color.Parse("#FFF8F8F2");
+            public Color ForegroundColor
+            {
+                get => _fg;
+                set { _fg = value; OnPropertyChanged(nameof(ForegroundColor)); }
+            }
+
+            // Helper to get formatted hex string
+            public static string ToHex(Color c)
+            {
+                if (c.A == 255)
+                    return $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+                return $"#{c.A:X2}{c.R:X2}{c.G:X2}{c.B:X2}";
+            }
+
+            public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+            protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+        }
+
+        public class SyntaxThemeVM
+        {
+            public TokenStyleVM ScriptLabel { get; set; } = new TokenStyleVM();
+            public TokenStyleVM WorkVar { get; set; } = new TokenStyleVM();
+            public TokenStyleVM Flag { get; set; } = new TokenStyleVM();
+            public TokenStyleVM SysFlag { get; set; } = new TokenStyleVM();
+            public TokenStyleVM Command { get; set; } = new TokenStyleVM();
+            public TokenStyleVM Number { get; set; } = new TokenStyleVM();
+            public TokenStyleVM String { get; set; } = new TokenStyleVM();
+            public TokenStyleVM Comment { get; set; } = new TokenStyleVM();
+        }
+
+        public class TokenStyleVM : System.ComponentModel.INotifyPropertyChanged
+        {
+            private Color _color = Avalonia.Media.Colors.White;
+            public Color Color
+            {
+                get => _color;
+                set
+                {
+                    _color = value;
+                    OnPropertyChanged(nameof(Color));
+                    OnPropertyChanged(nameof(Brush));
+                }
+            }
+
+            public ISolidColorBrush Brush => new SolidColorBrush(Color);
+
+            private bool _bold;
+            public bool IsBold { get => _bold; set { _bold = value; NotifyStyle(); } }
+
+            private bool _italic;
+            public bool IsItalic { get => _italic; set { _italic = value; NotifyStyle(); } }
+
+            public Avalonia.Media.FontWeight Weight => IsBold ? Avalonia.Media.FontWeight.Bold : Avalonia.Media.FontWeight.Normal;
+            public Avalonia.Media.FontStyle FontStyle => IsItalic ? Avalonia.Media.FontStyle.Italic : Avalonia.Media.FontStyle.Normal;
+
+            private void NotifyStyle()
+            {
+                OnPropertyChanged(nameof(IsBold));
+                OnPropertyChanged(nameof(IsItalic));
+                OnPropertyChanged(nameof(Weight));
+                OnPropertyChanged(nameof(FontStyle));
+            }
+
+            public void Load(TokenStyle s)
+            {
+                if (!string.IsNullOrEmpty(s.Color) && Color.TryParse(s.Color, out var c)) Color = c;
+
+                string st = s.Style ?? "";
+                IsBold = st.Contains("bold");
+                IsItalic = st.Contains("italic");
+            }
+
+            public TokenStyle ToModel()
+            {
+                var parts = new List<string>();
+                if (IsBold) parts.Add("bold");
+                if (IsItalic) parts.Add("italic");
+
+                return new TokenStyle
+                {
+                    Color = ThemeColorsVM.ToHex(Color),
+                    Style = string.Join(" ", parts)
+                };
+            }
+
+            public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+            protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
         }
     }
 }

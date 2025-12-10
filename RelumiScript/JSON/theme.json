@@ -1,0 +1,40 @@
+{
+  "Colors": {
+    "Background": "#282A36",
+    "Foreground": "#F8F8F2"
+  },
+  "Syntax": {
+    "ScriptLabel": {
+      "Color": "#569CD6",
+      "Style": "bold"
+    },
+    "WorkVar": {
+      "Color": "#FFD700",
+      "Style": ""
+    },
+    "Flag": {
+      "Color": "#FA5C68",
+      "Style": ""
+    },
+    "SysFlag": {
+      "Color": "#8BE9FD",
+      "Style": "italic"
+    },
+    "Command": {
+      "Color": "#F9ED95",
+      "Style": "bold"
+    },
+    "Number": {
+      "Color": "#FFB86C",
+      "Style": ""
+    },
+    "String": {
+      "Color": "#A7F3FA",
+      "Style": ""
+    },
+    "Comment": {
+      "Color": "#6272A4",
+      "Style": ""
+    }
+  }
+}
