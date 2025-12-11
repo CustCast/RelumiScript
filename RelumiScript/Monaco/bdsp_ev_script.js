@@ -34,7 +34,7 @@ var pokeReverseMap = {}; // Name -> ID
 
 function getParamDocs(arg) {
   let typeStr = arg.Type ? arg.Type.join(" | ") : "Any";
-  let doc = `**Type**: \`${typeStr}\``;
+  let doc = `(\`${typeStr}\`)`;
   if (arg.Optional) doc += ` (Optional)`;
   if (arg.Description) doc += `\n\n${arg.Description}`;
   return doc;
@@ -168,12 +168,25 @@ monaco.languages.registerHoverProvider("bdsp", {
     const cmd = commandLookup[word.word];
     if (cmd) {
       const data = getSignatureData(cmd);
-      return {
-        contents: [
-          { value: "```bdsp\n" + data.signature + "\n```" },
-          { value: data.documentation },
-        ],
-      };
+
+      const contents = [];
+      contents.push({ value: "```bdsp\n" + data.signature + "\n```" });
+
+      if (data.documentation) {
+        contents.push({ value: `**Description:**\n\n${data.documentation}` });
+      }
+
+      if (data.parameters && data.parameters.length > 0) {
+        const argLines = data.parameters.map((p, i) => {
+          const doc = (p.documentation && p.documentation.value)
+            ? p.documentation.value.replace(/\r?\n+/g, " ")
+            : "";
+          return `Arg ${i + 1}. **${p.label}**: ${doc}`;
+        });
+        contents.push({ value: "**Arguments:**\n\n" + argLines.join("\n\n") });
+      }
+
+      return { contents: contents };
     }
 
     // Pokemon ID Hover
