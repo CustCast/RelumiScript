@@ -1,6 +1,7 @@
 ﻿using Avalonia.Media;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 
 namespace RelumiScript.ViewModels
 {
@@ -44,6 +45,11 @@ namespace RelumiScript.ViewModels
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
         public void LoadFromSettings(ThemeSettings s)
         {
             if (Color.TryParse(s.Colors.Background, out var bg)) Colors.BackgroundColor = bg;
@@ -57,6 +63,9 @@ namespace RelumiScript.ViewModels
             Syntax.Number.Load(s.Syntax.Number);
             Syntax.String.Load(s.Syntax.String);
             Syntax.Comment.Load(s.Syntax.Comment);
+
+            OnPropertyChanged(nameof(Colors));
+            OnPropertyChanged(nameof(Syntax));
         }
 
         public ThemeSettings ToSettings()

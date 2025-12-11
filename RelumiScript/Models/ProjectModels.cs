@@ -1,5 +1,5 @@
 ﻿using System.Collections.Generic;
-using Newtonsoft.Json; // Required for [JsonProperty]
+using Newtonsoft.Json;
 
 namespace RelumiScript
 {
@@ -30,6 +30,7 @@ namespace RelumiScript
     public class FileNode
     {
         public string Name { get; set; } = "Unknown";
+        public string FileName { get; set; } = ""; // Stores raw asset name (e.g. "ev_script") for saving
         public bool IsMessage { get; set; }
         public List<ScriptNode> Scripts { get; set; } = new List<ScriptNode>();
 

@@ -11,18 +11,12 @@ using System.Linq;
 
 namespace RelumiScript
 {
-    /// <summary>
-    /// Atlas metadata for font rendering.
-    /// </summary>
     public class AtlasData
     {
         [JsonProperty("size")] public int Size { get; set; }
         [JsonProperty("glyphs")] public Dictionary<string, GlyphData>? Glyphs { get; set; }
     }
 
-    /// <summary>
-    /// Glyph data containing position, size, and rendering information.
-    /// </summary>
     public class GlyphData
     {
         [JsonProperty("p")] public int Page { get; set; }
@@ -35,10 +29,6 @@ namespace RelumiScript
         [JsonProperty("ax")] public double AdvanceX { get; set; }
     }
 
-    /// <summary>
-    /// Renders in-game messages using custom bitmap font atlas.
-    /// Handles text measurement, scaling, and multi-line rendering with proper glyph positioning.
-    /// </summary>
     public class MessageRenderer
     {
         private Dictionary<string, double> _metrics = new Dictionary<string, double>();
@@ -52,9 +42,7 @@ namespace RelumiScript
         private double _canvasWidth = 1500;
         private double _canvasHeight = 230;
 
-        // Dialogue page settings (BDSP typically shows 2-3 lines per textbox)
         private const int MaxLinesPerPage = 2;
-        private const double LineHeight = 60.0; // Approximate height per line including spacing
 
         private double _baseMetricCalculated = BaseMetric;
         private double _pixelsPerUnitCalculated = 1.88;
@@ -64,10 +52,6 @@ namespace RelumiScript
         private AtlasData? _atlasData;
         private List<Bitmap> _atlasPages = new List<Bitmap>();
 
-        /// <summary>
-        /// Initializes a new instance of the MessageRenderer with font atlas and metrics.
-        /// </summary>
-        /// <param name="assetRoot">Root directory containing Assets folder with font data.</param>
         public MessageRenderer(string assetRoot)
         {
             _assetDir = assetRoot;
@@ -86,19 +70,13 @@ namespace RelumiScript
             foreach (var line in lines)
             {
                 if (string.IsNullOrWhiteSpace(line) || line.StartsWith("//")) continue;
-
                 if (line.StartsWith(" ") && line.TrimStart().Length > 0 && char.IsDigit(line.TrimStart()[0]))
                 {
-                    if (double.TryParse(line.Trim(), out double val))
-                        _metrics[" "] = val;
+                    if (double.TryParse(line.Trim(), out double val)) _metrics[" "] = val;
                     continue;
                 }
-
                 var parts = line.Split(new[] { ' ', ',' }, 2, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length == 2 && double.TryParse(parts[1], out double width))
-                {
-                    _metrics[parts[0]] = width;
-                }
+                if (parts.Length == 2 && double.TryParse(parts[1], out double width)) _metrics[parts[0]] = width;
             }
             if (!_metrics.ContainsKey(" ")) _metrics[" "] = 8.671875;
         }
@@ -106,8 +84,7 @@ namespace RelumiScript
         private void CalibrateMetrics()
         {
             _baseMetricCalculated = MeasureText(CalibrationPhrase);
-            if (_baseMetricCalculated > 0)
-                _pixelsPerUnitCalculated = MaxWidth / _baseMetricCalculated;
+            if (_baseMetricCalculated > 0) _pixelsPerUnitCalculated = MaxWidth / _baseMetricCalculated;
         }
 
         private void LoadBackground()
@@ -119,12 +96,9 @@ namespace RelumiScript
                 {
                     _bgImage = new Bitmap(path);
                     _canvasWidth = _bgImage.PixelSize.Width;
-                    _canvasHeight = 230;
+                    _canvasHeight = _bgImage.PixelSize.Height > 0 ? _bgImage.PixelSize.Height : 230;
                 }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[MessageRenderer] Failed to load background: {ex.Message}");
-                }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[MessageRenderer] BG Load Error: {ex.Message}"); }
             }
         }
 
@@ -132,21 +106,18 @@ namespace RelumiScript
         {
             string fontDir = Path.Combine(_assetDir, "Fonts");
             string mapPath = Path.Combine(fontDir, "atlas_map.json");
-
             if (File.Exists(mapPath))
             {
                 try
                 {
                     string json = File.ReadAllText(mapPath);
                     _atlasData = JsonConvert.DeserializeObject<AtlasData>(json);
-
                     if (_atlasData?.Glyphs != null)
                     {
                         var safeMap = new Dictionary<string, GlyphData>(StringComparer.OrdinalIgnoreCase);
                         foreach (var kvp in _atlasData.Glyphs) safeMap[kvp.Key] = kvp.Value;
                         _atlasData.Glyphs = safeMap;
                     }
-
                     int pageIndex = 0;
                     while (true)
                     {
@@ -156,58 +127,31 @@ namespace RelumiScript
                         pageIndex++;
                     }
                 }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"[MessageRenderer] Atlas Load Error: {ex.Message}");
-                }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[MessageRenderer] Atlas Load Error: {ex.Message}"); }
             }
         }
 
-        /// <summary>
-        /// Splits dialogue text into pages based on line breaks.
-        /// In BDSP, each {n} token represents a line break, and text is displayed progressively.
-        /// This method treats the entire text as pages split by {n} tokens, with MaxLinesPerPage lines per page.
-        /// </summary>
-        /// <param name="rawText">Raw message text with {n} representing newlines.</param>
-        /// <returns>List of text pages, each containing up to MaxLinesPerPage lines.</returns>
         public List<string> SplitIntoPages(string rawText)
         {
             var pages = new List<string>();
             if (string.IsNullOrEmpty(rawText)) return pages;
-
-            // Split by {n} tokens to get individual lines
             var lines = rawText.Split(new[] { "{n}" }, StringSplitOptions.None);
-
-            // Group lines into pages (MaxLinesPerPage lines each)
             for (int i = 0; i < lines.Length; i += MaxLinesPerPage)
             {
                 var pageLines = lines.Skip(i).Take(MaxLinesPerPage);
                 pages.Add(string.Join("\n", pageLines));
             }
-
             return pages;
         }
 
-        /// <summary>
-        /// Measures the width of text in game units using font metrics.
-        /// </summary>
-        /// <param name="text">Text to measure, may include {n} newline tokens.</param>
-        /// <returns>Total width in game units.</returns>
         public double MeasureText(string text)
         {
             double width = 0;
             for (int i = 0; i < text.Length; i++)
             {
-                if (i + 2 < text.Length && text.Substring(i, 3) == "{n}")
-                {
-                    width += 343.6875;
-                    i += 2;
-                    continue;
-                }
-
+                if (i + 2 < text.Length && text.Substring(i, 3) == "{n}") { width += 343.6875; i += 2; continue; }
                 string c = text[i].ToString();
                 if (c == "'") c = "’";
-
                 if (_metrics.TryGetValue(c, out double val)) width += val;
                 else if (char.IsDigit(c[0])) width += 15.0;
                 else width += 8.67;
@@ -215,13 +159,6 @@ namespace RelumiScript
             return width;
         }
 
-        /// <summary>
-        /// Renders a single page of dialogue text.
-        /// </summary>
-        /// <param name="pageText">Text for this page (already split, no {n} tokens).</param>
-        /// <param name="pageNumber">Current page number (1-indexed).</param>
-        /// <param name="totalPages">Total number of pages.</param>
-        /// <returns>Canvas containing rendered text.</returns>
         public Canvas RenderPage(string pageText, int pageNumber, int totalPages)
         {
             var canvas = new Canvas
@@ -230,16 +167,13 @@ namespace RelumiScript
                 Height = _canvasHeight,
                 ClipToBounds = true,
                 Background = _bgImage != null
-                    ? new ImageBrush { Source = _bgImage, Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }
+                    ? new ImageBrush { Source = _bgImage, Stretch = Stretch.Fill, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }
                     : Brushes.Transparent
             };
 
-            if (string.IsNullOrEmpty(pageText)) return canvas;
-            if (_atlasData?.Glyphs == null || _atlasPages.Count == 0) return canvas;
+            if (string.IsNullOrEmpty(pageText) || _atlasData?.Glyphs == null || _atlasPages.Count == 0) return canvas;
 
-            // Split lines (already processed from pages)
             var lines = pageText.Split(new[] { '\n' }, StringSplitOptions.None);
-
             double currentY = 40;
             double startX = 100;
             double refSize = _atlasData.Size;
@@ -248,31 +182,23 @@ namespace RelumiScript
             {
                 double lineWidth = MeasureText(line);
                 double lineScale = lineWidth > _baseMetricCalculated ? (_baseMetricCalculated / lineWidth) : 1.0;
-
                 double targetFontSize = (BaseFontSize * lineScale) * TextScale;
                 double renderScale = targetFontSize / refSize;
-
                 double cursorX = startX;
 
                 foreach (char c in line)
                 {
                     string charStr = c.ToString();
                     if (charStr == "'") charStr = "'";
-
                     double metricWidth = 8.67;
                     if (_metrics.TryGetValue(charStr, out double w)) metricWidth = w;
                     else if (char.IsDigit(c)) metricWidth = 15.0;
 
                     double advancePx = (metricWidth * _pixelsPerUnitCalculated * lineScale) * TextScale;
 
-                    if (c == ' ')
-                    {
-                        cursorX += advancePx;
-                        continue;
-                    }
+                    if (c == ' ') { cursorX += advancePx; continue; }
 
                     string hex = ((int)c).ToString("X4");
-
                     if (_atlasData.Glyphs.TryGetValue(hex, out GlyphData? data) && data != null && data.Page < _atlasPages.Count)
                     {
                         var croppedBitmap = new CroppedBitmap(_atlasPages[data.Page], new PixelRect(data.X, data.Y, data.Width, data.Height));
@@ -283,14 +209,9 @@ namespace RelumiScript
                             Height = data.Height * renderScale,
                             Stretch = Stretch.Fill
                         };
-
-                        double drawX = cursorX + (data.OffsetX * renderScale);
-                        double drawY = currentY + (data.OffsetY * renderScale);
-
-                        Canvas.SetLeft(img, drawX);
-                        Canvas.SetTop(img, drawY);
+                        Canvas.SetLeft(img, cursorX + (data.OffsetX * renderScale));
+                        Canvas.SetTop(img, currentY + (data.OffsetY * renderScale));
                         canvas.Children.Add(img);
-
                         cursorX += data.AdvanceX * renderScale;
                     }
                     else
@@ -298,7 +219,6 @@ namespace RelumiScript
                         var err = new Border { Background = Brushes.Red, Width = 10, Height = targetFontSize };
                         Canvas.SetLeft(err, cursorX); Canvas.SetTop(err, currentY);
                         canvas.Children.Add(err);
-
                         double fallbackWidth = _metrics.TryGetValue(charStr, out double fw) ? fw : (char.IsDigit(c) ? 15.0 : 8.67);
                         cursorX += (fallbackWidth * _pixelsPerUnitCalculated * lineScale) * TextScale;
                     }
@@ -306,7 +226,6 @@ namespace RelumiScript
                 currentY += (targetFontSize + 10);
             }
 
-            // Add page indicator in bottom-right corner if multiple pages
             if (totalPages > 1)
             {
                 var pageIndicator = new TextBlock
@@ -321,102 +240,10 @@ namespace RelumiScript
                 Canvas.SetBottom(pageIndicator, 15);
                 canvas.Children.Add(pageIndicator);
             }
-
             return canvas;
         }
 
-        /// <summary>
-        /// Renders in-game message text to an Avalonia Canvas using bitmap font atlas.
-        /// This method renders all text on a single canvas (legacy behavior).
-        /// </summary>
-        /// <param name="rawText">Raw message text with {n} representing newlines.</param>
-        /// <returns>Canvas containing rendered text with proper glyph positioning and scaling.</returns>
-        public Canvas Render(string rawText)
-        {
-            var canvas = new Canvas
-            {
-                Width = _canvasWidth,
-                Height = _canvasHeight,
-                ClipToBounds = true,
-                Background = _bgImage != null
-                    ? new ImageBrush { Source = _bgImage, Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top }
-                    : Brushes.Transparent
-            };
-
-            if (string.IsNullOrEmpty(rawText)) return canvas;
-            if (_atlasData?.Glyphs == null || _atlasPages.Count == 0) return canvas;
-
-            var lines = rawText.Replace("{n}", "\n").Replace("\\r", "").Split('\n');
-
-            double currentY = 40;
-            double startX = 100;
-            double refSize = _atlasData.Size;
-
-            foreach (var line in lines)
-            {
-                double lineWidth = MeasureText(line);
-                double lineScale = lineWidth > _baseMetricCalculated ? (_baseMetricCalculated / lineWidth) : 1.0;
-
-                double targetFontSize = (BaseFontSize * lineScale) * TextScale;
-                double renderScale = targetFontSize / refSize;
-
-                double cursorX = startX;
-
-                foreach (char c in line)
-                {
-                    string charStr = c.ToString();
-                    if (charStr == "'") charStr = "’";
-
-                    double metricWidth = 8.67;
-                    if (_metrics.TryGetValue(charStr, out double w)) metricWidth = w;
-                    else if (char.IsDigit(c)) metricWidth = 15.0;
-
-                    double advancePx = (metricWidth * _pixelsPerUnitCalculated * lineScale) * TextScale;
-
-                    if (c == ' ')
-                    {
-                        cursorX += advancePx;
-                        continue;
-                    }
-
-                    string hex = ((int)c).ToString("X4");
-
-                    if (_atlasData.Glyphs.TryGetValue(hex, out GlyphData? data) && data != null && data.Page < _atlasPages.Count)
-                    {
-                        var croppedBitmap = new CroppedBitmap(_atlasPages[data.Page], new PixelRect(data.X, data.Y, data.Width, data.Height));
-                        var img = new Image
-                        {
-                            Source = croppedBitmap,
-                            Width = data.Width * renderScale,
-                            Height = data.Height * renderScale,
-                            Stretch = Stretch.Fill
-                        };
-
-                        double drawX = cursorX + (data.OffsetX * renderScale);
-                        double drawY = currentY + (data.OffsetY * renderScale);
-
-                        Canvas.SetLeft(img, drawX);
-                        Canvas.SetTop(img, drawY);
-                        canvas.Children.Add(img);
-
-                        // Use AdvanceX from atlas data for proper spacing
-                        cursorX += data.AdvanceX * renderScale;
-                    }
-                    else
-                    {
-                        var err = new Border { Background = Brushes.Red, Width = 10, Height = targetFontSize };
-                        Canvas.SetLeft(err, cursorX); Canvas.SetTop(err, currentY);
-                        canvas.Children.Add(err);
-
-                        // Fallback advance using metrics
-                        double fallbackWidth = _metrics.TryGetValue(charStr, out double fw) ? fw : (char.IsDigit(c) ? 15.0 : 8.67);
-                        cursorX += (fallbackWidth * _pixelsPerUnitCalculated * lineScale) * TextScale;
-                    }
-                }
-                currentY += (targetFontSize + 10);
-            }
-
-            return canvas;
-        }
+        // Legacy Render method kept for compatibility
+        public Canvas Render(string rawText) => RenderPage(rawText.Replace("{n}", "\n"), 1, 1);
     }
 }
