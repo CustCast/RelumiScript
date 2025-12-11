@@ -461,7 +461,7 @@ window.formatLegacyScript = function (text) {
             arg.startsWith("lbl_") ||
             arg.startsWith("common_")
           )
-            return '"' + arg + '"';
+                return '"' + arg + '"';
 
             if (arg.startsWith("@")) return arg;
           return "@" + arg;

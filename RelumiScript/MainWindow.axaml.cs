@@ -30,6 +30,7 @@ namespace RelumiScript
 
         private bool _isEditorReady = false;
         private bool _isBlocklyReady = false;
+        private bool _isNavigating = false; // Prevents double-loading during jumps
 
         private string _currentScriptContent = "";
         private List<FileNode> _loadedMessages = new List<FileNode>();
@@ -43,6 +44,7 @@ namespace RelumiScript
         private List<FlagUsageInfo> _allFlagUsages = new List<FlagUsageInfo>();
         private List<CommandUsageInfo> _allCommandUsages = new List<CommandUsageInfo>();
         private List<FlagUsageInfo> _allWorkUsages = new List<FlagUsageInfo>();
+        private List<EventUsageInfo> _allEventUsages = new List<EventUsageInfo>();
         private Dictionary<int, string> _workIdMap = new Dictionary<int, string>();
 
         private ThemeEditorViewModel _themeVm = new ThemeEditorViewModel();
@@ -80,12 +82,13 @@ namespace RelumiScript
             _allFlagUsages = result.Flags;
             _allWorkUsages = result.Works;
             _allCommandUsages = result.Commands;
+            _allEventUsages = result.Events;
 
             // UI Update
             if (FlagTrackerPanel.IsVisible) FilterFlags(FlagSearchBox.Text ?? "");
             if (ScriptTrackerPanel.IsVisible) FilterCommands(ScriptSearchBox.Text ?? "");
 
-            StatusText.Text = $"Scanner: Indexed {result.Flags.Count} flags, {result.Works.Count} works, {result.Commands.Count} commands.";
+            StatusText.Text = $"Scanner: Indexed {result.Flags.Count} flags, {result.Works.Count} works, {result.Commands.Count} cmds, {result.Events.Count} events.";
         }
 
         public void RefreshFlags_Click(object? sender, RoutedEventArgs e) => RefreshAllTrackers();
@@ -153,13 +156,20 @@ namespace RelumiScript
             // 1. Pokemon
             if (isIdSearch && _service.PokemonMap.TryGetValue(searchId, out string? pName))
                 results.Add(new SearchResult { Type = "PKM", Color = "#569CD6", Id = searchId, Name = pName });
-            foreach (var kvp in _service.PokemonMap.Where(k => k.Value.Contains(query, StringComparison.OrdinalIgnoreCase) && k.Key != searchId).Take(20))
+
+            var pkmMatches = _service.PokemonMap.Where(k => k.Value.Contains(query, StringComparison.OrdinalIgnoreCase) && k.Key != searchId);
+            // Optimization: If explicit match found, prefer it
+            var pkmExact = pkmMatches.Where(k => k.Value.Equals(query, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var kvp in (pkmExact.Any() ? pkmExact : pkmMatches.Take(20)))
                 results.Add(new SearchResult { Type = "PKM", Color = "#569CD6", Id = kvp.Key, Name = kvp.Value });
 
             // 2. Items
             if (isIdSearch && _service.ItemMap.TryGetValue(searchId, out string? iName))
                 results.Add(new SearchResult { Type = "ITM", Color = "#CE9178", Id = searchId, Name = iName });
-            foreach (var kvp in _service.ItemMap.Where(k => k.Value.Contains(query, StringComparison.OrdinalIgnoreCase) && k.Key != searchId).Take(20))
+
+            var itmMatches = _service.ItemMap.Where(k => k.Value.Contains(query, StringComparison.OrdinalIgnoreCase) && k.Key != searchId);
+            var itmExact = itmMatches.Where(k => k.Value.Equals(query, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var kvp in (itmExact.Any() ? itmExact : itmMatches.Take(20)))
                 results.Add(new SearchResult { Type = "ITM", Color = "#CE9178", Id = kvp.Key, Name = kvp.Value });
 
             // 3. Works (ID + Name)
@@ -168,16 +178,34 @@ namespace RelumiScript
                 var usage = _allWorkUsages.FirstOrDefault(u => u.FlagName.Equals("@" + wName, StringComparison.OrdinalIgnoreCase));
                 results.Add(new SearchResult { Type = "WRK", Color = "#FFD700", Id = searchId, Name = wName, Locations = usage != null ? new ObservableCollection<FlagLocation>(usage.Locations) : new() });
             }
-            foreach (var w in _allWorkUsages.Where(x => x.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase)).Take(20))
+
+            var wrkMatches = _allWorkUsages.Where(x => x.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase));
+            var wrkExact = wrkMatches.Where(x => x.FlagName.Equals(query, StringComparison.OrdinalIgnoreCase) || x.FlagName.Equals("@" + query, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var w in (wrkExact.Any() ? wrkExact : wrkMatches.Take(20)))
                 results.Add(new SearchResult { Type = "WRK", Color = "#FFD700", Name = w.FlagName, Locations = new ObservableCollection<FlagLocation>(w.Locations) });
 
             // 4. Flags
-            foreach (var f in _allFlagUsages.Where(x => x.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase)).Take(20))
+            var flgMatches = _allFlagUsages.Where(x => x.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase));
+            var flgExact = flgMatches.Where(x => x.FlagName.Equals(query, StringComparison.OrdinalIgnoreCase) || x.FlagName.Equals("#" + query, StringComparison.OrdinalIgnoreCase) || x.FlagName.Equals("$" + query, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var f in (flgExact.Any() ? flgExact : flgMatches.Take(20)))
                 results.Add(new SearchResult { Type = "FLG", Color = "#50FA7B", Name = f.FlagName, Locations = new ObservableCollection<FlagLocation>(f.Locations) });
 
             // 5. Commands
-            foreach (var c in _allCommandUsages.Where(x => x.CommandName.Contains(query, StringComparison.OrdinalIgnoreCase)).Take(20))
+            var cmdMatches = _allCommandUsages.Where(x => x.CommandName.Contains(query, StringComparison.OrdinalIgnoreCase));
+            var cmdExact = cmdMatches.Where(x => x.CommandName.Equals(query, StringComparison.OrdinalIgnoreCase)).ToList();
+            foreach (var c in (cmdExact.Any() ? cmdExact : cmdMatches.Take(20)))
                 results.Add(new SearchResult { Type = "CMD", Color = "#BD93F9", Name = c.CommandName, Locations = new ObservableCollection<FlagLocation>(c.Locations) });
+
+            // 6. Events
+            var evtMatches = _allEventUsages.Where(x => x.EventName.Contains(query, StringComparison.OrdinalIgnoreCase));
+            // Exact match priority: If found, use ONLY exact matches
+            var evtExact = evtMatches.Where(x => x.EventName.Equals(query, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            foreach (var e in (evtExact.Any() ? evtExact : evtMatches.Take(20)))
+            {
+                var sortedLocs = new ObservableCollection<FlagLocation>(e.Locations.OrderByDescending(l => l.IsDeclaration).ThenBy(l => l.FileName));
+                results.Add(new SearchResult { Type = "EVT", Color = "#FF79C6", Name = e.EventName, Locations = sortedLocs });
+            }
 
             SearchResultsList.ItemsSource = results;
         }
@@ -261,9 +289,11 @@ namespace RelumiScript
         {
             if (e.Message == "HIDE_PREVIEW") { MessagePreviewContainer.IsVisible = false; return; }
             if (e.Message.StartsWith("PREVIEW:")) { var p = e.Message.Substring(8).Split('%'); if (p.Length == 2) ShowMessagePreview(p[0].Trim(), p[1].Trim()); return; }
+
+            // FIX: Don't toggle closed if already open. Force Open.
             if (e.Message.StartsWith("GLOBAL_SEARCH:"))
             {
-                TogglePanel(SearchPanel);
+                ShowPanel(SearchPanel);
                 SearchBox.Text = e.Message.Substring(e.Message.IndexOf(':') + 1).Trim();
                 return;
             }
@@ -383,6 +413,13 @@ namespace RelumiScript
 
         // --- Helpers ---
 
+        // Helper to force-show a panel without toggling it off
+        private void ShowPanel(Control panel)
+        {
+            SearchPanel.IsVisible = FlagTrackerPanel.IsVisible = ScriptTrackerPanel.IsVisible = ThemePanel.IsVisible = TerminalPanel.IsVisible = false;
+            panel.IsVisible = true;
+        }
+
         private void TogglePanel(Control panel)
         {
             bool wasVisible = panel.IsVisible;
@@ -394,6 +431,7 @@ namespace RelumiScript
         public void BtnScripts_Click(object? sender, RoutedEventArgs e) => TogglePanel(ScriptTrackerPanel);
         public void ScriptTree_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
+            if (_isNavigating) return; // Prevent overwriting during Jump
             if (ScriptTree.SelectedItem is ScriptNode s) SetEditorText(s.Content);
             else if (ScriptTree.SelectedItem is FileNode f) SetEditorText(string.Join(Environment.NewLine, f.Scripts.Select(x => x.Content)));
         }
@@ -402,14 +440,34 @@ namespace RelumiScript
         {
             if (sender is Control c && c.Tag is FlagLocation loc)
             {
-                if (loc.NodeObject != null) ScriptTree.SelectedItem = loc.NodeObject;
-                await Task.Delay(150);
-                if (_isEditorReady) await Editor.ExecuteScriptAsync($"editor.revealLineInCenter({loc.LineNumber}); editor.setPosition({{lineNumber: {loc.LineNumber}, column: 1}}); editor.focus();");
+                _isNavigating = true;
+                try
+                {
+                    // 1. Select the item in the tree (visual only, events suppressed by flag)
+                    if (loc.NodeObject != null) ScriptTree.SelectedItem = loc.NodeObject;
+
+                    // 2. Load the content explicitly
+                    string content = "";
+                    if (loc.NodeObject is ScriptNode sNode) content = sNode.Content;
+                    else if (loc.NodeObject is FileNode fNode) content = string.Join(Environment.NewLine, fNode.Scripts.Select(x => x.Content));
+
+                    if (!string.IsNullOrEmpty(content))
+                        await SetEditorText(content);
+
+                    // 3. Jump
+                    if (_isEditorReady)
+                    {
+                        // Give WebView a tick to render text
+                        await Task.Delay(50);
+                        await Editor.ExecuteScriptAsync($"editor.revealLineInCenter({loc.LineNumber}); editor.setPosition({{lineNumber: {loc.LineNumber}, column: 1}}); editor.focus();");
+                    }
+                }
+                finally { _isNavigating = false; }
             }
         }
 
         public void OnTabChanged(object? sender, RoutedEventArgs e) { Editor.IsVisible = TabCode.IsChecked == true; BlockEditor.IsVisible = !Editor.IsVisible; SetEditorText(_currentScriptContent); }
-        private async void SetEditorText(string content)
+        private async Task SetEditorText(string content)
         {
             _currentScriptContent = content;
             string safe = JsonConvert.ToString(content);
@@ -429,7 +487,6 @@ namespace RelumiScript
             if (string.IsNullOrEmpty(jd)) return;
             await Task.Run(() => {
                 string cmds = File.Exists(Path.Combine(jd, "commands.json")) ? File.ReadAllText(Path.Combine(jd, "commands.json")) : "[]";
-                // Simplified for brevity - in real app, reload all JSONs
                 string js = $"window.RELUMI_DATA = {{ commands: {cmds}, flags: [], sysflags: [], works: [], pokes: {JsonConvert.SerializeObject(_service.PokemonMap)}, items: {JsonConvert.SerializeObject(_service.ItemMap)} }}; window.RELUMI_DATA_LOADED = true;";
                 File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Monaco", "syntax_data.js"), js, Encoding.UTF8);
             });

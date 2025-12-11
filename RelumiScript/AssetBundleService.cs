@@ -7,36 +7,10 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using RelumiScript; // access models in the root namespace
 
 namespace RelumiScript
 {
-    /// <summary>
-    /// Represents a named definition with an ID and name, used for JSON deserialization.
-    /// </summary>
-    public class NameDef { [JsonProperty("Id")] public int Id { get; set; } [JsonProperty("Name")] public string? Name { get; set; } }
-
-    /// <summary>
-    /// Represents a file name mapping with internal and friendly names.
-    /// </summary>
-    public class FileNameDef { public string FileName { get; set; } = ""; public string FriendlyName { get; set; } = ""; }
-
-    /// <summary>
-    /// Represents a file node containing multiple scripts.
-    /// </summary>
-    public class FileNode
-    {
-        public string Name { get; set; } = "Unknown";
-        public bool IsMessage { get; set; }
-        public List<ScriptNode> Scripts { get; set; } = new List<ScriptNode>();
-        public string Icon => IsMessage ? "💬" : "📜";
-        public string Color => IsMessage ? "#569CD6" : "#4EC9B0";
-    }
-
-    /// <summary>
-    /// Represents a single script with a label and content.
-    /// </summary>
-    public class ScriptNode { public string Label { get; set; } = ""; public string Content { get; set; } = ""; }
-
     /// <summary>
     /// Service for loading and decompiling Pokémon BDSP asset bundles.
     /// Handles Unity AssetBundle parsing, script decompilation, and message file loading.
@@ -99,7 +73,6 @@ namespace RelumiScript
                 catch (Exception ex)
                 {
                     InitLog = $"Error loading {f}: {ex.Message}";
-                    // Log to debug output in debug mode
                     System.Diagnostics.Debug.WriteLine($"[AssetBundleService] Error loading {f}: {ex.Message}");
                 }
             }
@@ -129,7 +102,6 @@ namespace RelumiScript
             }
         }
 
-        // Renamed from LoadPokemonData to LoadGameData to reflect broader purpose
         /// <summary>
         /// Loads Pokémon names and item names from the message bundle file.
         /// </summary>
@@ -151,12 +123,10 @@ namespace RelumiScript
                     var baseField = _manager.GetBaseField(afile, info);
                     string assetName = baseField["m_Name"].AsString;
 
-                    // CHECK 1: Pokemon Names
                     if (assetName == "english_ss_monsname")
                     {
                         ParseStringList(baseField, PokemonMap);
                     }
-                    // CHECK 2: Item Names (matches ss_itemname, ss_itemname_acc, etc.)
                     else if (assetName.Contains("ss_itemname"))
                     {
                         ParseStringList(baseField, ItemMap);
@@ -170,7 +140,6 @@ namespace RelumiScript
             }
         }
 
-        // Helper to parse the standard MSBT array structure
         private void ParseStringList(AssetTypeValueField baseField, Dictionary<int, string> targetMap)
         {
             var entries = baseField["labelDataArray"];
@@ -190,7 +159,6 @@ namespace RelumiScript
                     if (!idx.IsDummy && !words.IsDummy && words.Children.Count > 0)
                     {
                         int idxValue = idx.AsInt;
-                        // Avoid overwriting if we have duplicates (first one usually wins or is main)
                         if (!targetMap.ContainsKey(idxValue))
                         {
                             string val = words.Children[0]["str"].AsString;
@@ -236,7 +204,6 @@ namespace RelumiScript
                             if (!words.IsDummy && words.Children.Count > 0 && words.Children[0].FieldName == "Array")
                                 words = words.Children[0];
 
-                            // Concatenate all wordDataArray entries with {n} tokens
                             var lines = new List<string>();
                             if (!words.IsDummy && words.Children.Count > 0)
                             {
