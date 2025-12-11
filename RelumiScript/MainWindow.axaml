@@ -9,431 +9,453 @@
         Background="#1E1E1E" Foreground="#CCCCCC"
         FontFamily="Segoe UI, Segoe UI Emoji, Segoe UI Symbol">
 
-    <Window.Styles>
-        <Style Selector="TreeViewItem">
-            <Setter Property="MinHeight" Value="22"/>
-            <Setter Property="Padding" Value="2,0"/>
-            <Setter Property="Margin" Value="0"/>
-            <Setter Property="Foreground" Value="#CCCCCC"/>
-            <Setter Property="FontSize" Value="13"/>
-        </Style>
-        <Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
-            <Setter Property="Background" Value="#37373D"/>
-        </Style>
-        <Style Selector="TreeViewItem:pointerover /template/ Border#PART_LayoutRoot">
-            <Setter Property="Background" Value="#2A2D2E"/>
-        </Style>
+	<Window.Styles>
+		<Style Selector="TreeViewItem">
+			<Setter Property="MinHeight" Value="22"/>
+			<Setter Property="Padding" Value="2,0"/>
+			<Setter Property="Margin" Value="0"/>
+			<Setter Property="Foreground" Value="#CCCCCC"/>
+			<Setter Property="FontSize" Value="13"/>
+		</Style>
+		<Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
+			<Setter Property="Background" Value="#37373D"/>
+		</Style>
+		<Style Selector="TreeViewItem:pointerover /template/ Border#PART_LayoutRoot">
+			<Setter Property="Background" Value="#2A2D2E"/>
+		</Style>
 
-        <Style Selector="ListBoxItem">
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Margin" Value="0"/>
-            <Setter Property="MinHeight" Value="20"/>
-        </Style>
+		<Style Selector="ListBoxItem">
+			<Setter Property="Padding" Value="0"/>
+			<Setter Property="Margin" Value="0"/>
+			<Setter Property="MinHeight" Value="20"/>
+		</Style>
 
-        <Style Selector="Expander">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-            <Setter Property="MinHeight" Value="24"/>
-        </Style>
-        <Style Selector="Expander /template/ ToggleButton#PART_toggle">
-            <Setter Property="Padding" Value="5,2"/>
-            <Setter Property="MinHeight" Value="20"/>
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-        </Style>
-        <Style Selector="Expander:expanded /template/ ToggleButton#PART_toggle">
-            <Setter Property="Background" Value="#2A2D2E"/>
-        </Style>
+		<Style Selector="Expander">
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="Padding" Value="0"/>
+			<Setter Property="HorizontalAlignment" Value="Stretch"/>
+			<Setter Property="MinHeight" Value="24"/>
+		</Style>
+		<Style Selector="Expander /template/ ToggleButton#PART_toggle">
+			<Setter Property="Padding" Value="5,2"/>
+			<Setter Property="MinHeight" Value="20"/>
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="BorderThickness" Value="0"/>
+		</Style>
+		<Style Selector="Expander:expanded /template/ ToggleButton#PART_toggle">
+			<Setter Property="Background" Value="#2A2D2E"/>
+		</Style>
 
-        <Style Selector="ScrollBar">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Width" Value="10"/>
-        </Style>
-        <Style Selector="ScrollBar /template/ Thumb">
-            <Setter Property="Background" Value="#424242"/>
-        </Style>
-        <Style Selector="ScrollBar /template/ Thumb:pointerover">
-            <Setter Property="Background" Value="#4F4F4F"/>
-        </Style>
-    </Window.Styles>
+		<Style Selector="ScrollBar">
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="Width" Value="10"/>
+		</Style>
+		<Style Selector="ScrollBar /template/ Thumb">
+			<Setter Property="Background" Value="#424242"/>
+		</Style>
+		<Style Selector="ScrollBar /template/ Thumb:pointerover">
+			<Setter Property="Background" Value="#4F4F4F"/>
+		</Style>
+	</Window.Styles>
 
-    <Grid RowDefinitions="35, *">
-        
-        <Border Grid.Row="0" Background="#333333" Padding="10,0">
-            <Grid ColumnDefinitions="Auto, *, Auto">
-                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                    <TextBlock Text="RELUMISCRIPT" FontWeight="Bold" Foreground="#007ACC" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                    <Button x:Name="BtnLoad" Content="Open Folder" Click="BtnLoad_Click" Background="Transparent" BorderThickness="0"/>
-                </StackPanel>
-                
-                <TextBlock Grid.Column="1" x:Name="StatusText" Text="Ready" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="#888888" FontSize="12"/>
+	<Grid RowDefinitions="35, *">
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                    <Button x:Name="BtnSearch" Content="Search" Click="BtnSearch_Click" Background="Transparent" BorderThickness="0"/>
-                    <Button x:Name="BtnFlags" Content="Flags" Click="BtnFlags_Click" Background="Transparent" BorderThickness="0"/>
-                    <Button x:Name="BtnScripts" Content="Commands" Click="BtnScripts_Click" Background="Transparent" BorderThickness="0"/>
-                    <Button x:Name="BtnTheme" Content="Theme" Click="BtnTheme_Click" Background="Transparent" BorderThickness="0"/>
-                </StackPanel>
-            </Grid>
-        </Border>
+		<Border Grid.Row="0" Background="#333333" Padding="10,0">
+			<Grid ColumnDefinitions="Auto, *, Auto">
+				<StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+					<TextBlock Text="RELUMISCRIPT" FontWeight="Bold" Foreground="#007ACC" VerticalAlignment="Center" Margin="0,0,10,0"/>
+					<Button x:Name="BtnLoad" Content="Open Folder" Click="BtnLoad_Click" Background="Transparent" BorderThickness="0"/>
+				</StackPanel>
 
-        <Grid Grid.Row="1" ColumnDefinitions="250, 1, *, 1, Auto">
-            
-            <Grid Grid.Column="0" Background="#252526" RowDefinitions="35, *">
-                <Border Grid.Row="0" Padding="10,0" Background="#252526">
-                    <TextBlock Text="EXPLORER" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
-                </Border>
-                <TreeView Grid.Row="1" x:Name="ScriptTree" Background="#252526" BorderThickness="0" SelectionChanged="ScriptTree_SelectionChanged">
-                    <TreeView.DataTemplates>
-                        <TreeDataTemplate DataType="local:FileNode" ItemsSource="{Binding Scripts}">
-                             <Grid ColumnDefinitions="Auto, *">
-                                <TextBlock Text="{Binding Icon}" Foreground="#4EC9B0" Margin="0,0,6,0" FontFamily="Segoe UI Symbol"/>
-                                <TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis"/>
-                             </Grid>
-                        </TreeDataTemplate>
-                        <DataTemplate DataType="local:ScriptNode">
-                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Js" Foreground="#D7BA7D" Margin="0,0,6,0" FontSize="10" VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding Label}" Foreground="#D7BA7D"/>
-                             </StackPanel>
-                        </DataTemplate>
-                    </TreeView.DataTemplates>
-                </TreeView>
-            </Grid>
+				<TextBlock Grid.Column="1" x:Name="StatusText" Text="Ready" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="#888888" FontSize="12"/>
 
-            <GridSplitter Grid.Column="1" Background="#1E1E1E" ResizeDirection="Columns"/>
+				<StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+					<Button x:Name="BtnSearch" Content="Search" Click="BtnSearch_Click" Background="Transparent" BorderThickness="0"/>
+					<Button x:Name="BtnFlags" Content="Flags" Click="BtnFlags_Click" Background="Transparent" BorderThickness="0"/>
+					<Button x:Name="BtnScripts" Content="Commands" Click="BtnScripts_Click" Background="Transparent" BorderThickness="0"/>
+					<Button x:Name="BtnTheme" Content="Theme" Click="BtnTheme_Click" Background="Transparent" BorderThickness="0"/>
+					<Button x:Name="BtnTerminal" Content="Terminal" Click="BtnTerminal_Click" Background="Transparent" BorderThickness="0"/>
+				</StackPanel>
+			</Grid>
+		</Border>
 
-            <Grid x:Name="MainContentGrid" Grid.Column="2" Background="#1E1E1E" RowDefinitions="Auto, *, 5, Auto">
-                <StackPanel Grid.Row="0" Orientation="Horizontal" Background="#2D2D2D">
-                    <RadioButton x:Name="TabCode" Content="Code (EV-AS)" GroupName="EditorTabs" IsChecked="True" Click="OnTabChanged" 
+		<Grid Grid.Row="1" ColumnDefinitions="250, 1, *, 1, Auto">
+
+			<Grid Grid.Column="0" Background="#252526" RowDefinitions="35, *">
+				<Border Grid.Row="0" Padding="10,0" Background="#252526">
+					<TextBlock Text="EXPLORER" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
+				</Border>
+				<TreeView Grid.Row="1" x:Name="ScriptTree" Background="#252526" BorderThickness="0" SelectionChanged="ScriptTree_SelectionChanged">
+					<TreeView.DataTemplates>
+						<TreeDataTemplate DataType="local:FileNode" ItemsSource="{Binding Scripts}">
+							<Grid ColumnDefinitions="Auto, *">
+								<TextBlock Text="{Binding Icon}" Foreground="#4EC9B0" Margin="0,0,6,0" FontFamily="Segoe UI Symbol"/>
+								<TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis"/>
+							</Grid>
+						</TreeDataTemplate>
+						<DataTemplate DataType="local:ScriptNode">
+							<StackPanel Orientation="Horizontal">
+								<TextBlock Text="Js" Foreground="#D7BA7D" Margin="0,0,6,0" FontSize="10" VerticalAlignment="Center"/>
+								<TextBlock Text="{Binding Label}" Foreground="#D7BA7D"/>
+							</StackPanel>
+						</DataTemplate>
+					</TreeView.DataTemplates>
+				</TreeView>
+			</Grid>
+
+			<GridSplitter Grid.Column="1" Background="#1E1E1E" ResizeDirection="Columns"/>
+
+			<Grid x:Name="MainContentGrid" Grid.Column="2" Background="#1E1E1E" RowDefinitions="Auto, *, 5, Auto, 5, Auto">
+				<StackPanel Grid.Row="0" Orientation="Horizontal" Background="#2D2D2D">
+					<RadioButton x:Name="TabCode" Content="Code (EV-AS)" GroupName="EditorTabs" IsChecked="True" Click="OnTabChanged"
                                  Foreground="#CCCCCC" Background="Transparent" BorderThickness="0" Margin="0" Padding="10,6"/>
-                    <RadioButton x:Name="TabVisual" Content="Visual Blocks" GroupName="EditorTabs" Click="OnTabChanged" 
+					<RadioButton x:Name="TabVisual" Content="Visual Blocks" GroupName="EditorTabs" Click="OnTabChanged"
                                  Foreground="#CCCCCC" Background="Transparent" BorderThickness="0" Margin="0" Padding="10,6"/>
-                </StackPanel>
+				</StackPanel>
 
-                <Panel Grid.Row="1" Background="#1E1E1E">
-                    <webview:WebView x:Name="Editor" IsVisible="True"/>
-                    <webview:WebView x:Name="BlockEditor" IsVisible="False"/>
-                </Panel>
+				<Panel Grid.Row="1" Background="#1E1E1E">
+					<webview:WebView x:Name="Editor" IsVisible="True"/>
+					<webview:WebView x:Name="BlockEditor" IsVisible="False"/>
+				</Panel>
 
-                <GridSplitter Grid.Row="2" Background="#1E1E1E" ResizeDirection="Rows"/>
+				<GridSplitter Grid.Row="2" Background="#1E1E1E" ResizeDirection="Rows"/>
 
-                <Grid Grid.Row="3" Background="#1E1E1E">
-                    <Grid RowDefinitions="Auto, *, Auto">
-                        <Border Grid.Row="0" Padding="10,5" Background="#252526" BorderBrush="#333" BorderThickness="0,1,0,0">
-                            <Grid ColumnDefinitions="*, Auto">
-                                <TextBlock Text="PREVIEW" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11"/>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5">
-                                    <Button x:Name="BtnPrevPage" Content="◀" Padding="8,2" Background="Transparent" BorderThickness="0" 
+				<Grid Grid.Row="3" Background="#1E1E1E">
+					<Grid RowDefinitions="Auto, *, Auto">
+						<Border Grid.Row="0" Padding="10,5" Background="#252526" BorderBrush="#333" BorderThickness="0,1,0,0">
+							<Grid ColumnDefinitions="*, Auto">
+								<TextBlock Text="PREVIEW" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11"/>
+								<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5">
+									<Button x:Name="BtnPrevPage" Content="◀" Padding="8,2" Background="Transparent" BorderThickness="0"
                                             Click="BtnPrevPage_Click" IsVisible="False" ToolTip.Tip="Previous page"/>
-                                    <TextBlock x:Name="PageIndicator" Text="" VerticalAlignment="Center" Foreground="#888" FontSize="11" IsVisible="False"/>
-                                    <Button x:Name="BtnNextPage" Content="▶" Padding="8,2" Background="Transparent" BorderThickness="0" 
+									<TextBlock x:Name="PageIndicator" Text="" VerticalAlignment="Center" Foreground="#888" FontSize="11" IsVisible="False"/>
+									<Button x:Name="BtnNextPage" Content="▶" Padding="8,2" Background="Transparent" BorderThickness="0"
                                             Click="BtnNextPage_Click" IsVisible="False" ToolTip.Tip="Next page"/>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-                        <Border Grid.Row="1" x:Name="MessagePreviewContainer" IsVisible="False" Padding="10" VerticalAlignment="Top" Background="#1E1E1E">
-                            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                                <ContentControl x:Name="MessagePreviewContent" FontFamily="UDKakugoC80Pro-DB, Segoe UI, Segoe UI Emoji, Segoe UI Symbol" />
-                            </ScrollViewer>
-                        </Border>
-                    </Grid>
-                </Grid>
-            </Grid>
+								</StackPanel>
+							</Grid>
+						</Border>
+						<Border Grid.Row="1" x:Name="MessagePreviewContainer" IsVisible="False" Padding="10" VerticalAlignment="Top" Background="#1E1E1E">
+							<ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+								<ContentControl x:Name="MessagePreviewContent" FontFamily="UDKakugoC80Pro-DB, Segoe UI, Segoe UI Emoji, Segoe UI Symbol" />
+							</ScrollViewer>
+						</Border>
+					</Grid>
+				</Grid>
 
-            <GridSplitter Grid.Column="3" Background="#1E1E1E" ResizeDirection="Columns"/>
+				<GridSplitter Grid.Row="4" Background="#1E1E1E" ResizeDirection="Rows" IsVisible="{Binding #TerminalPanel.IsVisible}"/>
 
-            <StackPanel Grid.Column="4" Orientation="Horizontal">
-                
-                <Border x:Name="FlagTrackerPanel" Width="300" Background="#252526" IsVisible="False">
-                    <Grid RowDefinitions="35, 35, *">
-                        <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="10,0">
-                            <TextBlock Text="FLAG TRACKER" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh" Background="Transparent" Click="RefreshFlags_Click" BorderThickness="0"/>
-                        </Grid>
-                        
-                        <Border Grid.Row="1" Margin="10,0,10,5" Background="#3C3C3C" CornerRadius="2">
-                            <TextBox x:Name="FlagSearchBox" Watermark="Filter flags..." Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" TextChanged="FlagSearchBox_TextChanged" Padding="6,4"/>
-                        </Border>
+				<Border Grid.Row="5" x:Name="TerminalPanel" IsVisible="False" Background="#1E1E1E" BorderBrush="#333" BorderThickness="0,1,0,0" MaxHeight="250" VerticalAlignment="Bottom">
+					<Grid RowDefinitions="Auto, *, Auto">
+						<Border Grid.Row="0" Padding="10,5" Background="#252526">
+							<Grid ColumnDefinitions="*, Auto">
+								<TextBlock Text="TERMINAL" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11"/>
+								<Button Grid.Column="1" Content="✕" Padding="5,0" Background="Transparent" BorderThickness="0" Click="BtnTerminal_Click" Foreground="#CCCCCC" FontSize="10"/>
+							</Grid>
+						</Border>
 
-                        <ListBox Grid.Row="2" x:Name="FlagList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                            <ListBox.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel/>
-                                </ItemsPanelTemplate>
-                            </ListBox.ItemsPanel>
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Expander HorizontalAlignment="Stretch" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
-                                        <Expander.Header>
-                                            <Grid ColumnDefinitions="*, Auto">
-                                                <TextBlock Text="{Binding FlagName}" Foreground="#569CD6" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" FontSize="13"/>
-                                                <TextBlock Grid.Column="1" Text="{Binding CountString}" Foreground="#808080" FontSize="11" VerticalAlignment="Center" Margin="5,0,0,0"/>
-                                            </Grid>
-                                        </Expander.Header>
-                                        <ItemsControl ItemsSource="{Binding Locations}" Background="#1E1E1E" BorderThickness="0" Margin="0">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="15,2" Click="JumpToLocation_Click" Tag="{Binding}">
-                                                        <Grid ColumnDefinitions="30, Auto, *">
-                                                            <TextBlock Text="{Binding LineNumber}" Foreground="#858585" FontSize="11" FontFamily="Consolas"/>
-                                                            <TextBlock Grid.Column="1" Text="{Binding Command}" Foreground="#DCDCAA" FontSize="11" Margin="5,0"/>
-                                                            <TextBlock Grid.Column="2" Text="{Binding FileName}" Foreground="#808080" FontSize="10" FontStyle="Italic" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right"/>
-                                                        </Grid>
-                                                    </Button>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </Expander>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </Grid>
-                </Border>
+						<TextBox Grid.Row="1" x:Name="TerminalOutput" IsReadOnly="True" Background="#1E1E1E" Foreground="#CCCCCC"
+                                 BorderThickness="0" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" Height="150"
+                                 AcceptsReturn="True" ScrollViewer.VerticalScrollBarVisibility="Auto"/>
 
-                <Border x:Name="ScriptTrackerPanel" Width="300" Background="#252526" IsVisible="False">
-                    <Grid RowDefinitions="35, 35, *">
-                        <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="10,0">
-                            <TextBlock Text="COMMAND TRACKER" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh" Background="Transparent" Click="RefreshScripts_Click" BorderThickness="0"/>
-                        </Grid>
-                        
-                        <Border Grid.Row="1" Margin="10,0,10,5" Background="#3C3C3C" CornerRadius="2">
-                            <TextBox x:Name="ScriptSearchBox" Watermark="Filter commands..." Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" TextChanged="ScriptSearchBox_TextChanged" Padding="6,4"/>
-                        </Border>
+						<TextBox Grid.Row="2" x:Name="TerminalInput" Background="#252526" Foreground="#E0E0E0"
+                                 BorderBrush="#333" BorderThickness="0,1,0,0" FontFamily="Consolas" FontSize="12"
+                                 KeyDown="TerminalInput_KeyDown" Watermark="Type command... (e.g. git status)" />
+					</Grid>
+				</Border>
+			</Grid>
 
-                        <ListBox Grid.Row="2" x:Name="ScriptList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                            <ListBox.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel/>
-                                </ItemsPanelTemplate>
-                            </ListBox.ItemsPanel>
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Expander HorizontalAlignment="Stretch" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
-                                        <Expander.Header>
-                                            <Grid ColumnDefinitions="*, Auto">
-                                                <TextBlock Text="{Binding CommandName}" Foreground="#CE9178" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" FontSize="13"/>
-                                                <TextBlock Grid.Column="1" Text="{Binding CountString}" Foreground="#808080" FontSize="11" VerticalAlignment="Center" Margin="5,0,0,0"/>
-                                            </Grid>
-                                        </Expander.Header>
-                                        <StackPanel Background="#1E1E1E">
-                                            <ItemsControl ItemsSource="{Binding Locations}" Background="#1E1E1E" BorderThickness="0" Margin="0">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="15,2" Click="JumpToLocation_Click" Tag="{Binding}">
-                                                            <Grid ColumnDefinitions="30, Auto, *">
-                                                                <TextBlock Text="{Binding LineNumber}" Foreground="#858585" FontSize="11" FontFamily="Consolas"/>
-                                                                <TextBlock Grid.Column="1" Text="{Binding Command}" Foreground="#DCDCAA" FontSize="11" Margin="5,0"/>
-                                                                <TextBlock Grid.Column="2" Text="{Binding FileName}" Foreground="#808080" FontSize="10" FontStyle="Italic" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right"/>
-                                                            </Grid>
-                                                        </Button>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </Expander>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </Grid>
-                </Border>
+			<GridSplitter Grid.Column="3" Background="#1E1E1E" ResizeDirection="Columns"/>
 
-                <Border x:Name="ThemePanel" Width="300" Background="#252526" IsVisible="False">
-                    <Grid RowDefinitions="35, Auto, *">
-                        <Grid Grid.Row="0" Margin="10,0">
-                            <TextBlock Text="THEME SETTINGS" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
-                        </Grid>
+			<StackPanel Grid.Column="4" Orientation="Horizontal">
 
-                        <Border Grid.Row="1" Margin="10" BorderBrush="#444" BorderThickness="1" CornerRadius="4"
+				<Border x:Name="FlagTrackerPanel" Width="300" Background="#252526" IsVisible="False">
+					<Grid RowDefinitions="35, 35, *">
+						<Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="10,0">
+							<TextBlock Text="FLAG TRACKER" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
+							<Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh" Background="Transparent" Click="RefreshFlags_Click" BorderThickness="0"/>
+						</Grid>
+
+						<Border Grid.Row="1" Margin="10,0,10,5" Background="#3C3C3C" CornerRadius="2">
+							<TextBox x:Name="FlagSearchBox" Watermark="Filter flags..." Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" TextChanged="FlagSearchBox_TextChanged" Padding="6,4"/>
+						</Border>
+
+						<ListBox Grid.Row="2" x:Name="FlagList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+							<ListBox.ItemsPanel>
+								<ItemsPanelTemplate>
+									<StackPanel/>
+								</ItemsPanelTemplate>
+							</ListBox.ItemsPanel>
+							<ListBox.ItemTemplate>
+								<DataTemplate>
+									<Expander HorizontalAlignment="Stretch" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
+										<Expander.Header>
+											<Grid ColumnDefinitions="*, Auto">
+												<TextBlock Text="{Binding FlagName}" Foreground="#569CD6" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" FontSize="13"/>
+												<TextBlock Grid.Column="1" Text="{Binding CountString}" Foreground="#808080" FontSize="11" VerticalAlignment="Center" Margin="5,0,0,0"/>
+											</Grid>
+										</Expander.Header>
+										<ItemsControl ItemsSource="{Binding Locations}" Background="#1E1E1E" BorderThickness="0" Margin="0">
+											<ItemsControl.ItemTemplate>
+												<DataTemplate>
+													<Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="15,2" Click="JumpToLocation_Click" Tag="{Binding}">
+														<Grid ColumnDefinitions="30, Auto, *">
+															<TextBlock Text="{Binding LineNumber}" Foreground="#858585" FontSize="11" FontFamily="Consolas"/>
+															<TextBlock Grid.Column="1" Text="{Binding Command}" Foreground="#DCDCAA" FontSize="11" Margin="5,0"/>
+															<TextBlock Grid.Column="2" Text="{Binding FileName}" Foreground="#808080" FontSize="10" FontStyle="Italic" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right"/>
+														</Grid>
+													</Button>
+												</DataTemplate>
+											</ItemsControl.ItemTemplate>
+										</ItemsControl>
+									</Expander>
+								</DataTemplate>
+							</ListBox.ItemTemplate>
+						</ListBox>
+					</Grid>
+				</Border>
+
+				<Border x:Name="ScriptTrackerPanel" Width="300" Background="#252526" IsVisible="False">
+					<Grid RowDefinitions="35, 35, *">
+						<Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="10,0">
+							<TextBlock Text="COMMAND TRACKER" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
+							<Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh" Background="Transparent" Click="RefreshScripts_Click" BorderThickness="0"/>
+						</Grid>
+
+						<Border Grid.Row="1" Margin="10,0,10,5" Background="#3C3C3C" CornerRadius="2">
+							<TextBox x:Name="ScriptSearchBox" Watermark="Filter commands..." Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" TextChanged="ScriptSearchBox_TextChanged" Padding="6,4"/>
+						</Border>
+
+						<ListBox Grid.Row="2" x:Name="ScriptList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+							<ListBox.ItemsPanel>
+								<ItemsPanelTemplate>
+									<StackPanel/>
+								</ItemsPanelTemplate>
+							</ListBox.ItemsPanel>
+							<ListBox.ItemTemplate>
+								<DataTemplate>
+									<Expander HorizontalAlignment="Stretch" IsExpanded="{Binding IsExpanded, Mode=TwoWay}">
+										<Expander.Header>
+											<Grid ColumnDefinitions="*, Auto">
+												<TextBlock Text="{Binding CommandName}" Foreground="#CE9178" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" FontSize="13"/>
+												<TextBlock Grid.Column="1" Text="{Binding CountString}" Foreground="#808080" FontSize="11" VerticalAlignment="Center" Margin="5,0,0,0"/>
+											</Grid>
+										</Expander.Header>
+										<StackPanel Background="#1E1E1E">
+											<ItemsControl ItemsSource="{Binding Locations}" Background="#1E1E1E" BorderThickness="0" Margin="0">
+												<ItemsControl.ItemTemplate>
+													<DataTemplate>
+														<Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="15,2" Click="JumpToLocation_Click" Tag="{Binding}">
+															<Grid ColumnDefinitions="30, Auto, *">
+																<TextBlock Text="{Binding LineNumber}" Foreground="#858585" FontSize="11" FontFamily="Consolas"/>
+																<TextBlock Grid.Column="1" Text="{Binding Command}" Foreground="#DCDCAA" FontSize="11" Margin="5,0"/>
+																<TextBlock Grid.Column="2" Text="{Binding FileName}" Foreground="#808080" FontSize="10" FontStyle="Italic" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right"/>
+															</Grid>
+														</Button>
+													</DataTemplate>
+												</ItemsControl.ItemTemplate>
+											</ItemsControl>
+										</StackPanel>
+									</Expander>
+								</DataTemplate>
+							</ListBox.ItemTemplate>
+						</ListBox>
+					</Grid>
+				</Border>
+
+				<Border x:Name="ThemePanel" Width="300" Background="#252526" IsVisible="False">
+					<Grid RowDefinitions="35, Auto, *">
+						<Grid Grid.Row="0" Margin="10,0">
+							<TextBlock Text="THEME SETTINGS" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
+						</Grid>
+
+						<Border Grid.Row="1" Margin="10" BorderBrush="#444" BorderThickness="1" CornerRadius="4"
                                 Background="{Binding Colors.BackgroundColor}" Padding="10">
-                            <StackPanel x:Name="PreviewBox">
-                                <TextBlock Text="ev_demo_script:" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.ScriptLabel.Weight}" FontStyle="{Binding Syntax.ScriptLabel.FontStyle}" Foreground="{Binding Syntax.ScriptLabel.Brush}"/>
-                                <StackPanel Orientation="Horizontal" Margin="20,0,0,0">
-                                    <TextBlock Text="_TALK_MSG" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.Command.Weight}" FontStyle="{Binding Syntax.Command.FontStyle}" Foreground="{Binding Syntax.Command.Brush}"/>
-                                    <TextBlock Text="(" FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="40,0,0,0">
-                                    <TextBlock Text="@SCWK_TEMP0" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.WorkVar.Weight}" FontStyle="{Binding Syntax.WorkVar.FontStyle}" Foreground="{Binding Syntax.WorkVar.Brush}"/>
-                                    <TextBlock Text="," FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="40,0,0,0">
-                                    <TextBlock Text="&quot;Hello World&quot;" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.String.Weight}" FontStyle="{Binding Syntax.String.FontStyle}" Foreground="{Binding Syntax.String.Brush}"/>
-                                    <TextBlock Text="," FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="40,0,0,0">
-                                    <TextBlock Text="123" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.Number.Weight}" FontStyle="{Binding Syntax.Number.FontStyle}" Foreground="{Binding Syntax.Number.Brush}"/>
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="20,0,0,0">
-                                    <TextBlock Text=")" FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
-                                </StackPanel>
-                                <TextBlock Text="; This is a comment" FontFamily="Consolas" FontSize="12" Margin="20,0,0,0" FontWeight="{Binding Syntax.Comment.Weight}" FontStyle="{Binding Syntax.Comment.FontStyle}" Foreground="{Binding Syntax.Comment.Brush}"/>
-                                <TextBlock Text="#FLAG_TEST" FontFamily="Consolas" FontSize="12" Margin="20,0,0,0" FontWeight="{Binding Syntax.Flag.Weight}" FontStyle="{Binding Syntax.Flag.FontStyle}" Foreground="{Binding Syntax.Flag.Brush}"/>
-                                <TextBlock Text="$SYS_FLAG_TEST" FontFamily="Consolas" FontSize="12" Margin="20,0,0,0" FontWeight="{Binding Syntax.SysFlag.Weight}" FontStyle="{Binding Syntax.SysFlag.FontStyle}" Foreground="{Binding Syntax.SysFlag.Brush}"/>
-                            </StackPanel>
-                        </Border>
+							<StackPanel x:Name="PreviewBox">
+								<TextBlock Text="ev_demo_script:" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.ScriptLabel.Weight}" FontStyle="{Binding Syntax.ScriptLabel.FontStyle}" Foreground="{Binding Syntax.ScriptLabel.Brush}"/>
+								<StackPanel Orientation="Horizontal" Margin="20,0,0,0">
+									<TextBlock Text="_TALK_MSG" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.Command.Weight}" FontStyle="{Binding Syntax.Command.FontStyle}" Foreground="{Binding Syntax.Command.Brush}"/>
+									<TextBlock Text="(" FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Margin="40,0,0,0">
+									<TextBlock Text="@SCWK_TEMP0" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.WorkVar.Weight}" FontStyle="{Binding Syntax.WorkVar.FontStyle}" Foreground="{Binding Syntax.WorkVar.Brush}"/>
+									<TextBlock Text="," FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Margin="40,0,0,0">
+									<TextBlock Text="&quot;Hello World&quot;" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.String.Weight}" FontStyle="{Binding Syntax.String.FontStyle}" Foreground="{Binding Syntax.String.Brush}"/>
+									<TextBlock Text="," FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Margin="40,0,0,0">
+									<TextBlock Text="123" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.Number.Weight}" FontStyle="{Binding Syntax.Number.FontStyle}" Foreground="{Binding Syntax.Number.Brush}"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Margin="20,0,0,0">
+									<TextBlock Text=")" FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
+								</StackPanel>
+								<TextBlock Text="; This is a comment" FontFamily="Consolas" FontSize="12" Margin="20,0,0,0" FontWeight="{Binding Syntax.Comment.Weight}" FontStyle="{Binding Syntax.Comment.FontStyle}" Foreground="{Binding Syntax.Comment.Brush}"/>
+								<TextBlock Text="#FLAG_TEST" FontFamily="Consolas" FontSize="12" Margin="20,0,0,0" FontWeight="{Binding Syntax.Flag.Weight}" FontStyle="{Binding Syntax.Flag.FontStyle}" Foreground="{Binding Syntax.Flag.Brush}"/>
+								<TextBlock Text="$SYS_FLAG_TEST" FontFamily="Consolas" FontSize="12" Margin="20,0,0,0" FontWeight="{Binding Syntax.SysFlag.Weight}" FontStyle="{Binding Syntax.SysFlag.FontStyle}" Foreground="{Binding Syntax.SysFlag.Brush}"/>
+							</StackPanel>
+						</Border>
 
-                        <ScrollViewer Grid.Row="2" Margin="10,0">
-                            <StackPanel Spacing="15">
-                                <TextBlock Text="General" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,5"/>
-                                <Grid ColumnDefinitions="*, Auto">
-                                    <TextBlock Text="Editor Background" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-                                    <ColorPicker Grid.Column="1" Color="{Binding Colors.BackgroundColor, Mode=TwoWay}" />
-                                </Grid>
-                                <Grid ColumnDefinitions="*, Auto">
-                                    <TextBlock Text="Editor Foreground" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-                                    <ColorPicker Grid.Column="1" Color="{Binding Colors.ForegroundColor, Mode=TwoWay}" />
-                                </Grid>
+						<ScrollViewer Grid.Row="2" Margin="10,0">
+							<StackPanel Spacing="15">
+								<TextBlock Text="General" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,5"/>
+								<Grid ColumnDefinitions="*, Auto">
+									<TextBlock Text="Editor Background" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+									<ColorPicker Grid.Column="1" Color="{Binding Colors.BackgroundColor, Mode=TwoWay}" />
+								</Grid>
+								<Grid ColumnDefinitions="*, Auto">
+									<TextBlock Text="Editor Foreground" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+									<ColorPicker Grid.Column="1" Color="{Binding Colors.ForegroundColor, Mode=TwoWay}" />
+								</Grid>
 
-                                <TextBlock Text="Syntax Highlighting" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,10,0,5"/>
-                                
-                                <StackPanel Spacing="10">
-                                    <StackPanel>
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <TextBlock Text="Commands" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-                                            <ColorPicker Grid.Column="1" Color="{Binding Syntax.Command.Color, Mode=TwoWay}" />
-                                        </Grid>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
-                                            <ToggleButton Content="B" IsChecked="{Binding Syntax.Command.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" ToolTip.Tip="Bold" />
-                                            <ToggleButton Content="I" IsChecked="{Binding Syntax.Command.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" ToolTip.Tip="Italic" />
-                                        </StackPanel>
-                                    </StackPanel>
+								<TextBlock Text="Syntax Highlighting" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,10,0,5"/>
 
-                                    <StackPanel>
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <TextBlock Text="Labels" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-                                            <ColorPicker Grid.Column="1" Color="{Binding Syntax.ScriptLabel.Color, Mode=TwoWay}" />
-                                        </Grid>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
-                                            <ToggleButton Content="B" IsChecked="{Binding Syntax.ScriptLabel.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
-                                            <ToggleButton Content="I" IsChecked="{Binding Syntax.ScriptLabel.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
-                                        </StackPanel>
-                                    </StackPanel>
+								<StackPanel Spacing="10">
+									<StackPanel>
+										<Grid ColumnDefinitions="*, Auto">
+											<TextBlock Text="Commands" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+											<ColorPicker Grid.Column="1" Color="{Binding Syntax.Command.Color, Mode=TwoWay}" />
+										</Grid>
+										<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
+											<ToggleButton Content="B" IsChecked="{Binding Syntax.Command.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" ToolTip.Tip="Bold" />
+											<ToggleButton Content="I" IsChecked="{Binding Syntax.Command.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" ToolTip.Tip="Italic" />
+										</StackPanel>
+									</StackPanel>
 
-                                    <StackPanel>
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <TextBlock Text="Variables (@)" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-                                            <ColorPicker Grid.Column="1" Color="{Binding Syntax.WorkVar.Color, Mode=TwoWay}" />
-                                        </Grid>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
-                                            <ToggleButton Content="B" IsChecked="{Binding Syntax.WorkVar.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
-                                            <ToggleButton Content="I" IsChecked="{Binding Syntax.WorkVar.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
-                                        </StackPanel>
-                                    </StackPanel>
+									<StackPanel>
+										<Grid ColumnDefinitions="*, Auto">
+											<TextBlock Text="Labels" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+											<ColorPicker Grid.Column="1" Color="{Binding Syntax.ScriptLabel.Color, Mode=TwoWay}" />
+										</Grid>
+										<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
+											<ToggleButton Content="B" IsChecked="{Binding Syntax.ScriptLabel.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
+											<ToggleButton Content="I" IsChecked="{Binding Syntax.ScriptLabel.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
+										</StackPanel>
+									</StackPanel>
 
-                                    <StackPanel>
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <TextBlock Text="Flags (#)" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-                                            <ColorPicker Grid.Column="1" Color="{Binding Syntax.Flag.Color, Mode=TwoWay}" />
-                                        </Grid>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
-                                            <ToggleButton Content="B" IsChecked="{Binding Syntax.Flag.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
-                                            <ToggleButton Content="I" IsChecked="{Binding Syntax.Flag.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
-                                        </StackPanel>
-                                    </StackPanel>
+									<StackPanel>
+										<Grid ColumnDefinitions="*, Auto">
+											<TextBlock Text="Variables (@)" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+											<ColorPicker Grid.Column="1" Color="{Binding Syntax.WorkVar.Color, Mode=TwoWay}" />
+										</Grid>
+										<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
+											<ToggleButton Content="B" IsChecked="{Binding Syntax.WorkVar.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
+											<ToggleButton Content="I" IsChecked="{Binding Syntax.WorkVar.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
+										</StackPanel>
+									</StackPanel>
 
-                                    <StackPanel>
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <TextBlock Text="System Flags ($)" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-                                            <ColorPicker Grid.Column="1" Color="{Binding Syntax.SysFlag.Color, Mode=TwoWay}" />
-                                        </Grid>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
-                                            <ToggleButton Content="B" IsChecked="{Binding Syntax.SysFlag.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
-                                            <ToggleButton Content="I" IsChecked="{Binding Syntax.SysFlag.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
-                                        </StackPanel>
-                                    </StackPanel>
+									<StackPanel>
+										<Grid ColumnDefinitions="*, Auto">
+											<TextBlock Text="Flags (#)" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+											<ColorPicker Grid.Column="1" Color="{Binding Syntax.Flag.Color, Mode=TwoWay}" />
+										</Grid>
+										<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
+											<ToggleButton Content="B" IsChecked="{Binding Syntax.Flag.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
+											<ToggleButton Content="I" IsChecked="{Binding Syntax.Flag.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
+										</StackPanel>
+									</StackPanel>
 
-                                    <StackPanel>
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <TextBlock Text="Numbers" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-                                            <ColorPicker Grid.Column="1" Color="{Binding Syntax.Number.Color, Mode=TwoWay}" />
-                                        </Grid>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
-                                            <ToggleButton Content="B" IsChecked="{Binding Syntax.Number.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
-                                            <ToggleButton Content="I" IsChecked="{Binding Syntax.Number.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
-                                        </StackPanel>
-                                    </StackPanel>
+									<StackPanel>
+										<Grid ColumnDefinitions="*, Auto">
+											<TextBlock Text="System Flags ($)" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+											<ColorPicker Grid.Column="1" Color="{Binding Syntax.SysFlag.Color, Mode=TwoWay}" />
+										</Grid>
+										<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
+											<ToggleButton Content="B" IsChecked="{Binding Syntax.SysFlag.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
+											<ToggleButton Content="I" IsChecked="{Binding Syntax.SysFlag.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
+										</StackPanel>
+									</StackPanel>
 
-                                    <StackPanel>
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <TextBlock Text="Strings" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-                                            <ColorPicker Grid.Column="1" Color="{Binding Syntax.String.Color, Mode=TwoWay}" />
-                                        </Grid>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
-                                            <ToggleButton Content="B" IsChecked="{Binding Syntax.String.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
-                                            <ToggleButton Content="I" IsChecked="{Binding Syntax.String.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
-                                        </StackPanel>
-                                    </StackPanel>
+									<StackPanel>
+										<Grid ColumnDefinitions="*, Auto">
+											<TextBlock Text="Numbers" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+											<ColorPicker Grid.Column="1" Color="{Binding Syntax.Number.Color, Mode=TwoWay}" />
+										</Grid>
+										<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
+											<ToggleButton Content="B" IsChecked="{Binding Syntax.Number.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
+											<ToggleButton Content="I" IsChecked="{Binding Syntax.Number.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
+										</StackPanel>
+									</StackPanel>
 
-                                    <StackPanel>
-                                        <Grid ColumnDefinitions="*, Auto">
-                                            <TextBlock Text="Comments" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-                                            <ColorPicker Grid.Column="1" Color="{Binding Syntax.Comment.Color, Mode=TwoWay}" />
-                                        </Grid>
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
-                                            <ToggleButton Content="B" IsChecked="{Binding Syntax.Comment.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
-                                            <ToggleButton Content="I" IsChecked="{Binding Syntax.Comment.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </StackPanel>
+									<StackPanel>
+										<Grid ColumnDefinitions="*, Auto">
+											<TextBlock Text="Strings" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+											<ColorPicker Grid.Column="1" Color="{Binding Syntax.String.Color, Mode=TwoWay}" />
+										</Grid>
+										<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
+											<ToggleButton Content="B" IsChecked="{Binding Syntax.String.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
+											<ToggleButton Content="I" IsChecked="{Binding Syntax.String.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
+										</StackPanel>
+									</StackPanel>
 
-                                <Button Content="Save Theme" HorizontalAlignment="Stretch" Margin="0,20,0,0" Click="SaveTheme_Click"/>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </Grid>
-                </Border>
+									<StackPanel>
+										<Grid ColumnDefinitions="*, Auto">
+											<TextBlock Text="Comments" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+											<ColorPicker Grid.Column="1" Color="{Binding Syntax.Comment.Color, Mode=TwoWay}" />
+										</Grid>
+										<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,5,0,0">
+											<ToggleButton Content="B" IsChecked="{Binding Syntax.Comment.IsBold, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontWeight="Bold" FontSize="11" />
+											<ToggleButton Content="I" IsChecked="{Binding Syntax.Comment.IsItalic, Mode=TwoWay}" Width="30" Height="25" Padding="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Background="#333" Foreground="#CCC" FontStyle="Italic" FontSize="11" />
+										</StackPanel>
+									</StackPanel>
+								</StackPanel>
 
-                <Border x:Name="SearchPanel" Width="250" Background="#252526" IsVisible="False">
-                     <Grid RowDefinitions="35, 35, *">
-                         <Grid Grid.Row="0" Margin="10,0" ColumnDefinitions="*, Auto">
-                            <TextBlock Text="SEARCH" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
-                            <Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh Search Index" Background="Transparent" Click="RefreshFlags_Click" BorderThickness="0"/>
-                         </Grid>
-                         
-                         <Border Grid.Row="1" Margin="10,0,10,5" Background="#3C3C3C" CornerRadius="2">
-                            <TextBox x:Name="SearchBox" Watermark="Global search..." Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" TextChanged="SearchBox_TextChanged" Padding="6,4"/>
-                         </Border>
+								<Button Content="Save Theme" HorizontalAlignment="Stretch" Margin="0,20,0,0" Click="SaveTheme_Click"/>
+							</StackPanel>
+						</ScrollViewer>
+					</Grid>
+				</Border>
 
-                         <ListBox Grid.Row="2" x:Name="SearchResultsList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                            <ListBox.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <StackPanel/>
-                                </ItemsPanelTemplate>
-                            </ListBox.ItemsPanel>
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <Expander HorizontalAlignment="Stretch" IsExpanded="{Binding IsExpanded, Mode=TwoWay}" Padding="0">
-                                        <Expander.Header>
-                                            <Grid ColumnDefinitions="30, 40, *">
-                                                <Border Background="{Binding Color}" CornerRadius="2" Height="14" VerticalAlignment="Center" Width="26">
-                                                     <TextBlock Text="{Binding Type}" Foreground="White" FontSize="9" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                </Border>
-                                                <TextBlock Grid.Column="1" Text="{Binding Id}" Foreground="#569CD6" VerticalAlignment="Center" Margin="5,0"/>
-                                                <TextBlock Grid.Column="2" Text="{Binding Name}" Foreground="#CCCCCC" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                            </Grid>
-                                        </Expander.Header>
-                                        <ItemsControl ItemsSource="{Binding Locations}" Background="#1E1E1E" BorderThickness="0" Margin="0">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="15,2" Click="JumpToLocation_Click" Tag="{Binding}">
-                                                        <Grid ColumnDefinitions="30, Auto, *">
-                                                            <TextBlock Text="{Binding LineNumber}" Foreground="#858585" FontSize="11" FontFamily="Consolas"/>
-                                                            <TextBlock Grid.Column="1" Text="{Binding Command}" Foreground="#DCDCAA" FontSize="11" Margin="5,0"/>
-                                                            <TextBlock Grid.Column="2" Text="{Binding FileName}" Foreground="#808080" FontSize="10" FontStyle="Italic" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right"/>
-                                                        </Grid>
-                                                    </Button>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </Expander>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                         </ListBox>
-                    </Grid>
-                </Border>
+				<Border x:Name="SearchPanel" Width="250" Background="#252526" IsVisible="False">
+					<Grid RowDefinitions="35, 35, *">
+						<Grid Grid.Row="0" Margin="10,0" ColumnDefinitions="*, Auto">
+							<TextBlock Text="SEARCH" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
+							<Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh Search Index" Background="Transparent" Click="RefreshFlags_Click" BorderThickness="0"/>
+						</Grid>
 
-            </StackPanel>
-        </Grid>
-    </Grid>
+						<Border Grid.Row="1" Margin="10,0,10,5" Background="#3C3C3C" CornerRadius="2">
+							<TextBox x:Name="SearchBox" Watermark="Global search..." Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" TextChanged="SearchBox_TextChanged" Padding="6,4"/>
+						</Border>
+
+						<ListBox Grid.Row="2" x:Name="SearchResultsList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+							<ListBox.ItemsPanel>
+								<ItemsPanelTemplate>
+									<StackPanel/>
+								</ItemsPanelTemplate>
+							</ListBox.ItemsPanel>
+							<ListBox.ItemTemplate>
+								<DataTemplate>
+									<Expander HorizontalAlignment="Stretch" IsExpanded="{Binding IsExpanded, Mode=TwoWay}" Padding="0">
+										<Expander.Header>
+											<Grid ColumnDefinitions="30, 40, *">
+												<Border Background="{Binding Color}" CornerRadius="2" Height="14" VerticalAlignment="Center" Width="26">
+													<TextBlock Text="{Binding Type}" Foreground="White" FontSize="9" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+												</Border>
+												<TextBlock Grid.Column="1" Text="{Binding Id}" Foreground="#569CD6" VerticalAlignment="Center" Margin="5,0"/>
+												<TextBlock Grid.Column="2" Text="{Binding Name}" Foreground="#CCCCCC" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+											</Grid>
+										</Expander.Header>
+										<ItemsControl ItemsSource="{Binding Locations}" Background="#1E1E1E" BorderThickness="0" Margin="0">
+											<ItemsControl.ItemTemplate>
+												<DataTemplate>
+													<Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="15,2" Click="JumpToLocation_Click" Tag="{Binding}">
+														<Grid ColumnDefinitions="30, Auto, *">
+															<TextBlock Text="{Binding LineNumber}" Foreground="#858585" FontSize="11" FontFamily="Consolas"/>
+															<TextBlock Grid.Column="1" Text="{Binding Command}" Foreground="#DCDCAA" FontSize="11" Margin="5,0"/>
+															<TextBlock Grid.Column="2" Text="{Binding FileName}" Foreground="#808080" FontSize="10" FontStyle="Italic" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right"/>
+														</Grid>
+													</Button>
+												</DataTemplate>
+											</ItemsControl.ItemTemplate>
+										</ItemsControl>
+									</Expander>
+								</DataTemplate>
+							</ListBox.ItemTemplate>
+						</ListBox>
+					</Grid>
+				</Border>
+
+			</StackPanel>
+		</Grid>
+	</Grid>
 </Window>

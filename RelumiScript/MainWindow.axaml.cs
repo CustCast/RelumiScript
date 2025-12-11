@@ -14,6 +14,8 @@ using Newtonsoft.Json.Linq;
 using WebViewCore.Events;
 using Avalonia.Media;
 using System.Collections.ObjectModel;
+using Avalonia.Input; // Required for KeyEventArgs
+using System.Diagnostics; // Required for Process
 
 namespace RelumiScript
 {
@@ -72,6 +74,9 @@ namespace RelumiScript
 
         private string _currentScriptContent = "";
         private List<FileNode> _loadedMessages = new List<FileNode>();
+
+        // Terminal state
+        private string _workingDirectory = "";
 
         // Message preview pagination state
         private List<string> _currentMessagePages = new List<string>();
@@ -356,6 +361,7 @@ namespace RelumiScript
                 FlagTrackerPanel.IsVisible = false;
                 ScriptTrackerPanel.IsVisible = false;
                 ThemePanel.IsVisible = false;
+                TerminalPanel.IsVisible = false; // Hide terminal
 
                 // Show Search Panel
                 SearchPanel.IsVisible = true;
@@ -480,6 +486,7 @@ namespace RelumiScript
                 FlagTrackerPanel.IsVisible = false;
                 ThemePanel.IsVisible = false;
                 ScriptTrackerPanel.IsVisible = false;
+                TerminalPanel.IsVisible = false;
                 SearchBox.Focus();
                 PerformSearch(SearchBox.Text);
             }
@@ -593,6 +600,7 @@ namespace RelumiScript
                 SearchPanel.IsVisible = false;
                 FlagTrackerPanel.IsVisible = false;
                 ScriptTrackerPanel.IsVisible = false;
+                TerminalPanel.IsVisible = false;
             }
         }
 
@@ -689,6 +697,7 @@ namespace RelumiScript
                 SearchPanel.IsVisible = false;
                 ScriptTrackerPanel.IsVisible = false;
                 ThemePanel.IsVisible = false;
+                TerminalPanel.IsVisible = false;
             }
         }
 
@@ -700,7 +709,93 @@ namespace RelumiScript
                 SearchPanel.IsVisible = false;
                 FlagTrackerPanel.IsVisible = false;
                 ThemePanel.IsVisible = false;
+                TerminalPanel.IsVisible = false;
             }
+        }
+
+        // --- Terminal Logic ---
+
+        public void BtnTerminal_Click(object? sender, RoutedEventArgs e)
+        {
+            TerminalPanel.IsVisible = !TerminalPanel.IsVisible;
+            if (TerminalPanel.IsVisible)
+            {
+                TerminalInput.Focus();
+            }
+        }
+
+        public void AppendTerminalText(string text)
+        {
+            if (TerminalOutput != null)
+            {
+                TerminalOutput.Text += text + Environment.NewLine;
+                TerminalOutput.CaretIndex = TerminalOutput.Text.Length; // Auto-scroll
+            }
+        }
+
+        private async void TerminalInput_KeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && TerminalInput != null)
+            {
+                string command = TerminalInput.Text ?? "";
+                if (string.IsNullOrWhiteSpace(command)) return;
+
+                AppendTerminalText("> " + command);
+                TerminalInput.Text = "";
+
+                await RunProcessAsync(command);
+
+                // Refocus input after command execution
+                TerminalInput.Focus();
+            }
+        }
+
+        private async Task RunProcessAsync(string command)
+        {
+            if (string.IsNullOrWhiteSpace(command)) return;
+
+            // Handle "cls" or "clear" manually
+            if (command.Trim().ToLower() == "cls" || command.Trim().ToLower() == "clear")
+            {
+                TerminalOutput.Text = "";
+                return;
+            }
+
+            await Task.Run(() =>
+            {
+                try
+                {
+                    ProcessStartInfo startInfo = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/c {command}",
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        WorkingDirectory = !string.IsNullOrEmpty(_workingDirectory) ? _workingDirectory : AppDomain.CurrentDomain.BaseDirectory
+                    };
+
+                    using (Process process = Process.Start(startInfo))
+                    {
+                        if (process == null) return;
+
+                        string output = process.StandardOutput.ReadToEnd();
+                        string error = process.StandardError.ReadToEnd();
+
+                        process.WaitForExit();
+
+                        Dispatcher.UIThread.Post(() => {
+                            if (!string.IsNullOrEmpty(output)) AppendTerminalText(output);
+                            if (!string.IsNullOrEmpty(error)) AppendTerminalText(error);
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Dispatcher.UIThread.Post(() => AppendTerminalText($"Error: {ex.Message}"));
+                }
+            });
         }
 
         public void RefreshFlags_Click(object? sender, RoutedEventArgs e)
@@ -898,6 +993,8 @@ namespace RelumiScript
                 foreach (System.Text.RegularExpressions.Match m in workMatches)
                 {
                     string fullWork = m.Value;
+
+                    // Always add works found in code, even if not in JSON
                     if (!workResults.ContainsKey(fullWork)) workResults[fullWork] = new FlagUsageInfo { FlagName = fullWork };
 
                     workResults[fullWork].Locations.Add(new FlagLocation
@@ -1065,6 +1162,9 @@ namespace RelumiScript
 
             StatusText.Text = "Scanning...";
             var rootPath = folders[0].Path.LocalPath;
+
+            // Set the working directory for terminal commands
+            _workingDirectory = rootPath;
 
             string? evScriptPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Dpr", "ev_script" });
             string? pokemonMsgPath = FindFileInStructure(rootPath, new[] { "romfs", "data", "StreamingAssets", "AssetAssistant", "Message", "common_msbt" });
