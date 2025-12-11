@@ -348,7 +348,8 @@ namespace RelumiScript
             switch (type)
             {
                 case 1: return BitConverter.ToSingle(BitConverter.GetBytes(val), 0).ToString(CultureInfo.InvariantCulture);
-                case 2: return _workMap.ContainsKey(val) ? _workMap[val] : $"var_{val}";
+                // FIX: Add '@' prefix here so the scanner and editor recognize it as a Work Variable
+                case 2: return _workMap.ContainsKey(val) ? $"@{_workMap[val]}" : $"@var_{val}";
                 case 3: return _flagMap.ContainsKey(val) ? $"#{_flagMap[val]}" : $"#{val}";
                 case 4: return _sysFlagMap.ContainsKey(val) ? $"${_sysFlagMap[val]}" : $"${val}";
                 case 5:

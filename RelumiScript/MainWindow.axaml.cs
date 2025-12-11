@@ -898,8 +898,6 @@ namespace RelumiScript
                 foreach (System.Text.RegularExpressions.Match m in workMatches)
                 {
                     string fullWork = m.Value;
-
-                    // Always add works found in code, even if not in JSON
                     if (!workResults.ContainsKey(fullWork)) workResults[fullWork] = new FlagUsageInfo { FlagName = fullWork };
 
                     workResults[fullWork].Locations.Add(new FlagLocation

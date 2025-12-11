@@ -432,6 +432,7 @@ window.formatLegacyScript = function (text) {
         const types = argDef.Type || [];
         if (/^-?\d+$/.test(arg)) {
           if (types.includes("Number")) return arg;
+
           if (types.includes("Work")) return "@" + arg;
           if (types.includes("Flag") || types.includes("SysFlag"))
             return "#" + arg;
@@ -461,6 +462,8 @@ window.formatLegacyScript = function (text) {
             arg.startsWith("common_")
           )
             return '"' + arg + '"';
+
+            if (arg.startsWith("@")) return arg;
           return "@" + arg;
         }
         if (types.includes("Work")) {
