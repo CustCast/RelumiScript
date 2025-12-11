@@ -16,14 +16,12 @@ namespace RelumiScript
     {
         private AssetsManager _manager;
 
-        // Forward Maps (ID -> Name)
         private Dictionary<int, string> _commandMap = new Dictionary<int, string>();
         private Dictionary<int, string> _flagMap = new Dictionary<int, string>();
         private Dictionary<int, string> _sysFlagMap = new Dictionary<int, string>();
         private Dictionary<int, string> _workMap = new Dictionary<int, string>();
         private Dictionary<string, string> _fileNameMap = new Dictionary<string, string>();
 
-        // Reverse Maps (Name -> ID)
         private Dictionary<string, int> _revCommandMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, int> _revFlagMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, int> _revSysFlagMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -43,7 +41,6 @@ namespace RelumiScript
         {
             _commandMap.Clear(); _flagMap.Clear(); _sysFlagMap.Clear(); _workMap.Clear(); _fileNameMap.Clear();
             _revCommandMap.Clear(); _revFlagMap.Clear(); _revSysFlagMap.Clear(); _revWorkMap.Clear();
-
             try
             {
                 LoadMap(jsonDir, "commands.json", _commandMap, _revCommandMap);
@@ -125,7 +122,6 @@ namespace RelumiScript
                     var idx = item["arrayIndex"];
                     var words = item["wordDataArray"];
                     if (!words.IsDummy && words.Children.Count > 0 && words.Children[0].FieldName == "Array") words = words.Children[0];
-
                     if (!idx.IsDummy && !words.IsDummy && words.Children.Count > 0)
                     {
                         int idxValue = idx.AsInt;
@@ -143,19 +139,15 @@ namespace RelumiScript
                 if (_manager.Files.Any(f => f.path == bundlePath)) { _manager.UnloadAssetsFile(bundlePath); _manager.UnloadBundleFile(bundlePath); }
                 var bundle = _manager.LoadBundleFile(bundlePath);
                 var afile = _manager.LoadAssetsFileFromBundle(bundle, 0);
-
                 foreach (var info in afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour))
                 {
                     var baseField = _manager.GetBaseField(afile, info);
                     string name = baseField["m_Name"].AsString;
                     if (!name.StartsWith("english_") || name == "english_ss_monsname") continue;
-
                     var node = new FileNode { Name = name.Replace("english_", ""), FileName = name, IsMessage = true };
-
                     var entries = baseField["labelDataArray"];
                     if (entries.IsDummy) entries = baseField["entries"];
                     if (!entries.IsDummy && entries.Children.Count == 1 && entries.Children[0].FieldName == "Array") entries = entries.Children[0];
-
                     if (!entries.IsDummy)
                     {
                         foreach (var item in entries.Children)
@@ -189,16 +181,13 @@ namespace RelumiScript
                 if (_manager.Files.Any(f => f.path == bundlePath)) { _manager.UnloadAssetsFile(bundlePath); _manager.UnloadBundleFile(bundlePath); }
                 var bundle = _manager.LoadBundleFile(bundlePath);
                 var afile = _manager.LoadAssetsFileFromBundle(bundle, 0);
-
                 foreach (var info in afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour))
                 {
                     var baseField = _manager.GetBaseField(afile, info);
                     string name = baseField["m_Name"].AsString;
                     if (string.IsNullOrEmpty(name) || name.StartsWith("EvCam")) continue;
-
                     string display = _fileNameMap.ContainsKey(name) ? $"{_fileNameMap[name]} ({name})" : name;
                     var node = new FileNode { Name = display, FileName = name, IsMessage = false };
-
                     var strList = baseField["StrList"];
                     var strings = new List<string>();
                     if (!strList.IsDummy && strList.Children.Count > 0)
@@ -206,28 +195,23 @@ namespace RelumiScript
                         var arr = strList.Children.Count == 1 && strList.Children[0].FieldName == "Array" ? strList.Children[0] : strList;
                         foreach (var s in arr.Children) strings.Add(s.AsString);
                     }
-
                     var scripts = baseField["Scripts"];
                     if (scripts.IsDummy) continue;
                     if (scripts.Children.Count == 1 && scripts.Children[0].FieldName == "Array") scripts = scripts.Children[0];
-
                     for (int i = 0; i < scripts.Children.Count; i++)
                     {
                         var sb = new StringBuilder();
                         var script = scripts[i];
                         string label = !script["Label"].IsDummy ? script["Label"].AsString : $"{name}_seq_{i}";
                         sb.AppendLine($"{label}:");
-
                         var cmds = script["Commands"];
                         if (!cmds.IsDummy && cmds.Children.Count == 1 && cmds.Children[0].FieldName == "Array") cmds = cmds.Children[0];
-
                         if (!cmds.IsDummy)
                         {
                             foreach (var cmd in cmds.Children)
                             {
                                 var args = cmd["Arg"];
                                 if (!args.IsDummy && args.Children.Count == 1 && args.Children[0].FieldName == "Array") args = args.Children[0];
-
                                 if (!args.IsDummy && args.Children.Count > 0)
                                 {
                                     int id = args[0]["data"].AsInt;
@@ -235,7 +219,6 @@ namespace RelumiScript
                                     var argList = new List<string>();
                                     for (int k = 1; k < args.Children.Count; k++)
                                         argList.Add(FormatArg(args[k]["argType"].AsInt, args[k]["data"].AsInt, strings));
-
                                     sb.Append('\t').Append(cmdName).Append(' ').AppendJoin(' ', argList).AppendLine();
                                 }
                             }
@@ -257,22 +240,15 @@ namespace RelumiScript
                 case 2: return _workMap.ContainsKey(val) ? $"@{_workMap[val]}" : $"@var_{val}";
                 case 3: return _flagMap.ContainsKey(val) ? $"#{_flagMap[val]}" : $"#{val}";
                 case 4: return _sysFlagMap.ContainsKey(val) ? $"${_sysFlagMap[val]}" : $"${val}";
-                case 5:
-                    if (val >= 0 && val < stringTable.Count)
-                    {
-                        string s = stringTable[val].Replace("\"", "\\\"");
-                        return $"\"{s}\"";
-                    }
-                    return $"\"<MISSING_STR_{val}>\"";
+                case 5: if (val >= 0 && val < stringTable.Count) { string s = stringTable[val].Replace("\"", "\\\""); return $"\"{s}\""; } return $"\"<MISSING_STR_{val}>\"";
                 default: return val.ToString();
             }
         }
 
-        // --- COMPILER / REPACKER ---
+        // --- COMPILER / REPACKER (FIXED) ---
 
         public void Pack(List<FileNode> nodes, string originalBundlePath, string outputPath)
         {
-            // 1. Ensure fresh load of bundle
             if (_manager.Files.Any(f => f.path == originalBundlePath))
             {
                 _manager.UnloadAssetsFile(originalBundlePath);
@@ -283,10 +259,11 @@ namespace RelumiScript
             var afileInst = _manager.LoadAssetsFileFromBundle(bundle, 0);
             var afile = afileInst.file;
 
-            // 2. Modify Assets in Memory
             foreach (var info in afile.GetAssetsOfType(AssetClassID.MonoBehaviour))
             {
-                var baseField = _manager.GetBaseField(afileInst, info);
+                // FIX: Get reference to the exact asset info in the file's table to ensure SetNewData applies
+                var assetInfo = afile.GetAssetInfo(info.PathId);
+                var baseField = _manager.GetBaseField(afileInst, assetInfo);
                 string name = baseField["m_Name"].AsString;
 
                 if (string.IsNullOrEmpty(name) || name.StartsWith("EvCam")) continue;
@@ -295,14 +272,11 @@ namespace RelumiScript
                 if (node == null) continue;
 
                 var newStringTable = new List<string>();
-
-                // Get Scripts Array
                 var scriptsArr = baseField["Scripts"]["Array"];
                 scriptsArr.Children.Clear();
 
                 foreach (var scriptNode in node.Scripts)
                 {
-                    // FIX: Use DefaultValueFieldFromArrayTemplate
                     var scriptData = ValueBuilder.DefaultValueFieldFromArrayTemplate(scriptsArr);
                     scriptData["Label"].AsString = scriptNode.Label.TrimEnd(':');
 
@@ -341,7 +315,6 @@ namespace RelumiScript
                     scriptsArr.Children.Add(scriptData);
                 }
 
-                // Update String List
                 var strArr = baseField["StrList"]["Array"];
                 strArr.Children.Clear();
                 foreach (var s in newStringTable)
@@ -351,13 +324,11 @@ namespace RelumiScript
                     strArr.Children.Add(val);
                 }
 
-                // Apply changes in memory
-                info.SetNewData(baseField);
+                // Apply new data to the specific asset info
+                assetInfo.SetNewData(baseField);
             }
 
-            // 3. Re-Packing Logic for Compression (Fixes size issue)
-
-            // Step A: Write the assets file content to memory
+            // Write modified assets file to memory
             byte[] assetsFileBytes;
             using (var stream = new MemoryStream())
             using (var writer = new AssetsFileWriter(stream))
@@ -366,20 +337,16 @@ namespace RelumiScript
                 assetsFileBytes = stream.ToArray();
             }
 
-            // Step B: Update the bundle's internal directory to use new content
+            // Update bundle content
             var bundleDir = bundle.file.BlockAndDirInfo.DirectoryInfos.FirstOrDefault(d => d.Name == afileInst.name);
-            if (bundleDir != null)
-            {
-                bundleDir.SetNewData(assetsFileBytes);
-            }
+            if (bundleDir != null) bundleDir.SetNewData(assetsFileBytes);
 
-            // Step C: Write the *uncompressed* bundle to a stream first
+            // COMPRESS AND SAVE
             using (var uncompressedStream = new MemoryStream())
             using (var uncompressedWriter = new AssetsFileWriter(uncompressedStream))
             {
-                bundle.file.Write(uncompressedWriter);
+                bundle.file.Write(uncompressedWriter); // Write uncompressed to stream
 
-                // Step D: Re-read and Pack (Compress) to final output
                 var newBundle = new AssetBundleFile();
                 uncompressedStream.Position = 0;
                 newBundle.Read(new AssetsFileReader(uncompressedStream));
@@ -387,7 +354,7 @@ namespace RelumiScript
                 using (var fileStream = File.OpenWrite(outputPath))
                 using (var fileWriter = new AssetsFileWriter(fileStream))
                 {
-                    // FIX: Correct signature for v3.0.0 Pack
+                    // FIX: Pack takes (writer, compression) in v3.0.0
                     newBundle.Pack(fileWriter, AssetBundleCompressionType.LZ4);
                 }
             }
@@ -403,36 +370,11 @@ namespace RelumiScript
         private (int type, int val) ParseArgument(string raw, List<string> stringTable)
         {
             raw = raw.Trim();
-            if (raw.StartsWith("\""))
-            {
-                string text = raw.Trim('"').Replace("\\\"", "\"");
-                int idx = stringTable.IndexOf(text);
-                if (idx == -1) { idx = stringTable.Count; stringTable.Add(text); }
-                return (5, idx);
-            }
-            if (raw.StartsWith("@"))
-            {
-                if (_revWorkMap.TryGetValue(raw, out int id)) return (2, id);
-                if (_revWorkMap.TryGetValue(raw.Substring(1), out id)) return (2, id);
-                if (int.TryParse(raw.Substring(1).Replace("var_", ""), out int vid)) return (2, vid);
-                return (2, 0);
-            }
-            if (raw.StartsWith("#"))
-            {
-                if (_revFlagMap.TryGetValue(raw, out int id)) return (3, id);
-                if (_revFlagMap.TryGetValue(raw.Substring(1), out id)) return (3, id);
-                if (int.TryParse(raw.Substring(1), out int fid)) return (3, fid);
-                return (3, 0);
-            }
-            if (raw.StartsWith("$"))
-            {
-                if (_revSysFlagMap.TryGetValue(raw, out int id)) return (4, id);
-                if (_revSysFlagMap.TryGetValue(raw.Substring(1), out id)) return (4, id);
-                if (int.TryParse(raw.Substring(1), out int sid)) return (4, sid);
-                return (4, 0);
-            }
-            if (raw.Contains(".") && float.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out float fVal))
-                return (1, BitConverter.ToInt32(BitConverter.GetBytes(fVal), 0));
+            if (raw.StartsWith("\"")) { string text = raw.Trim('"').Replace("\\\"", "\""); int idx = stringTable.IndexOf(text); if (idx == -1) { idx = stringTable.Count; stringTable.Add(text); } return (5, idx); }
+            if (raw.StartsWith("@")) { if (_revWorkMap.TryGetValue(raw, out int id)) return (2, id); if (_revWorkMap.TryGetValue(raw.Substring(1), out id)) return (2, id); if (int.TryParse(raw.Substring(1).Replace("var_", ""), out int vid)) return (2, vid); return (2, 0); }
+            if (raw.StartsWith("#")) { if (_revFlagMap.TryGetValue(raw, out int id)) return (3, id); if (_revFlagMap.TryGetValue(raw.Substring(1), out id)) return (3, id); if (int.TryParse(raw.Substring(1), out int fid)) return (3, fid); return (3, 0); }
+            if (raw.StartsWith("$")) { if (_revSysFlagMap.TryGetValue(raw, out int id)) return (4, id); if (_revSysFlagMap.TryGetValue(raw.Substring(1), out id)) return (4, id); if (int.TryParse(raw.Substring(1), out int sid)) return (4, sid); return (4, 0); }
+            if (raw.Contains(".") && float.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out float fVal)) return (1, BitConverter.ToInt32(BitConverter.GetBytes(fVal), 0));
             if (int.TryParse(raw, out int iVal)) return (0, iVal);
             return (0, 0);
         }
@@ -447,13 +389,7 @@ namespace RelumiScript
             result.Add(sb.ToString());
             sb.Clear();
             while (i < line.Length && char.IsWhiteSpace(line[i])) i++;
-            for (; i < line.Length; i++)
-            {
-                char c = line[i];
-                if (c == '"') { inQuote = !inQuote; sb.Append(c); }
-                else if (c == ',' && !inQuote) { if (sb.Length > 0) result.Add(sb.ToString().Trim()); sb.Clear(); }
-                else sb.Append(c);
-            }
+            for (; i < line.Length; i++) { char c = line[i]; if (c == '"') { inQuote = !inQuote; sb.Append(c); } else if (c == ',' && !inQuote) { if (sb.Length > 0) result.Add(sb.ToString().Trim()); sb.Clear(); } else sb.Append(c); }
             if (sb.Length > 0) result.Add(sb.ToString().Trim());
             return result;
         }
