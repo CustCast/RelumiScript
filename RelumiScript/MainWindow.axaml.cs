@@ -29,7 +29,6 @@ namespace RelumiScript
         private MessageRenderer? _messageRenderer;
 
         private bool _isEditorReady = false;
-        private bool _isBlocklyReady = false;
         private bool _isNavigating = false;
 
         private string _currentScriptContent = "";
@@ -53,7 +52,6 @@ namespace RelumiScript
             InitializeComponent();
             _service = new AssetBundleService();
             InitializeEditor();
-            InitializeBlockly();
             TryInitMessageRenderer();
 
             ThemePanel.DataContext = _themeVm;
@@ -239,10 +237,21 @@ namespace RelumiScript
                 finally { _isNavigating = false; }
             }
         }
-        public async void OnTabChanged(object? sender, RoutedEventArgs e) { Editor.IsVisible = TabCode.IsChecked == true; BlockEditor.IsVisible = !Editor.IsVisible; await SetEditorText(_currentScriptContent); }
-        private async Task SetEditorText(string content) { _currentScriptContent = content; string safe = JsonConvert.ToString(content); if (_isEditorReady) await Editor.ExecuteScriptAsync($"editor.setValue(window.formatLegacyScript ? window.formatLegacyScript({safe}) : {safe}); editor.updateOptions({{readOnly: false}});"); if (_isBlocklyReady && BlockEditor.IsVisible) await BlockEditor.ExecuteScriptAsync($"loadScript({safe});"); }
+
+        // Removed OnTabChanged
+
+        private async Task SetEditorText(string content)
+        {
+            _currentScriptContent = content;
+            string safe = JsonConvert.ToString(content);
+            if (_isEditorReady)
+                await Editor.ExecuteScriptAsync($"editor.setValue(window.formatLegacyScript ? window.formatLegacyScript({safe}) : {safe}); editor.updateOptions({{readOnly: false}});");
+        }
+
         private void TryInitMessageRenderer() { if (_messageRenderer == null && !string.IsNullOrEmpty(FindJsonFolder())) _messageRenderer = new MessageRenderer(Path.GetFullPath(Path.Combine(FindJsonFolder()!, "..", "Assets"))); }
-        private void InitializeBlockly() { string p = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "Blockly", "index.html"); if (!File.Exists(p)) p = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Blockly", "index.html"); if (File.Exists(p)) { BlockEditor.Url = new Uri($"file:///{p.Replace("\\", "/")}"); BlockEditor.NavigationCompleted += (s, e) => { if (e.IsSuccess) _isBlocklyReady = true; }; BlockEditor.WebMessageReceived += (s, e) => _currentScriptContent = e.Message ?? ""; } }
+
+        // Removed InitializeBlockly
+
         private async Task GenerateAndInjectSyntax() { string? jd = FindJsonFolder(); if (string.IsNullOrEmpty(jd)) return; await Task.Run(() => { string cmds = File.Exists(Path.Combine(jd, "commands.json")) ? File.ReadAllText(Path.Combine(jd, "commands.json")) : "[]"; string js = $"window.RELUMI_DATA = {{ commands: {cmds}, flags: [], sysflags: [], works: [], pokes: {JsonConvert.SerializeObject(_service.PokemonMap)}, items: {JsonConvert.SerializeObject(_service.ItemMap)} }}; window.RELUMI_DATA_LOADED = true;"; File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Monaco", "syntax_data.js"), js, Encoding.UTF8); }); if (_isEditorReady) await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={DateTime.Now.Ticks}');"); }
         private string? FindJsonFolder() { string b = AppDomain.CurrentDomain.BaseDirectory; if (Directory.Exists(Path.Combine(b, "JSON"))) return Path.Combine(b, "JSON"); if (Directory.Exists(Path.Combine(b, "..", "..", "..", "JSON"))) return Path.GetFullPath(Path.Combine(b, "..", "..", "..", "JSON")); return null; }
     }

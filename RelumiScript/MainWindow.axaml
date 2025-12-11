@@ -106,22 +106,15 @@
 
 			<GridSplitter Grid.Column="1" Background="#1E1E1E" ResizeDirection="Columns"/>
 
-			<Grid x:Name="MainContentGrid" Grid.Column="2" Background="#1E1E1E" RowDefinitions="Auto, *, 5, Auto, 5, Auto">
-				<StackPanel Grid.Row="0" Orientation="Horizontal" Background="#2D2D2D">
-					<RadioButton x:Name="TabCode" Content="Code (EV-AS)" GroupName="EditorTabs" IsChecked="True" Click="OnTabChanged"
-                                 Foreground="#CCCCCC" Background="Transparent" BorderThickness="0" Margin="0" Padding="10,6"/>
-					<RadioButton x:Name="TabVisual" Content="Visual Blocks" GroupName="EditorTabs" Click="OnTabChanged"
-                                 Foreground="#CCCCCC" Background="Transparent" BorderThickness="0" Margin="0" Padding="10,6"/>
-				</StackPanel>
+			<Grid x:Name="MainContentGrid" Grid.Column="2" Background="#1E1E1E" RowDefinitions="*, 5, Auto, 5, Auto">
 
-				<Panel Grid.Row="1" Background="#1E1E1E">
+				<Panel Grid.Row="0" Background="#1E1E1E">
 					<webview:WebView x:Name="Editor" IsVisible="True"/>
-					<webview:WebView x:Name="BlockEditor" IsVisible="False"/>
 				</Panel>
 
-				<GridSplitter Grid.Row="2" Background="#1E1E1E" ResizeDirection="Rows"/>
+				<GridSplitter Grid.Row="1" Background="#1E1E1E" ResizeDirection="Rows"/>
 
-				<Grid Grid.Row="3" Background="#1E1E1E">
+				<Grid Grid.Row="2" Background="#1E1E1E">
 					<Grid RowDefinitions="Auto, *, Auto">
 						<Border Grid.Row="0" Padding="10,5" Background="#252526" BorderBrush="#333" BorderThickness="0,1,0,0">
 							<Grid ColumnDefinitions="*, Auto">
@@ -143,9 +136,9 @@
 					</Grid>
 				</Grid>
 
-				<GridSplitter Grid.Row="4" Background="#1E1E1E" ResizeDirection="Rows" IsVisible="{Binding #TerminalPanel.IsVisible}"/>
+				<GridSplitter Grid.Row="3" Background="#1E1E1E" ResizeDirection="Rows" IsVisible="{Binding #TerminalPanel.IsVisible}"/>
 
-				<Border Grid.Row="5" x:Name="TerminalPanel" IsVisible="False" Background="#1E1E1E" BorderBrush="#333" BorderThickness="0,1,0,0" Height="250" VerticalAlignment="Bottom">
+				<Border Grid.Row="4" x:Name="TerminalPanel" IsVisible="False" Background="#1E1E1E" BorderBrush="#333" BorderThickness="0,1,0,0" Height="250" VerticalAlignment="Bottom">
 					<Grid RowDefinitions="Auto, *, Auto">
 						<Border Grid.Row="0" Padding="10,5" Background="#252526">
 							<Grid ColumnDefinitions="*, Auto">
@@ -439,7 +432,8 @@
 										<ItemsControl ItemsSource="{Binding Locations}" Background="#1E1E1E" BorderThickness="0" Margin="0">
 											<ItemsControl.ItemTemplate>
 												<DataTemplate>
-													<Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="15,2" Click="JumpToLocation_Click" Tag="{Binding}">
+													<Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch"
+                                                            HorizontalContentAlignment="Left" Padding="15,2" Click="JumpToLocation_Click" Tag="{Binding}">
 														<Grid ColumnDefinitions="30, Auto, *">
 															<TextBlock Text="{Binding LineNumber}" Foreground="#858585" FontSize="11" FontFamily="Consolas"/>
 															<TextBlock Grid.Column="1" Text="{Binding Command}" Foreground="#DCDCAA" FontSize="11" Margin="5,0"/>
