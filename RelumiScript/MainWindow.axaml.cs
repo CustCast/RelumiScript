@@ -47,6 +47,10 @@ namespace RelumiScript
         private Dictionary<int, string> _workIdMap = new Dictionary<int, string>();
 
         private ThemeEditorViewModel _themeVm = new ThemeEditorViewModel();
+
+        // Expose ThemeVm for Binding in XAML (Required for ScriptPreviewConverter)
+        public ThemeEditorViewModel ThemeVm => _themeVm;
+
         private string _currentView = "Explorer";
         private string _currentBottomView = "";
         private GridLength _lastSidebarWidth = new GridLength(300);
@@ -71,10 +75,6 @@ namespace RelumiScript
         // TABBED BROWSING & DOCUMENT LOGIC
         // -----------------------------------------------------------------------------
 
-        /// <summary>
-        /// Opens a document. If it's a peek (single click), it replaces the current preview tab.
-        /// If it's a keep (double click or edit), it makes the tab permanent.
-        /// </summary>
         private async void OpenDocument(object node, bool isPeek)
         {
             if (node == null) return;
@@ -83,7 +83,6 @@ namespace RelumiScript
             string title = "";
             string content = "";
 
-            // Extract info based on node type
             if (node is FileNode fNode)
             {
                 docId = "FILE:" + fNode.FileName;
@@ -98,11 +97,9 @@ namespace RelumiScript
             }
             else return;
 
-            // Check if already open
             var existing = _documents.FirstOrDefault(d => d.Id == docId);
             if (existing != null)
             {
-                // If we are "opening" (double click) and it was a preview, promote it to permanent
                 if (!isPeek && existing.IsPreview)
                 {
                     existing.IsPreview = false;
@@ -112,26 +109,22 @@ namespace RelumiScript
                 return;
             }
 
-            // Create new document
             var newDoc = new EditorDocument
             {
                 Id = docId,
                 Title = title,
                 Content = content,
-                OriginalContent = content, // Snapshot for dirty checking
+                OriginalContent = content,
                 IsDirty = false,
                 IsPreview = isPeek,
                 SourceNode = node
             };
 
-            // Handle Preview Replacement logic
             if (isPeek)
             {
-                // Find existing preview tab
                 var currentPreview = _documents.FirstOrDefault(d => d.IsPreview);
                 if (currentPreview != null)
                 {
-                    // If the current preview is dirty, we can't simply replace it (VS Code behavior: promote it, then open new)
                     if (currentPreview.IsDirty)
                     {
                         currentPreview.IsPreview = false;
@@ -139,7 +132,6 @@ namespace RelumiScript
                     }
                     else
                     {
-                        // Replace the preview tab with this one
                         int index = _documents.IndexOf(currentPreview);
                         _documents[index] = newDoc;
                     }
@@ -151,7 +143,6 @@ namespace RelumiScript
             }
             else
             {
-                // Permanent open always adds a new tab
                 _documents.Add(newDoc);
             }
 
@@ -165,7 +156,6 @@ namespace RelumiScript
             _activeDocument = doc;
             TabStrip.SelectedItem = doc;
 
-            // Load content into Monaco
             await SetEditorText(doc.Content);
             UpdateNoTabsPlaceholder();
         }
@@ -203,12 +193,10 @@ namespace RelumiScript
             if (_documents.Count == 0)
             {
                 _activeDocument = null;
-                // Clear editor
                 SetEditorText("");
             }
             else if (_activeDocument == doc)
             {
-                // Select neighbor (prefer left, or right if 0)
                 int newIndex = Math.Max(0, index - 1);
                 if (newIndex < _documents.Count)
                     SetActiveDocument(_documents[newIndex]);
@@ -218,7 +206,6 @@ namespace RelumiScript
 
         private void TabStrip_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
-            // When TabStrip selection changes (user clicks a tab), update active doc
             if (TabStrip.SelectedItem is EditorDocument doc)
             {
                 SetActiveDocument(doc);
@@ -259,9 +246,6 @@ namespace RelumiScript
         private async Task InjectMonacoListeners()
         {
             string script = @"editor.onDidChangeCursorPosition((e)=>{var l=editor.getModel().getLineContent(e.position.lineNumber);var m=l.match(/(?:_TALKMSG|_TALK_KEYWAIT|_EASY_OBJ_MSG|_EASY_BOARD_MSG)\s*\(\s*[@""']([^%]+)%([^)""']+)[""']?\s*\)/);if(m)window.chrome.webview.postMessage('PREVIEW:'+m[1]+'%'+m[2]);else window.chrome.webview.postMessage('HIDE_PREVIEW');});editor.addAction({id:'relumi-lookup',label:'Search in Global View',contextMenuGroupId:'navigation',contextMenuOrder:1.5,run:function(ed){var p=ed.getPosition();var m=ed.getModel();var w=m.getWordAtPosition(p);if(w){var charBefore=w.startColumn>1?m.getLineContent(p.lineNumber).charAt(w.startColumn-2):'';var prefix=(charBefore==='#'||charBefore==='$'||charBefore==='@')?charBefore:'';window.chrome.webview.postMessage('GLOBAL_SEARCH:'+prefix+w.word);}}});";
-
-            // Add change listener for content. 
-            // IMPORTANT: We check !e.isFlush to ignore the update triggered by setValue() when loading a file.
             script += @" editor.onDidChangeModelContent((e) => { if(!e.isFlush) window.chrome.webview.postMessage('CONTENT_UPDATE:' + editor.getValue()); });";
 
             await Editor.ExecuteScriptAsync(script);
@@ -288,16 +272,12 @@ namespace RelumiScript
                 string newContent = e.Message.Substring(15);
                 if (_activeDocument != null)
                 {
-                    // Since we filtered isFlush, this is a genuine user edit.
-                    // If it was a preview tab, promote it to permanent immediately.
                     if (_activeDocument.IsPreview)
                     {
                         _activeDocument.IsPreview = false;
                     }
 
                     _activeDocument.Content = newContent;
-
-                    // Simple dirty check against the content we loaded
                     _activeDocument.IsDirty = !string.Equals(_activeDocument.Content, _activeDocument.OriginalContent);
                 }
             }
@@ -314,7 +294,6 @@ namespace RelumiScript
         // SIDEBAR & EXPLORER INTERACTION
         // -----------------------------------------------------------------------------
 
-        // Single click (SelectionChanged) = PEEK
         public void ScriptTree_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
             if (_isNavigating) return;
@@ -325,7 +304,6 @@ namespace RelumiScript
                 OpenDocument(f, isPeek: true);
         }
 
-        // Double click = KEEP (Open permanently)
         public void OnExplorerItem_DoubleTapped(object? sender, TappedEventArgs e)
         {
             var node = (sender as Control)?.DataContext;
@@ -454,7 +432,6 @@ namespace RelumiScript
                 {
                     if (loc.NodeObject != null)
                     {
-                        // Jumping implies we want to peek it
                         OpenDocument(loc.NodeObject, isPeek: true);
                     }
 
@@ -680,5 +657,20 @@ namespace RelumiScript
         private void TryInitMessageRenderer() { if (_messageRenderer == null && !string.IsNullOrEmpty(FindJsonFolder())) _messageRenderer = new MessageRenderer(Path.GetFullPath(Path.Combine(FindJsonFolder()!, "..", "Assets"))); }
         private async Task GenerateAndInjectSyntax() { string? jd = FindJsonFolder(); if (string.IsNullOrEmpty(jd)) return; await Task.Run(() => { string cmds = File.Exists(Path.Combine(jd, "commands.json")) ? File.ReadAllText(Path.Combine(jd, "commands.json")) : "[]"; string js = $"window.RELUMI_DATA = {{ commands: {cmds}, flags: [], sysflags: [], works: [], pokes: {JsonConvert.SerializeObject(_service.PokemonMap)}, items: {JsonConvert.SerializeObject(_service.ItemMap)} }}; window.RELUMI_DATA_LOADED = true;"; File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Monaco", "syntax_data.js"), js, Encoding.UTF8); }); if (_isEditorReady) await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={DateTime.Now.Ticks}');"); }
         private string? FindJsonFolder() { string b = AppDomain.CurrentDomain.BaseDirectory; if (Directory.Exists(Path.Combine(b, "JSON"))) return Path.Combine(b, "JSON"); if (Directory.Exists(Path.Combine(b, "..", "..", "..", "JSON"))) return Path.GetFullPath(Path.Combine(b, "..", "..", "..", "JSON")); return null; }
+
+        // SCROLL HANDLING
+        public void SearchResult_PointerWheelChanged(object? sender, PointerWheelEventArgs e)
+        {
+            if (sender is Control control && ToolTip.GetIsOpen(control))
+            {
+                var tipContent = ToolTip.GetTip(control);
+                if (tipContent is Border border && border.Child is ScrollViewer scroller)
+                {
+                    double offset = e.Delta.Y * -30;
+                    scroller.Offset = new Vector(scroller.Offset.X, Math.Clamp(scroller.Offset.Y + offset, 0, scroller.Extent.Height));
+                    e.Handled = true;
+                }
+            }
+        }
     }
 }

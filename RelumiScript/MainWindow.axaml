@@ -10,7 +10,18 @@
         Background="#1E1E1E" Foreground="#CCCCCC"
         FontFamily="Segoe UI, Segoe UI Emoji, Segoe UI Symbol">
 
+	<Window.Resources>
+		<local:ScriptPreviewConverter x:Key="ScriptPreviewConverter" />
+	</Window.Resources>
+
 	<Window.Styles>
+		<Style Selector="ToolTip">
+			<Setter Property="MaxWidth" Value="1200"/>
+			<Setter Property="Padding" Value="0"/>
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="BorderThickness" Value="0"/>
+		</Style>
+
 		<Style Selector="TreeViewItem">
 			<Setter Property="MinHeight" Value="22"/>
 			<Setter Property="Padding" Value="2,0"/>
@@ -197,7 +208,73 @@
 										<ItemsControl ItemsSource="{Binding Locations}" Background="#1E1E1E" BorderThickness="0" Margin="20,0,0,0">
 											<ItemsControl.ItemTemplate>
 												<DataTemplate>
-													<Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="5,2" Click="JumpToLocation_Click" Tag="{Binding}">
+													<Button Background="Transparent"
+                                                            BorderThickness="0"
+                                                            HorizontalAlignment="Stretch"
+                                                            HorizontalContentAlignment="Left"
+                                                            Padding="5,2"
+                                                            Click="JumpToLocation_Click"
+                                                            PointerWheelChanged="SearchResult_PointerWheelChanged"
+                                                            ToolTip.Placement="Right"
+                                                            Tag="{Binding}">
+
+														<ToolTip.Tip>
+															<Border Background="#1E1E1E"
+                                                                    BorderBrush="White"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="0"
+                                                                    Padding="10"
+                                                                    HorizontalAlignment="Left"
+                                                                    MaxWidth="1200"
+                                                                    MaxHeight="700">
+
+																<ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                                              HorizontalScrollBarVisibility="Auto">
+																	<ItemsControl>
+																		<ItemsControl.ItemsSource>
+																			<MultiBinding Converter="{StaticResource ScriptPreviewConverter}">
+																				<Binding Path="NodeObject"/>
+																				<Binding Path="LineNumber"/>
+																				<Binding Path="#MainWindowRef.ThemeVm"/>
+																			</MultiBinding>
+																		</ItemsControl.ItemsSource>
+																		<ItemsControl.ItemTemplate>
+																			<DataTemplate>
+																				<Border Background="{Binding Background}" Padding="2,0">
+																					<Grid ColumnDefinitions="40, Auto">
+																						<TextBlock Text="{Binding LineNumber}"
+                                                                                                   Foreground="#606060"
+                                                                                                   FontSize="10"
+                                                                                                   Margin="0,0,15,0"
+                                                                                                   TextAlignment="Right"
+                                                                                                   VerticalAlignment="Center"/>
+
+																						<ItemsControl Grid.Column="1" ItemsSource="{Binding Segments}">
+																							<ItemsControl.ItemsPanel>
+																								<ItemsPanelTemplate>
+																									<StackPanel Orientation="Horizontal"/>
+																								</ItemsPanelTemplate>
+																							</ItemsControl.ItemsPanel>
+																							<ItemsControl.ItemTemplate>
+																								<DataTemplate>
+																									<TextBlock Text="{Binding Text}"
+                                                                                                               Foreground="{Binding Foreground}"
+                                                                                                               FontWeight="{Binding Weight}"
+                                                                                                               FontStyle="{Binding Style}"
+                                                                                                               FontFamily="Consolas, Monospace"
+                                                                                                               FontSize="11"/>
+																								</DataTemplate>
+																							</ItemsControl.ItemTemplate>
+																						</ItemsControl>
+																					</Grid>
+																				</Border>
+																			</DataTemplate>
+																		</ItemsControl.ItemTemplate>
+																	</ItemsControl>
+																</ScrollViewer>
+															</Border>
+														</ToolTip.Tip>
+
 														<Grid ColumnDefinitions="30, Auto, *">
 															<TextBlock Text="{Binding LineNumber}" Foreground="#858585" FontSize="11" FontFamily="Consolas"/>
 															<TextBlock Grid.Column="1" Text="{Binding Command}" Foreground="#DCDCAA" FontSize="11" Margin="5,0"/>
