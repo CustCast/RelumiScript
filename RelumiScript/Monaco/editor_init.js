@@ -1,4 +1,4 @@
-﻿// RelumiScript Monaco Editor Initialization
+﻿// RelumiScript/Monaco/editor_init.js
 
 // 1. Define Default Theme (Fallback)
 monaco.editor.defineTheme("bdsp-dark", {
@@ -29,6 +29,9 @@ var editor = monaco.editor.create(document.getElementById("container"), {
     automaticLayout: true,
     readOnly: true,
     theme: "bdsp-dark",
+    minimap: {
+        enabled: false
+    }
 });
 
 var model = editor.getModel();
