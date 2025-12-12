@@ -1,6 +1,4 @@
-﻿// RelumiScript/Monaco/bdsp_ev_script.js
-
-// 1. Setup Language
+﻿// 1. Setup Language
 if (!monaco.languages.getLanguages().some((l) => l.id === "bdsp")) {
     monaco.languages.register({ id: "bdsp" });
 }

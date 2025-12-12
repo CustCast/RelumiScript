@@ -581,6 +581,12 @@ namespace RelumiScript
             var evtExact = evtMatches.Where(x => x.EventName.Equals(query, StringComparison.OrdinalIgnoreCase)).ToList();
             foreach (var e in (evtExact.Any() ? evtExact : evtMatches.Take(20))) { var sortedLocs = new ObservableCollection<FlagLocation>(e.Locations.OrderByDescending(l => l.IsDeclaration).ThenBy(l => l.FileName)); results.Add(new SearchResult { Type = "EVT", Color = "#FF79C6", Name = e.EventName, Locations = sortedLocs }); }
             SearchResultsList.ItemsSource = results;
+
+            // Auto-expand if single result
+            if (results.Count == 1)
+            {
+                results[0].IsExpanded = true;
+            }
         }
 
         public async void SaveTheme_Click(object? sender, RoutedEventArgs e)
@@ -661,14 +667,18 @@ namespace RelumiScript
         // SCROLL HANDLING
         public void SearchResult_PointerWheelChanged(object? sender, PointerWheelEventArgs e)
         {
-            if (sender is Control control && ToolTip.GetIsOpen(control))
+            // Only capture scroll if Alt is held
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Alt))
             {
-                var tipContent = ToolTip.GetTip(control);
-                if (tipContent is Border border && border.Child is ScrollViewer scroller)
+                if (sender is Control control && ToolTip.GetIsOpen(control))
                 {
-                    double offset = e.Delta.Y * -30;
-                    scroller.Offset = new Vector(scroller.Offset.X, Math.Clamp(scroller.Offset.Y + offset, 0, scroller.Extent.Height));
-                    e.Handled = true;
+                    var tipContent = ToolTip.GetTip(control);
+                    if (tipContent is Border border && border.Child is ScrollViewer scroller)
+                    {
+                        double offset = e.Delta.Y * -30;
+                        scroller.Offset = new Vector(scroller.Offset.X, Math.Clamp(scroller.Offset.Y + offset, 0, scroller.Extent.Height));
+                        e.Handled = true;
+                    }
                 }
             }
         }

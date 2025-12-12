@@ -12,6 +12,7 @@
 
 	<Window.Resources>
 		<local:ScriptPreviewConverter x:Key="ScriptPreviewConverter" />
+		<local:SearchTypeToIconConverter x:Key="SearchTypeToIconConverter" />
 	</Window.Resources>
 
 	<Window.Styles>
@@ -83,24 +84,43 @@
 			<Setter Property="MinHeight" Value="22"/>
 			<Setter Property="BorderThickness" Value="0"/>
 		</Style>
-		<Style Selector="Expander /template/ ToggleButton#PART_toggle">
-			<Setter Property="Padding" Value="0"/>
-			<Setter Property="Width" Value="20"/>
-			<Setter Property="Height" Value="22"/>
-			<Setter Property="Background" Value="Transparent"/>
-			<Setter Property="BorderThickness" Value="0"/>
-			<Setter Property="HorizontalContentAlignment" Value="Center"/>
-			<Setter Property="VerticalContentAlignment" Value="Center"/>
+
+		<Style Selector="Expander.SearchExpander">
+			<Setter Property="Template">
+				<ControlTemplate>
+					<StackPanel>
+						<ToggleButton x:Name="PART_toggle" IsChecked="{TemplateBinding IsExpanded, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch" Padding="0" Background="Transparent" BorderThickness="0">
+							<ToggleButton.Template>
+								<ControlTemplate>
+									<Border Background="Transparent" Padding="2">
+										<Grid ColumnDefinitions="20, *">
+											<Path x:Name="Arrow" Grid.Column="0" Data="M 6 4 L 10 8 L 6 12"
+                                                  Stroke="#CCCCCC" StrokeThickness="1.5" Fill="Transparent"
+                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                  Width="16" Height="16" Stretch="None"/>
+											<ContentPresenter Grid.Column="1" Content="{TemplateBinding Content}"
+                                                              VerticalAlignment="Center" HorizontalAlignment="Left"/>
+										</Grid>
+									</Border>
+								</ControlTemplate>
+							</ToggleButton.Template>
+							<ContentPresenter Content="{TemplateBinding Header}" />
+						</ToggleButton>
+						<ContentPresenter x:Name="PART_ContentPresenter" Content="{TemplateBinding Content}" IsVisible="{TemplateBinding IsExpanded}" />
+					</StackPanel>
+				</ControlTemplate>
+			</Setter>
 		</Style>
-		<Style Selector="Expander /template/ Path">
-			<Setter Property="Fill" Value="#CCCCCC"/>
-			<Setter Property="Width" Value="8"/>
-			<Setter Property="Height" Value="8"/>
+
+		<Style Selector="Expander.SearchExpander:expanded /template/ ToggleButton#PART_toggle Path#Arrow">
+			<Setter Property="Data" Value="M 4 6 L 8 10 L 12 6"/>
 		</Style>
 
 		<Style Selector="ScrollBar">
 			<Setter Property="Background" Value="Transparent"/>
 			<Setter Property="Width" Value="10"/>
+			<Setter Property="Height" Value="10"/>
 		</Style>
 		<Style Selector="ScrollBar /template/ Thumb">
 			<Setter Property="Background" Value="#424242"/>
@@ -197,22 +217,22 @@
 							</ListBox.ItemsPanel>
 							<ListBox.ItemTemplate>
 								<DataTemplate>
-									<Expander HorizontalAlignment="Stretch" IsExpanded="{Binding IsExpanded, Mode=TwoWay}" Padding="0" Margin="0">
+									<Expander Classes="SearchExpander" HorizontalAlignment="Stretch" IsExpanded="{Binding IsExpanded, Mode=TwoWay}" Padding="0" Margin="0">
 										<Expander.Header>
 											<Grid ColumnDefinitions="Auto, Auto, *" Margin="2,0,0,0">
-												<TextBlock Text="{Binding Type}" Foreground="{Binding Color}" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+												<TextBlock Text="{Binding Type, Converter={StaticResource SearchTypeToIconConverter}}" Foreground="{Binding Color}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" FontFamily="Segoe UI Symbol"/>
 												<TextBlock Grid.Column="1" Text="{Binding Id}" Foreground="#569CD6" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding Id}"/>
 												<TextBlock Grid.Column="2" Text="{Binding Name}" Foreground="#CCCCCC" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
 											</Grid>
 										</Expander.Header>
-										<ItemsControl ItemsSource="{Binding Locations}" Background="#1E1E1E" BorderThickness="0" Margin="20,0,0,0">
+										<ItemsControl ItemsSource="{Binding Locations}" Background="Transparent" BorderThickness="0" Margin="0">
 											<ItemsControl.ItemTemplate>
 												<DataTemplate>
 													<Button Background="Transparent"
                                                             BorderThickness="0"
                                                             HorizontalAlignment="Stretch"
                                                             HorizontalContentAlignment="Left"
-                                                            Padding="5,2"
+                                                            Padding="25,2,5,2"
                                                             Click="JumpToLocation_Click"
                                                             PointerWheelChanged="SearchResult_PointerWheelChanged"
                                                             ToolTip.Placement="Right"
@@ -275,10 +295,9 @@
 															</Border>
 														</ToolTip.Tip>
 
-														<Grid ColumnDefinitions="30, Auto, *">
-															<TextBlock Text="{Binding LineNumber}" Foreground="#858585" FontSize="11" FontFamily="Consolas"/>
-															<TextBlock Grid.Column="1" Text="{Binding Command}" Foreground="#DCDCAA" FontSize="11" Margin="5,0"/>
-															<TextBlock Grid.Column="2" Text="{Binding FileName}" Foreground="#808080" FontSize="10" FontStyle="Italic" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right"/>
+														<Grid ColumnDefinitions="Auto, *">
+															<TextBlock Text="{Binding Command}" Foreground="#DCDCAA" FontSize="11" Margin="5,0"/>
+															<TextBlock Grid.Column="1" Text="{Binding FileName}" Foreground="#808080" FontSize="10" FontStyle="Italic" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right"/>
 														</Grid>
 													</Button>
 												</DataTemplate>
@@ -361,7 +380,7 @@
 
 			<Grid x:Name="MainContentGrid" Grid.Column="3" Background="#1E1E1E" RowDefinitions="30, *, 4, Auto">
 
-				<ListBox Grid.Row="0" x:Name="TabStrip" Classes="TabStrip" SelectionChanged="TabStrip_SelectionChanged">
+				<ListBox Grid.Row="0" x:Name="TabStrip" Classes="TabStrip" SelectionChanged="TabStrip_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled">
 					<ListBox.ItemsPanel>
 						<ItemsPanelTemplate>
 							<StackPanel Orientation="Horizontal"/>
