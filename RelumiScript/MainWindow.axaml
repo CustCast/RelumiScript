@@ -79,23 +79,6 @@
 			<Setter Property="Background" Value="#4F4F4F"/>
 		</Style>
 
-		<Style Selector="Menu">
-			<Setter Property="Background" Value="#333333"/>
-			<Setter Property="Foreground" Value="#CCCCCC"/>
-		</Style>
-		<Style Selector="MenuItem">
-			<Setter Property="Background" Value="#333333"/>
-			<Setter Property="Foreground" Value="#CCCCCC"/>
-			<Setter Property="FontSize" Value="13"/>
-			<Setter Property="Padding" Value="10,5"/>
-		</Style>
-		<Style Selector="MenuItem:pointerover /template/ Border#PART_LayoutRoot">
-			<Setter Property="Background" Value="#505050"/>
-		</Style>
-		<Style Selector="MenuItem:selected /template/ Border#PART_LayoutRoot">
-			<Setter Property="Background" Value="#3C3C3C"/>
-		</Style>
-
 		<Style Selector="Button.ActivityButton">
 			<Setter Property="Background" Value="Transparent"/>
 			<Setter Property="BorderThickness" Value="0"/>
@@ -105,6 +88,7 @@
 			<Setter Property="VerticalContentAlignment" Value="Center"/>
 			<Setter Property="Foreground" Value="#858585"/>
 			<Setter Property="FontSize" Value="24"/>
+			<Setter Property="FontFamily" Value="Segoe UI Symbol"/>
 			<Setter Property="CornerRadius" Value="0"/>
 		</Style>
 		<Style Selector="Button.ActivityButton:pointerover /template/ ContentPresenter">
@@ -118,36 +102,31 @@
 		</Style>
 	</Window.Styles>
 
-	<Grid RowDefinitions="Auto, *, 22">
+	<Grid RowDefinitions="*, 22">
 
-		<Menu Grid.Row="0">
-			<MenuItem Header="_File">
-				<MenuItem Header="_Open Folder..." Click="BtnLoad_Click" InputGesture="Ctrl+O"/>
-				<MenuItem Header="_Save" Click="BtnSave_Click" InputGesture="Ctrl+S"/>
-				<Separator/>
-				<MenuItem Header="E_xit" Click="CloseApp_Click" InputGesture="Alt+F4"/>
-			</MenuItem>
-			<MenuItem Header="_View">
-				<MenuItem Header="Terminal" Click="BtnTerminal_Click" InputGesture="Ctrl+Oem3"/>
-			</MenuItem>
-			<MenuItem Header="_Preferences">
-				<MenuItem Header="Theme Settings" Click="ShowTheme_Click"/>
-			</MenuItem>
-		</Menu>
-
-		<Grid Grid.Row="1" ColumnDefinitions="50, Auto, 1, *">
+		<Grid Grid.Row="0" x:Name="SidebarGrid" ColumnDefinitions="50, 300, 4, *">
 
 			<Border Grid.Column="0" Background="#333333">
-				<StackPanel>
-					<Button Classes="ActivityButton" x:Name="BtnNavExplorer" Click="OnSidebarNav_Click" Tag="Explorer" ToolTip.Tip="Explorer (Ctrl+Shift+E)">📁</Button>
-					<Button Classes="ActivityButton" x:Name="BtnNavSearch" Click="OnSidebarNav_Click" Tag="Search" ToolTip.Tip="Search (Ctrl+Shift+F)">🔍</Button>
-					<Button Classes="ActivityButton" x:Name="BtnNavFlags" Click="OnSidebarNav_Click" Tag="Flags" ToolTip.Tip="Unused Flags">🚩</Button>
-					<Button Classes="ActivityButton" x:Name="BtnNavCommands" Click="OnSidebarNav_Click" Tag="Commands" ToolTip.Tip="Unused Works">🔨</Button>
-					<Button Classes="ActivityButton" x:Name="BtnNavTheme" Click="OnSidebarNav_Click" Tag="Theme" ToolTip.Tip="Theme Settings">🎨</Button>
-				</StackPanel>
+				<Grid RowDefinitions="*, Auto">
+					<StackPanel Grid.Row="0">
+						<Button Classes="ActivityButton" x:Name="BtnActionOpen" Click="BtnLoad_Click" ToolTip.Tip="Open Folder (Ctrl+O)">📂</Button>
+						<Button Classes="ActivityButton" x:Name="BtnActionSave" Click="BtnSave_Click" ToolTip.Tip="Save (Ctrl+S)">💾</Button>
+						<Rectangle Height="1" Fill="#444" Margin="10,5"/>
+						<Button Classes="ActivityButton" x:Name="BtnNavExplorer" Click="OnSidebarNav_Click" Tag="Explorer" ToolTip.Tip="Explorer (Ctrl+Shift+E)">📁</Button>
+						<Button Classes="ActivityButton" x:Name="BtnNavSearch" Click="OnSidebarNav_Click" Tag="Search" ToolTip.Tip="Search (Ctrl+Shift+F)">🔍</Button>
+						<Button Classes="ActivityButton" x:Name="BtnNavFlags" Click="OnSidebarNav_Click" Tag="Flags" ToolTip.Tip="Unused Flags">🚩</Button>
+						<Button Classes="ActivityButton" x:Name="BtnNavCommands" Click="OnSidebarNav_Click" Tag="Commands" ToolTip.Tip="Unused Works">🔨</Button>
+						<Button Classes="ActivityButton" x:Name="BtnNavTheme" Click="OnSidebarNav_Click" Tag="Theme" ToolTip.Tip="Theme Settings">🎨</Button>
+					</StackPanel>
+
+					<StackPanel Grid.Row="1">
+						<Button Classes="ActivityButton" x:Name="BtnNavPreview" Click="OnBottomNav_Click" Tag="Preview" ToolTip.Tip="Message Preview">👁</Button>
+						<Button Classes="ActivityButton" x:Name="BtnNavTerminal" Click="OnBottomNav_Click" Tag="Terminal" ToolTip.Tip="Terminal (Ctrl+`)">💻</Button>
+					</StackPanel>
+				</Grid>
 			</Border>
 
-			<Border Grid.Column="1" Width="300" Background="#252526" x:Name="SidePanelContainer">
+			<Border Grid.Column="1" Background="#252526" x:Name="SidePanelContainer">
 				<Grid>
 
 					<Grid x:Name="PanelExplorer" RowDefinitions="35, *">
@@ -173,10 +152,12 @@
 					</Grid>
 
 					<Grid x:Name="PanelSearch" IsVisible="False" RowDefinitions="35, 35, *">
-						<Grid Grid.Row="0" Margin="10,0" ColumnDefinitions="*, Auto">
-							<TextBlock Text="SEARCH" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
-							<Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh Search Index" Background="Transparent" Click="RefreshFlags_Click" BorderThickness="0"/>
-						</Grid>
+						<Border Grid.Row="0" Padding="10,0" Background="#252526">
+							<Grid ColumnDefinitions="*, Auto">
+								<TextBlock Text="SEARCH" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
+								<Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh Search Index" Background="Transparent" Click="RefreshFlags_Click" BorderThickness="0"/>
+							</Grid>
+						</Border>
 						<Border Grid.Row="1" Margin="10,0,10,5" Background="#3C3C3C" CornerRadius="2">
 							<TextBox x:Name="SearchBox" Watermark="Global search..." Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" TextChanged="SearchBox_TextChanged" Padding="6,4"/>
 						</Border>
@@ -271,13 +252,52 @@
 							<TextBlock Text="THEME SETTINGS" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
 						</Grid>
 						<Border Grid.Row="1" Margin="10" BorderBrush="#444" BorderThickness="1" CornerRadius="4" Background="{Binding Colors.BackgroundColor}" Padding="10">
-							<StackPanel>
-								<TextBlock Text="Preview..." FontSize="10" Foreground="Gray"/>
+							<StackPanel x:Name="PreviewBox">
+								<TextBlock Text="ev_demo_script:" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.ScriptLabel.Weight}" FontStyle="{Binding Syntax.ScriptLabel.FontStyle}" Foreground="{Binding Syntax.ScriptLabel.Brush}"/>
+								<StackPanel Orientation="Horizontal" Margin="20,0,0,0">
+									<TextBlock Text="_TALK_MSG" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.Command.Weight}" FontStyle="{Binding Syntax.Command.FontStyle}" Foreground="{Binding Syntax.Command.Brush}"/>
+									<TextBlock Text="(" FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Margin="40,0,0,0">
+									<TextBlock Text="@SCWK_TEMP0" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.WorkVar.Weight}" FontStyle="{Binding Syntax.WorkVar.FontStyle}" Foreground="{Binding Syntax.WorkVar.Brush}"/>
+									<TextBlock Text="," FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Margin="40,0,0,0">
+									<TextBlock Text="&quot;Hello World&quot;" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.String.Weight}" FontStyle="{Binding Syntax.String.FontStyle}" Foreground="{Binding Syntax.String.Brush}"/>
+									<TextBlock Text="," FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Margin="40,0,0,0">
+									<TextBlock Text="123" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.Number.Weight}" FontStyle="{Binding Syntax.Number.FontStyle}" Foreground="{Binding Syntax.Number.Brush}"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal" Margin="20,0,0,0">
+									<TextBlock Text=")" FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
+								</StackPanel>
+								<TextBlock Text="; This is a comment" FontFamily="Consolas" FontSize="12" Margin="20,0,0,0" FontWeight="{Binding Syntax.Comment.Weight}" FontStyle="{Binding Syntax.Comment.FontStyle}" Foreground="{Binding Syntax.Comment.Brush}"/>
+								<TextBlock Text="#FLAG_TEST" FontFamily="Consolas" FontSize="12" Margin="20,0,0,0" FontWeight="{Binding Syntax.Flag.Weight}" FontStyle="{Binding Syntax.Flag.FontStyle}" Foreground="{Binding Syntax.Flag.Brush}"/>
+								<TextBlock Text="$SYS_FLAG_TEST" FontFamily="Consolas" FontSize="12" Margin="20,0,0,0" FontWeight="{Binding Syntax.SysFlag.Weight}" FontStyle="{Binding Syntax.SysFlag.FontStyle}" Foreground="{Binding Syntax.SysFlag.Brush}"/>
 							</StackPanel>
 						</Border>
 						<ScrollViewer Grid.Row="2" Margin="10,0">
 							<StackPanel Spacing="15">
-								<Button Content="Save Theme" HorizontalAlignment="Stretch" Click="SaveTheme_Click"/>
+								<TextBlock Text="General" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,5"/>
+								<Grid ColumnDefinitions="*, Auto">
+									<TextBlock Text="Editor Background" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+									<ColorPicker Grid.Column="1" Color="{Binding Colors.BackgroundColor, Mode=TwoWay}" />
+								</Grid>
+								<Grid ColumnDefinitions="*, Auto">
+									<TextBlock Text="Editor Foreground" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+									<ColorPicker Grid.Column="1" Color="{Binding Colors.ForegroundColor, Mode=TwoWay}" />
+								</Grid>
+								<TextBlock Text="Syntax Highlighting" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,10,0,5"/>
+								<StackPanel Spacing="10">
+									<StackPanel>
+										<Grid ColumnDefinitions="*, Auto">
+											<TextBlock Text="Commands" VerticalAlignment="Center" Foreground="#CCCCCC"/>
+											<ColorPicker Grid.Column="1" Color="{Binding Syntax.Command.Color, Mode=TwoWay}" />
+										</Grid>
+									</StackPanel>
+								</StackPanel>
+								<Button Content="Save Theme" HorizontalAlignment="Stretch" Margin="0,20,0,0" Click="SaveTheme_Click"/>
 							</StackPanel>
 						</ScrollViewer>
 					</Grid>
@@ -286,47 +306,54 @@
 
 			<GridSplitter Grid.Column="2" Background="#1E1E1E" ResizeDirection="Columns"/>
 
-			<Grid x:Name="MainContentGrid" Grid.Column="3" Background="#1E1E1E" RowDefinitions="*, 5, Auto, 5, Auto">
+			<Grid x:Name="MainContentGrid" Grid.Column="3" Background="#1E1E1E" RowDefinitions="*, 4, Auto">
 				<Panel Grid.Row="0" Background="#1E1E1E">
 					<webview:WebView x:Name="Editor" IsVisible="True"/>
 				</Panel>
-				<GridSplitter Grid.Row="1" Background="#1E1E1E" ResizeDirection="Rows"/>
-				<Grid Grid.Row="2" Background="#1E1E1E">
-					<Grid RowDefinitions="Auto, *, Auto">
-						<Border Grid.Row="0" Padding="10,5" Background="#252526" BorderBrush="#333" BorderThickness="0,1,0,0">
-							<Grid ColumnDefinitions="*, Auto">
-								<TextBlock Text="PREVIEW" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11"/>
-								<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5">
-									<Button x:Name="BtnPrevPage" Content="◀" Padding="8,2" Background="Transparent" BorderThickness="0" Click="BtnPrevPage_Click" IsVisible="False"/>
-									<TextBlock x:Name="PageIndicator" Text="" VerticalAlignment="Center" Foreground="#888" FontSize="11" IsVisible="False"/>
-									<Button x:Name="BtnNextPage" Content="▶" Padding="8,2" Background="Transparent" BorderThickness="0" Click="BtnNextPage_Click" IsVisible="False"/>
-								</StackPanel>
-							</Grid>
-						</Border>
-						<Border Grid.Row="1" x:Name="MessagePreviewContainer" IsVisible="False" Padding="10" Background="#1E1E1E">
-							<Viewbox Stretch="Uniform">
-								<ContentControl x:Name="MessagePreviewContent"/>
-							</Viewbox>
-						</Border>
-					</Grid>
+
+				<GridSplitter Grid.Row="1" Background="#1E1E1E" ResizeDirection="Rows" IsVisible="{Binding #BottomPanelContainer.IsVisible}"/>
+
+				<Grid Grid.Row="2" x:Name="BottomPanelContainer" IsVisible="False" Height="250" Background="#1E1E1E">
+
+					<Border x:Name="PreviewPanel" IsVisible="False" Background="#1E1E1E" BorderBrush="#333" BorderThickness="0,1,0,0">
+						<Grid RowDefinitions="Auto, *">
+							<Border Grid.Row="0" Padding="10,5" Background="#252526">
+								<Grid ColumnDefinitions="*, Auto">
+									<TextBlock Text="PREVIEW" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11"/>
+									<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5">
+										<Button x:Name="BtnPrevPage" Content="◀" Padding="8,2" Background="Transparent" BorderThickness="0" Click="BtnPrevPage_Click" IsVisible="False"/>
+										<TextBlock x:Name="PageIndicator" Text="" VerticalAlignment="Center" Foreground="#888" FontSize="11" IsVisible="False"/>
+										<Button x:Name="BtnNextPage" Content="▶" Padding="8,2" Background="Transparent" BorderThickness="0" Click="BtnNextPage_Click" IsVisible="False"/>
+										<Button Content="✕" Padding="5,0" Background="Transparent" BorderThickness="0" Click="BtnPreviewClose_Click" Foreground="#CCCCCC" FontSize="10" Margin="10,0,0,0"/>
+									</StackPanel>
+								</Grid>
+							</Border>
+							<Border Grid.Row="1" Padding="10" Background="#1E1E1E">
+								<Viewbox Stretch="Uniform">
+									<ContentControl x:Name="MessagePreviewContent"/>
+								</Viewbox>
+							</Border>
+						</Grid>
+					</Border>
+
+					<Border x:Name="TerminalPanel" IsVisible="False" Background="#1E1E1E" BorderBrush="#333" BorderThickness="0,1,0,0">
+						<Grid RowDefinitions="Auto, *, Auto">
+							<Border Grid.Row="0" Padding="10,5" Background="#252526">
+								<Grid ColumnDefinitions="*, Auto">
+									<TextBlock Text="TERMINAL" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11"/>
+									<Button Grid.Column="1" Content="✕" Padding="5,0" Background="Transparent" BorderThickness="0" Click="BtnTerminalClose_Click" Foreground="#CCCCCC" FontSize="10"/>
+								</Grid>
+							</Border>
+							<TextBox Grid.Row="1" x:Name="TerminalOutput" IsReadOnly="True" Background="#1E1E1E" Foreground="#CCCCCC" BorderThickness="0" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" AcceptsReturn="True"/>
+							<TextBox Grid.Row="2" x:Name="TerminalInput" Background="#252526" Foreground="#E0E0E0" BorderBrush="#333" BorderThickness="0,1,0,0" FontFamily="Consolas" FontSize="12" KeyDown="TerminalInput_KeyDown"/>
+						</Grid>
+					</Border>
+
 				</Grid>
-				<GridSplitter Grid.Row="3" Background="#1E1E1E" ResizeDirection="Rows" IsVisible="{Binding #TerminalPanel.IsVisible}"/>
-				<Border Grid.Row="4" x:Name="TerminalPanel" IsVisible="False" Background="#1E1E1E" BorderBrush="#333" BorderThickness="0,1,0,0" Height="250" VerticalAlignment="Bottom">
-					<Grid RowDefinitions="Auto, *, Auto">
-						<Border Grid.Row="0" Padding="10,5" Background="#252526">
-							<Grid ColumnDefinitions="*, Auto">
-								<TextBlock Text="TERMINAL" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11"/>
-								<Button Grid.Column="1" Content="✕" Padding="5,0" Background="Transparent" BorderThickness="0" Click="BtnTerminal_Click" Foreground="#CCCCCC" FontSize="10"/>
-							</Grid>
-						</Border>
-						<TextBox Grid.Row="1" x:Name="TerminalOutput" IsReadOnly="True" Background="#1E1E1E" Foreground="#CCCCCC" BorderThickness="0" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" AcceptsReturn="True"/>
-						<TextBox Grid.Row="2" x:Name="TerminalInput" Background="#252526" Foreground="#E0E0E0" BorderBrush="#333" BorderThickness="0,1,0,0" FontFamily="Consolas" FontSize="12" KeyDown="TerminalInput_KeyDown"/>
-					</Grid>
-				</Border>
 			</Grid>
 		</Grid>
 
-		<Border Grid.Row="2" Background="#007ACC" Padding="10,0">
+		<Border Grid.Row="1" Background="#007ACC" Padding="10,0">
 			<TextBlock x:Name="StatusText" Text="Ready" VerticalAlignment="Center" Foreground="White" FontSize="11"/>
 		</Border>
 	</Grid>
