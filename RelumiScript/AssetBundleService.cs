@@ -199,14 +199,21 @@ namespace RelumiScript
                 {
                     string fileName = Path.GetFileNameWithoutExtension(file);
 
-                    // Skip game data (already loaded) to focus on messages
+                    // Skip game data
                     if (fileName.Contains("monsname") || fileName.Contains("itemname")) continue;
 
                     string content = File.ReadAllText(file);
                     // Fast check: Must contain labelDataArray to be a message file
                     if (!content.Contains("labelDataArray")) continue;
 
-                    var node = new FileNode { Name = fileName, FileName = fileName, IsMessage = true };
+                    // FIX: Strip 'english_' prefix so references like 'dp_scenario1' match 'english_dp_scenario1'
+                    string logicalName = fileName;
+                    if (logicalName.StartsWith("english_", StringComparison.OrdinalIgnoreCase))
+                    {
+                        logicalName = logicalName.Substring(8);
+                    }
+
+                    var node = new FileNode { Name = logicalName, FileName = fileName, IsMessage = true };
 
                     try
                     {
@@ -274,8 +281,6 @@ namespace RelumiScript
                 }
                 else
                 {
-                    // Check only top level directories for 'scripts' to avoid deep recursion hang
-                    // This assumes the user selected the project root
                     try
                     {
                         foreach (var d in Directory.GetDirectories(rootPath))
@@ -356,7 +361,6 @@ namespace RelumiScript
         public void Pack(List<FileNode> nodes, string rootPath)
         {
             // Disabled
-            // Note for future: Parameters are likely in Assets\evscriptdata\eventasset
         }
     }
 }
