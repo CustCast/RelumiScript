@@ -34,7 +34,6 @@ namespace RelumiScript
         private string _currentScriptContent = "";
         private List<FileNode> _loadedMessages = new List<FileNode>();
         private string _workingDirectory = "";
-        private string _lastEvScriptPath = "";
 
         private List<string> _currentMessagePages = new List<string>();
         private int _currentPageIndex = 0;
@@ -49,6 +48,8 @@ namespace RelumiScript
 
         private string _currentView = "Explorer";
         private string _currentBottomView = "";
+
+        private GridLength _lastSidebarWidth = new GridLength(300);
 
         public MainWindow()
         {
@@ -71,9 +72,18 @@ namespace RelumiScript
         {
             if (!forceOpen && viewName == _currentView && SidePanelContainer.IsVisible)
             {
+                _lastSidebarWidth = SidebarGrid.ColumnDefinitions[1].Width;
+                SidebarGrid.ColumnDefinitions[1].Width = new GridLength(0);
+                SidebarGrid.ColumnDefinitions[2].Width = new GridLength(0);
                 SidePanelContainer.IsVisible = false;
                 SetButtonActive(null);
                 return;
+            }
+
+            if (!SidePanelContainer.IsVisible)
+            {
+                SidebarGrid.ColumnDefinitions[1].Width = _lastSidebarWidth;
+                SidebarGrid.ColumnDefinitions[2].Width = new GridLength(4);
             }
 
             SidePanelContainer.IsVisible = true;
@@ -110,13 +120,12 @@ namespace RelumiScript
             if (sender is Button btn && btn.Tag is string tag) SwitchBottomView(tag);
         }
 
-        public void BtnTerminal_Click(object? sender, RoutedEventArgs e) => SwitchBottomView("Terminal"); // Menu Access
-        public void BtnTerminalClose_Click(object? sender, RoutedEventArgs e) => SwitchBottomView("Terminal"); // Toggle closed
-        public void BtnPreviewClose_Click(object? sender, RoutedEventArgs e) => SwitchBottomView("Preview"); // Toggle closed
+        public void BtnTerminal_Click(object? sender, RoutedEventArgs e) => SwitchBottomView("Terminal");
+        public void BtnTerminalClose_Click(object? sender, RoutedEventArgs e) => SwitchBottomView("Terminal");
+        public void BtnPreviewClose_Click(object? sender, RoutedEventArgs e) => SwitchBottomView("Preview");
 
         private void SwitchBottomView(string viewName)
         {
-            // Toggle close if clicking same active view
             if (BottomPanelContainer.IsVisible && _currentBottomView == viewName)
             {
                 BottomPanelContainer.IsVisible = false;
@@ -131,7 +140,6 @@ namespace RelumiScript
             PreviewPanel.IsVisible = viewName == "Preview";
 
             SetBottomButtonActive(viewName);
-
             if (viewName == "Terminal") TerminalInput.Focus();
         }
 
@@ -159,17 +167,27 @@ namespace RelumiScript
         private async void RefreshAllTrackers()
         {
             StatusText.Text = "Scanner: Indexing...";
-            List<object> nodesToScan = new List<object>();
-            if (ScriptTree.ItemsSource is System.Collections.IEnumerable items) { foreach (var item in items) nodesToScan.Add(item); }
-            LoadWorkIdMap();
-            var result = await ScriptScanner.ScanAllAsync(nodesToScan, _service.FlagMap, _service.SysFlagMap, _workIdMap);
-            _allFlagUsages = result.Flags;
-            _allWorkUsages = result.Works;
-            _allCommandUsages = result.Commands;
-            _allEventUsages = result.Events;
-            FilterFlags(FlagSearchBox.Text ?? "");
-            FilterWorks(ScriptSearchBox.Text ?? "");
-            StatusText.Text = $"Scanner: Indexed {result.Flags.Count} flags, {result.Works.Count} works.";
+            try
+            {
+                List<object> nodesToScan = new List<object>();
+                if (ScriptTree.ItemsSource is System.Collections.IEnumerable items) { foreach (var item in items) nodesToScan.Add(item); }
+
+                LoadWorkIdMap();
+                var result = await ScriptScanner.ScanAllAsync(nodesToScan, _service.FlagMap, _service.SysFlagMap, _workIdMap);
+
+                _allFlagUsages = result.Flags;
+                _allWorkUsages = result.Works;
+                _allCommandUsages = result.Commands;
+                _allEventUsages = result.Events;
+
+                FilterFlags(FlagSearchBox.Text ?? "");
+                FilterWorks(ScriptSearchBox.Text ?? "");
+                StatusText.Text = $"Scanner: Indexed {result.Flags.Count} flags, {result.Works.Count} works.";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Scanner Error: {ex.Message}";
+            }
         }
 
         public void RefreshFlags_Click(object? sender, RoutedEventArgs e) => RefreshAllTrackers();
@@ -309,39 +327,49 @@ namespace RelumiScript
         public async void BtnLoad_Click(object? sender, RoutedEventArgs e)
         {
             var top = TopLevel.GetTopLevel(this);
-            var folders = await top!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Dump Folder" });
+            var folders = await top!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Project Root Folder" });
             if (folders.Count == 0) return;
+
+            var root = folders[0].Path.LocalPath;
+            _workingDirectory = root;
             StatusText.Text = "Scanning...";
-            var root = folders[0].Path.LocalPath; _workingDirectory = root;
-            string? evPath = FindFile(root, "romfs", "data", "StreamingAssets", "AssetAssistant", "Dpr", "ev_script");
-            string? msgPath = FindFile(root, "romfs", "data", "StreamingAssets", "AssetAssistant", "Message", "common_msbt");
-            string? engPath = FindFile(root, "romfs", "data", "StreamingAssets", "AssetAssistant", "Message", "english");
-            if (string.IsNullOrEmpty(evPath)) { StatusText.Text = "Error: 'ev_script' not found."; return; }
-            _lastEvScriptPath = evPath;
-            string? jsonDir = FindJsonFolder();
-            if (_service.InitSummary.Contains("Cmds: 0") && !string.IsNullOrEmpty(jsonDir)) _service.Initialize(jsonDir);
-            if (!string.IsNullOrEmpty(msgPath)) { await Task.Run(() => _service.LoadGameData(msgPath)); await GenerateAndInjectSyntax(); }
-            var scripts = await Task.Run(() => _service.LoadAndDecompile(evPath));
-            if (!string.IsNullOrEmpty(engPath)) _loadedMessages = await Task.Run(() => _service.LoadMessageFiles(engPath));
-            ScriptTree.ItemsSource = scripts.OrderBy(x => x.Name).ToList();
-            StatusText.Text = $"Loaded {scripts.Count} scripts.";
-            RefreshAllTrackers();
-            SwitchSideView("Explorer");
+
+            try
+            {
+                string? jsonDir = FindJsonFolder();
+                if (_service.InitSummary.Contains("Cmds: 0") && !string.IsNullOrEmpty(jsonDir))
+                    _service.Initialize(jsonDir);
+
+                // 1. Load Game Data (Pokemon/Item Names from YAML assets)
+                StatusText.Text = "Loading Game Data...";
+                await Task.Run(() => _service.LoadGameData(root));
+
+                // 2. Load Scripts (.ev text files)
+                StatusText.Text = "Loading Scripts...";
+                var scripts = await Task.Run(() => _service.LoadAndDecompile(root));
+
+                // 3. Load Messages (.asset YAML files)
+                StatusText.Text = "Loading Messages...";
+                _loadedMessages = await Task.Run(() => _service.LoadMessageFiles(root));
+
+                await GenerateAndInjectSyntax();
+
+                ScriptTree.ItemsSource = scripts.OrderBy(x => x.Name).ToList();
+                StatusText.Text = $"Loaded {scripts.Count} scripts.";
+
+                RefreshAllTrackers();
+                SwitchSideView("Explorer");
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Load Error: {ex.Message}";
+                Debug.WriteLine(ex);
+            }
         }
 
-        public async void BtnSave_Click(object? sender, RoutedEventArgs e)
+        public void BtnSave_Click(object? sender, RoutedEventArgs e)
         {
-            if (ScriptTree.SelectedItem is ScriptNode sNode) sNode.Content = _currentScriptContent;
-            if (string.IsNullOrEmpty(_lastEvScriptPath)) { StatusText.Text = "Error: No base file loaded to save into."; return; }
-            var top = TopLevel.GetTopLevel(this);
-            var files = await top!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = "Save ev_script Bundle", DefaultExtension = "", SuggestedFileName = "ev_script" });
-            if (files == null) return;
-            string outputPath = files.Path.LocalPath;
-            StatusText.Text = "Packing...";
-            var nodes = ScriptTree.ItemsSource as IEnumerable<FileNode>;
-            if (nodes == null) return;
-            var nodeList = nodes.ToList();
-            try { await Task.Run(() => { _service.Pack(nodeList, _lastEvScriptPath, outputPath); }); StatusText.Text = "Saved successfully."; } catch (Exception ex) { StatusText.Text = "Save Error: " + ex.Message; Debug.WriteLine(ex); }
+            StatusText.Text = "Saving is currently disabled.";
         }
 
         private string? FindFile(string root, params string[] segments)
@@ -363,8 +391,6 @@ namespace RelumiScript
             {
                 _currentMessagePages = _messageRenderer.SplitIntoPages(target.Content);
                 _currentPageIndex = 0;
-                // REMOVED: MessagePreviewContainer.IsVisible = true;
-                // Now it just updates content in background. User must toggle the panel.
                 RenderCurrentPage();
             }
         }

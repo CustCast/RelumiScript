@@ -1,21 +1,16 @@
-﻿using AssetsTools.NET;
-using AssetsTools.NET.Extra;
-using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using RelumiScript;
+using Newtonsoft.Json;
+using YamlDotNet.RepresentationModel;
 
 namespace RelumiScript
 {
     public class AssetBundleService
     {
-        private AssetsManager _manager;
-
         private Dictionary<int, string> _commandMap = new Dictionary<int, string>();
         private Dictionary<int, string> _flagMap = new Dictionary<int, string>();
         private Dictionary<int, string> _sysFlagMap = new Dictionary<int, string>();
@@ -35,7 +30,7 @@ namespace RelumiScript
         public string InitLog { get; private set; } = "Not Initialized";
         public string InitSummary => $"Cmds: {_commandMap.Count}, Files: {_fileNameMap.Count}";
 
-        public AssetBundleService() { _manager = new AssetsManager(); }
+        public AssetBundleService() { }
 
         public void Initialize(string jsonDir)
         {
@@ -88,310 +83,280 @@ namespace RelumiScript
             }
         }
 
-        public void LoadGameData(string msgBundlePath)
+        // --- NEW LOADING LOGIC ---
+
+        private string CleanUnityYaml(string content)
+        {
+            var sb = new StringBuilder();
+            using (var reader = new StringReader(content))
+            {
+                string? line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    // Strip Unity headers/tags to make standard YAML
+                    if (line.StartsWith("%")) continue;
+                    if (line.Trim().StartsWith("--- !u!"))
+                    {
+                        sb.AppendLine("---");
+                        continue;
+                    }
+                    sb.AppendLine(line);
+                }
+            }
+            return sb.ToString();
+        }
+
+        public void LoadGameData(string rootPath)
         {
             PokemonMap.Clear(); ItemMap.Clear();
-            if (!File.Exists(msgBundlePath)) return;
+            if (!Directory.Exists(rootPath)) return;
+
+            // Target the specific English folder for game data (Pokemon/Item names)
+            string enPath = Path.Combine(rootPath, "Assets", "format_msbt", "en", "english");
+
+            // Fallback to searching Assets if that specific folder structure doesn't exist
+            string searchPath = Directory.Exists(enPath) ? enPath : Path.Combine(rootPath, "Assets");
+            if (!Directory.Exists(searchPath)) searchPath = rootPath;
+
             try
             {
-                if (_manager.Files.Any(f => f.path == msgBundlePath)) { _manager.UnloadAssetsFile(msgBundlePath); _manager.UnloadBundleFile(msgBundlePath); }
-                var bundle = _manager.LoadBundleFile(msgBundlePath);
-                var afile = _manager.LoadAssetsFileFromBundle(bundle, 0);
+                var files = Directory.GetFiles(searchPath, "*.asset", SearchOption.AllDirectories);
 
-                foreach (var info in afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour))
+                foreach (var file in files)
                 {
-                    var baseField = _manager.GetBaseField(afile, info);
-                    string assetName = baseField["m_Name"].AsString;
-                    if (assetName == "english_ss_monsname") ParseStringList(baseField, PokemonMap);
-                    else if (assetName.Contains("ss_itemname")) ParseStringList(baseField, ItemMap);
-                }
-            }
-            catch (Exception ex) { InitLog = $"GameData Load Error: {ex.Message}"; System.Diagnostics.Debug.WriteLine($"[AssetBundleService] GameData Load Error: {ex.Message}"); }
-        }
-
-        private void ParseStringList(AssetTypeValueField baseField, Dictionary<int, string> targetMap)
-        {
-            var entries = baseField["labelDataArray"];
-            if (entries.IsDummy) entries = baseField["entries"];
-            if (!entries.IsDummy && entries.Children.Count == 1 && entries.Children[0].FieldName == "Array") entries = entries.Children[0];
-
-            if (!entries.IsDummy)
-            {
-                foreach (var item in entries.Children)
-                {
-                    var idx = item["arrayIndex"];
-                    var words = item["wordDataArray"];
-                    if (!words.IsDummy && words.Children.Count > 0 && words.Children[0].FieldName == "Array") words = words.Children[0];
-                    if (!idx.IsDummy && !words.IsDummy && words.Children.Count > 0)
+                    string name = Path.GetFileNameWithoutExtension(file);
+                    if (name.Contains("monsname") || name.Contains("itemname"))
                     {
-                        int idxValue = idx.AsInt;
-                        if (!targetMap.ContainsKey(idxValue)) targetMap[idxValue] = words.Children[0]["str"].AsString;
+                        bool isPokemon = name.Contains("monsname");
+                        string content = File.ReadAllText(file);
+                        ParseMessageAssetForGameData(content, isPokemon ? PokemonMap : ItemMap);
                     }
                 }
             }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"GameData Load Error: {ex.Message}"); }
         }
 
-        public List<FileNode> LoadMessageFiles(string bundlePath)
+        private void ParseMessageAssetForGameData(string content, Dictionary<int, string> targetMap)
         {
-            var output = new List<FileNode>();
             try
             {
-                if (_manager.Files.Any(f => f.path == bundlePath)) { _manager.UnloadAssetsFile(bundlePath); _manager.UnloadBundleFile(bundlePath); }
-                var bundle = _manager.LoadBundleFile(bundlePath);
-                var afile = _manager.LoadAssetsFileFromBundle(bundle, 0);
-                foreach (var info in afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour))
+                string cleanYaml = CleanUnityYaml(content);
+                var yaml = new YamlStream();
+                using (var reader = new StringReader(cleanYaml)) yaml.Load(reader);
+
+                foreach (var doc in yaml.Documents)
                 {
-                    var baseField = _manager.GetBaseField(afile, info);
-                    string name = baseField["m_Name"].AsString;
-                    if (!name.StartsWith("english_") || name == "english_ss_monsname") continue;
-                    var node = new FileNode { Name = name.Replace("english_", ""), FileName = name, IsMessage = true };
-                    var entries = baseField["labelDataArray"];
-                    if (entries.IsDummy) entries = baseField["entries"];
-                    if (!entries.IsDummy && entries.Children.Count == 1 && entries.Children[0].FieldName == "Array") entries = entries.Children[0];
-                    if (!entries.IsDummy)
+                    if (doc.RootNode is YamlMappingNode rootMap)
                     {
-                        foreach (var item in entries.Children)
+                        if (rootMap.Children.TryGetValue("MonoBehaviour", out var monoNode) && monoNode is YamlMappingNode mono)
                         {
-                            var words = item["wordDataArray"];
-                            if (!words.IsDummy && words.Children.Count > 0 && words.Children[0].FieldName == "Array") words = words.Children[0];
-                            var lines = new List<string>();
-                            if (!words.IsDummy && words.Children.Count > 0)
+                            if (mono.Children.TryGetValue("labelDataArray", out var arrayNode) && arrayNode is YamlSequenceNode entries)
                             {
-                                foreach (var word in words.Children)
+                                foreach (YamlMappingNode entry in entries)
                                 {
-                                    string str = word["str"].AsString;
-                                    if (!string.IsNullOrEmpty(str)) lines.Add(str);
+                                    if (entry.Children.TryGetValue("arrayIndex", out var indexNode) &&
+                                        entry.Children.TryGetValue("wordDataArray", out var wordsNode) && wordsNode is YamlSequenceNode words)
+                                    {
+                                        int id = int.Parse(indexNode.ToString());
+                                        if (words.Children.Count > 0 && words.Children[0] is YamlMappingNode firstWord)
+                                        {
+                                            if (firstWord.Children.TryGetValue("str", out var strNode))
+                                            {
+                                                string val = strNode.ToString();
+                                                if (!targetMap.ContainsKey(id)) targetMap[id] = val;
+                                            }
+                                        }
+                                    }
                                 }
                             }
-                            node.Scripts.Add(new ScriptNode { Label = item["labelName"].AsString, Content = string.Join("{n}", lines) });
                         }
                     }
-                    if (node.Scripts.Count > 0) { node.Scripts.Sort((a, b) => string.Compare(a.Label, b.Label, StringComparison.Ordinal)); output.Add(node); }
                 }
             }
-            catch (Exception ex) { InitLog = $"Message Load Error: {ex.Message}"; System.Diagnostics.Debug.WriteLine($"[AssetBundleService] Message Load Error: {ex.Message}"); }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to parse game data: {ex.Message}");
+            }
+        }
+
+        public List<FileNode> LoadMessageFiles(string rootPath)
+        {
+            var output = new List<FileNode>();
+            if (!Directory.Exists(rootPath)) return output;
+
+            try
+            {
+                // Target the specific English folder for messages
+                string enPath = Path.Combine(rootPath, "Assets", "format_msbt", "en", "english");
+
+                // Fallback to searching Assets if that specific folder structure doesn't exist
+                string searchPath = Directory.Exists(enPath) ? enPath : Path.Combine(rootPath, "Assets");
+                if (!Directory.Exists(searchPath)) searchPath = rootPath;
+
+                var files = Directory.GetFiles(searchPath, "*.asset", SearchOption.AllDirectories);
+
+                foreach (var file in files)
+                {
+                    string fileName = Path.GetFileNameWithoutExtension(file);
+
+                    // Skip game data (already loaded) to focus on messages
+                    if (fileName.Contains("monsname") || fileName.Contains("itemname")) continue;
+
+                    string content = File.ReadAllText(file);
+                    // Fast check: Must contain labelDataArray to be a message file
+                    if (!content.Contains("labelDataArray")) continue;
+
+                    var node = new FileNode { Name = fileName, FileName = fileName, IsMessage = true };
+
+                    try
+                    {
+                        string cleanYaml = CleanUnityYaml(content);
+                        var yaml = new YamlStream();
+                        using (var reader = new StringReader(cleanYaml)) yaml.Load(reader);
+
+                        foreach (var doc in yaml.Documents)
+                        {
+                            if (doc.RootNode is YamlMappingNode rootMap &&
+                                rootMap.Children.TryGetValue("MonoBehaviour", out var monoNode) &&
+                                monoNode is YamlMappingNode mono)
+                            {
+                                if (mono.Children.TryGetValue("labelDataArray", out var arrayNode) && arrayNode is YamlSequenceNode entries)
+                                {
+                                    foreach (YamlMappingNode entry in entries)
+                                    {
+                                        string label = "";
+                                        if (entry.Children.TryGetValue("labelName", out var labelNode))
+                                            label = labelNode.ToString();
+
+                                        if (entry.Children.TryGetValue("wordDataArray", out var wordsNode) && wordsNode is YamlSequenceNode words)
+                                        {
+                                            var lines = new List<string>();
+                                            foreach (YamlMappingNode word in words)
+                                            {
+                                                if (word.Children.TryGetValue("str", out var s))
+                                                {
+                                                    lines.Add(s.ToString());
+                                                }
+                                            }
+                                            node.Scripts.Add(new ScriptNode { Label = label, Content = string.Join("{n}", lines) });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (node.Scripts.Count > 0)
+                        {
+                            node.Scripts.Sort((a, b) => string.Compare(a.Label, b.Label, StringComparison.Ordinal));
+                            output.Add(node);
+                        }
+                    }
+                    catch { /* Ignore invalid assets */ }
+                }
+            }
+            catch (Exception ex) { InitLog = $"Message Load Error: {ex.Message}"; }
             return output.OrderBy(f => f.Name).ToList();
         }
 
-        public List<FileNode> LoadAndDecompile(string bundlePath)
+        public List<FileNode> LoadAndDecompile(string rootPath)
         {
             var output = new List<FileNode>();
-            try
+
+            // Prefer strict 'scripts' path
+            string scriptsDir = Path.Combine(rootPath, "scripts");
+
+            if (!Directory.Exists(scriptsDir))
             {
-                if (_manager.Files.Any(f => f.path == bundlePath)) { _manager.UnloadAssetsFile(bundlePath); _manager.UnloadBundleFile(bundlePath); }
-                var bundle = _manager.LoadBundleFile(bundlePath);
-                var afile = _manager.LoadAssetsFileFromBundle(bundle, 0);
-                foreach (var info in afile.file.GetAssetsOfType(AssetClassID.MonoBehaviour))
+                // Fallback: Check if we are ALREADY in the scripts folder
+                if (Path.GetFileName(rootPath).Equals("scripts", StringComparison.OrdinalIgnoreCase))
                 {
-                    var baseField = _manager.GetBaseField(afile, info);
-                    string name = baseField["m_Name"].AsString;
-                    if (string.IsNullOrEmpty(name) || name.StartsWith("EvCam")) continue;
-                    string display = _fileNameMap.ContainsKey(name) ? $"{_fileNameMap[name]} ({name})" : name;
-                    var node = new FileNode { Name = display, FileName = name, IsMessage = false };
-                    var strList = baseField["StrList"];
-                    var strings = new List<string>();
-                    if (!strList.IsDummy && strList.Children.Count > 0)
+                    scriptsDir = rootPath;
+                }
+                else
+                {
+                    // Check only top level directories for 'scripts' to avoid deep recursion hang
+                    // This assumes the user selected the project root
+                    try
                     {
-                        var arr = strList.Children.Count == 1 && strList.Children[0].FieldName == "Array" ? strList.Children[0] : strList;
-                        foreach (var s in arr.Children) strings.Add(s.AsString);
-                    }
-                    var scripts = baseField["Scripts"];
-                    if (scripts.IsDummy) continue;
-                    if (scripts.Children.Count == 1 && scripts.Children[0].FieldName == "Array") scripts = scripts.Children[0];
-                    for (int i = 0; i < scripts.Children.Count; i++)
-                    {
-                        var sb = new StringBuilder();
-                        var script = scripts[i];
-                        string label = !script["Label"].IsDummy ? script["Label"].AsString : $"{name}_seq_{i}";
-                        sb.AppendLine($"{label}:");
-                        var cmds = script["Commands"];
-                        if (!cmds.IsDummy && cmds.Children.Count == 1 && cmds.Children[0].FieldName == "Array") cmds = cmds.Children[0];
-                        if (!cmds.IsDummy)
+                        foreach (var d in Directory.GetDirectories(rootPath))
                         {
-                            foreach (var cmd in cmds.Children)
+                            if (Path.GetFileName(d).Equals("scripts", StringComparison.OrdinalIgnoreCase))
                             {
-                                var args = cmd["Arg"];
-                                if (!args.IsDummy && args.Children.Count == 1 && args.Children[0].FieldName == "Array") args = args.Children[0];
-                                if (!args.IsDummy && args.Children.Count > 0)
-                                {
-                                    int id = args[0]["data"].AsInt;
-                                    string cmdName = _commandMap.ContainsKey(id) ? _commandMap[id] : $"cmd_{id}";
-                                    var argList = new List<string>();
-                                    for (int k = 1; k < args.Children.Count; k++)
-                                        argList.Add(FormatArg(args[k]["argType"].AsInt, args[k]["data"].AsInt, strings));
-                                    sb.Append('\t').Append(cmdName).Append(' ').AppendJoin(' ', argList).AppendLine();
-                                }
+                                scriptsDir = d;
+                                break;
                             }
                         }
-                        node.Scripts.Add(new ScriptNode { Label = label, Content = sb.ToString() });
                     }
-                    if (node.Scripts.Count > 0) output.Add(node);
+                    catch { }
                 }
             }
-            catch (Exception ex) { output.Add(new FileNode { Name = "ERROR", Scripts = { new ScriptNode { Label = "Log", Content = ex.ToString() } } }); }
-            return output;
-        }
 
-        private string FormatArg(int type, int val, List<string> stringTable)
-        {
-            switch (type)
+            if (!Directory.Exists(scriptsDir)) return output;
+
+            try
             {
-                case 1: return BitConverter.ToSingle(BitConverter.GetBytes(val), 0).ToString(CultureInfo.InvariantCulture);
-                case 2: return _workMap.ContainsKey(val) ? $"@{_workMap[val]}" : $"@var_{val}";
-                case 3: return _flagMap.ContainsKey(val) ? $"#{_flagMap[val]}" : $"#{val}";
-                case 4: return _sysFlagMap.ContainsKey(val) ? $"${_sysFlagMap[val]}" : $"${val}";
-                case 5: if (val >= 0 && val < stringTable.Count) { string s = stringTable[val].Replace("\"", "\\\""); return $"\"{s}\""; } return $"\"<MISSING_STR_{val}>\"";
-                default: return val.ToString();
-            }
-        }
-
-        // --- COMPILER / REPACKER (FIXED) ---
-
-        public void Pack(List<FileNode> nodes, string originalBundlePath, string outputPath)
-        {
-            if (_manager.Files.Any(f => f.path == originalBundlePath))
-            {
-                _manager.UnloadAssetsFile(originalBundlePath);
-                _manager.UnloadBundleFile(originalBundlePath);
-            }
-
-            var bundle = _manager.LoadBundleFile(originalBundlePath);
-            var afileInst = _manager.LoadAssetsFileFromBundle(bundle, 0);
-            var afile = afileInst.file;
-
-            foreach (var info in afile.GetAssetsOfType(AssetClassID.MonoBehaviour))
-            {
-                // FIX: Get reference to the exact asset info in the file's table to ensure SetNewData applies
-                var assetInfo = afile.GetAssetInfo(info.PathId);
-                var baseField = _manager.GetBaseField(afileInst, assetInfo);
-                string name = baseField["m_Name"].AsString;
-
-                if (string.IsNullOrEmpty(name) || name.StartsWith("EvCam")) continue;
-
-                var node = nodes.FirstOrDefault(n => n.FileName == name);
-                if (node == null) continue;
-
-                var newStringTable = new List<string>();
-                var scriptsArr = baseField["Scripts"]["Array"];
-                scriptsArr.Children.Clear();
-
-                foreach (var scriptNode in node.Scripts)
+                var files = Directory.GetFiles(scriptsDir, "*.ev", SearchOption.TopDirectoryOnly);
+                foreach (var file in files)
                 {
-                    var scriptData = ValueBuilder.DefaultValueFieldFromArrayTemplate(scriptsArr);
-                    scriptData["Label"].AsString = scriptNode.Label.TrimEnd(':');
+                    string name = Path.GetFileNameWithoutExtension(file);
+                    string display = _fileNameMap.ContainsKey(name) ? $"{_fileNameMap[name]} ({name})" : name;
+                    var node = new FileNode { Name = display, FileName = name, IsMessage = false };
 
-                    var cmdsArr = scriptData["Commands"]["Array"];
-                    var lines = scriptNode.Content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    string content = File.ReadAllText(file);
+                    var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+                    ScriptNode? currentScript = null;
+                    StringBuilder currentContent = new StringBuilder();
+
+                    // Regex to handle Labels with or without source prefix
+                    var labelRegex = new Regex(@"^(?:\\s*)?([a-zA-Z0-9_]+):$");
 
                     foreach (var line in lines)
                     {
                         var trimmed = line.Trim();
-                        if (string.IsNullOrWhiteSpace(trimmed) || trimmed.EndsWith(":") || trimmed.StartsWith(";") || trimmed.StartsWith("//")) continue;
+                        var match = labelRegex.Match(trimmed);
 
-                        var parts = ParseCommand(trimmed);
-                        if (parts.Count == 0) continue;
-
-                        string cmdName = parts[0];
-                        int cmdId = GetCommandId(cmdName);
-
-                        var cmdData = ValueBuilder.DefaultValueFieldFromArrayTemplate(cmdsArr);
-                        var argsArr = cmdData["Arg"]["Array"];
-
-                        var arg0 = ValueBuilder.DefaultValueFieldFromArrayTemplate(argsArr);
-                        arg0["argType"].AsInt = 0;
-                        arg0["data"].AsInt = cmdId;
-                        argsArr.Children.Add(arg0);
-
-                        for (int k = 1; k < parts.Count; k++)
+                        if (match.Success)
                         {
-                            var (type, val) = ParseArgument(parts[k], newStringTable);
-                            var argN = ValueBuilder.DefaultValueFieldFromArrayTemplate(argsArr);
-                            argN["argType"].AsInt = type;
-                            argN["data"].AsInt = val;
-                            argsArr.Children.Add(argN);
+                            if (currentScript != null)
+                            {
+                                currentScript.Content = currentContent.ToString();
+                                node.Scripts.Add(currentScript);
+                            }
+                            currentScript = new ScriptNode { Label = match.Groups[1].Value };
+                            currentContent.Clear();
+                            currentContent.AppendLine(line);
                         }
-                        cmdsArr.Children.Add(cmdData);
+                        else
+                        {
+                            if (currentScript == null && !string.IsNullOrWhiteSpace(trimmed))
+                            {
+                                currentScript = new ScriptNode { Label = "Header" };
+                            }
+                            currentContent.AppendLine(line);
+                        }
                     }
-                    scriptsArr.Children.Add(scriptData);
-                }
 
-                var strArr = baseField["StrList"]["Array"];
-                strArr.Children.Clear();
-                foreach (var s in newStringTable)
-                {
-                    var val = ValueBuilder.DefaultValueFieldFromArrayTemplate(strArr);
-                    val.AsString = s;
-                    strArr.Children.Add(val);
-                }
+                    if (currentScript != null)
+                    {
+                        currentScript.Content = currentContent.ToString();
+                        node.Scripts.Add(currentScript);
+                    }
 
-                // Apply new data to the specific asset info
-                assetInfo.SetNewData(baseField);
+                    if (node.Scripts.Count > 0) output.Add(node);
+                }
             }
-
-            // Write modified assets file to memory
-            byte[] assetsFileBytes;
-            using (var stream = new MemoryStream())
-            using (var writer = new AssetsFileWriter(stream))
+            catch (Exception ex)
             {
-                afile.Write(writer);
-                assetsFileBytes = stream.ToArray();
+                output.Add(new FileNode { Name = "ERROR", Scripts = { new ScriptNode { Label = "Log", Content = ex.ToString() } } });
             }
-
-            // Update bundle content
-            var bundleDir = bundle.file.BlockAndDirInfo.DirectoryInfos.FirstOrDefault(d => d.Name == afileInst.name);
-            if (bundleDir != null) bundleDir.SetNewData(assetsFileBytes);
-
-            // COMPRESS AND SAVE
-            using (var uncompressedStream = new MemoryStream())
-            using (var uncompressedWriter = new AssetsFileWriter(uncompressedStream))
-            {
-                bundle.file.Write(uncompressedWriter); // Write uncompressed to stream
-
-                var newBundle = new AssetBundleFile();
-                uncompressedStream.Position = 0;
-                newBundle.Read(new AssetsFileReader(uncompressedStream));
-
-                using (var fileStream = File.OpenWrite(outputPath))
-                using (var fileWriter = new AssetsFileWriter(fileStream))
-                {
-                    // FIX: Pack takes (writer, compression) in v3.0.0
-                    newBundle.Pack(fileWriter, AssetBundleCompressionType.LZ4);
-                }
-            }
+            return output;
         }
 
-        private int GetCommandId(string name)
+        public void Pack(List<FileNode> nodes, string rootPath)
         {
-            if (_revCommandMap.TryGetValue(name, out int id)) return id;
-            if (name.StartsWith("cmd_") && int.TryParse(name.Substring(4), out int pid)) return pid;
-            return 0;
-        }
-
-        private (int type, int val) ParseArgument(string raw, List<string> stringTable)
-        {
-            raw = raw.Trim();
-            if (raw.StartsWith("\"")) { string text = raw.Trim('"').Replace("\\\"", "\""); int idx = stringTable.IndexOf(text); if (idx == -1) { idx = stringTable.Count; stringTable.Add(text); } return (5, idx); }
-            if (raw.StartsWith("@")) { if (_revWorkMap.TryGetValue(raw, out int id)) return (2, id); if (_revWorkMap.TryGetValue(raw.Substring(1), out id)) return (2, id); if (int.TryParse(raw.Substring(1).Replace("var_", ""), out int vid)) return (2, vid); return (2, 0); }
-            if (raw.StartsWith("#")) { if (_revFlagMap.TryGetValue(raw, out int id)) return (3, id); if (_revFlagMap.TryGetValue(raw.Substring(1), out id)) return (3, id); if (int.TryParse(raw.Substring(1), out int fid)) return (3, fid); return (3, 0); }
-            if (raw.StartsWith("$")) { if (_revSysFlagMap.TryGetValue(raw, out int id)) return (4, id); if (_revSysFlagMap.TryGetValue(raw.Substring(1), out id)) return (4, id); if (int.TryParse(raw.Substring(1), out int sid)) return (4, sid); return (4, 0); }
-            if (raw.Contains(".") && float.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out float fVal)) return (1, BitConverter.ToInt32(BitConverter.GetBytes(fVal), 0));
-            if (int.TryParse(raw, out int iVal)) return (0, iVal);
-            return (0, 0);
-        }
-
-        private List<string> ParseCommand(string line)
-        {
-            var result = new List<string>();
-            var sb = new StringBuilder();
-            bool inQuote = false;
-            int i = 0;
-            while (i < line.Length && !char.IsWhiteSpace(line[i])) sb.Append(line[i++]);
-            result.Add(sb.ToString());
-            sb.Clear();
-            while (i < line.Length && char.IsWhiteSpace(line[i])) i++;
-            for (; i < line.Length; i++) { char c = line[i]; if (c == '"') { inQuote = !inQuote; sb.Append(c); } else if (c == ',' && !inQuote) { if (sb.Length > 0) result.Add(sb.ToString().Trim()); sb.Clear(); } else sb.Append(c); }
-            if (sb.Length > 0) result.Add(sb.ToString().Trim());
-            return result;
+            // Disabled
+            // Note for future: Parameters are likely in Assets\evscriptdata\eventasset
         }
     }
 }
