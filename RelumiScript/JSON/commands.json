@@ -177,16 +177,16 @@
     "Animation": false,
     "Args": [
       {
-        "TentativeName": "Var1",
-        "Description": "Variable to compare.",
+        "TentativeName": "Work1",
+        "Description": "The work to compare",
         "Type": [
           "Work"
         ],
         "Optional": false
       },
       {
-        "TentativeName": "Var2",
-        "Description": "Variable to compare to.",
+        "TentativeName": "Work2",
+        "Description": "The work to compare to.",
         "Type": [
           "Work"
         ],
@@ -247,13 +247,13 @@
   {
     "Id": 24,
     "Name": "_JUMP",
-    "Description": "Jumps to a script.",
+    "Description": "Jumps to a Script/Label.",
     "Dummy": false,
     "Animation": false,
     "Args": [
       {
         "TentativeName": "Script",
-        "Description": "Script to jump to.",
+        "Description": "The Script/Label to jump to.",
         "Type": [
           "Label"
         ],
@@ -288,13 +288,13 @@
   {
     "Id": 28,
     "Name": "_CALL",
-    "Description": "Calls a script.",
+    "Description": "Calls a Script/Label.",
     "Dummy": false,
     "Animation": false,
     "Args": [
       {
         "TentativeName": "Script",
-        "Description": "Script to call.",
+        "Description": "Script/Label to call.",
         "Type": [
           "Label"
         ],
@@ -305,7 +305,7 @@
   {
     "Id": 29,
     "Name": "_RET",
-    "Description": "Returns after a call.",
+    "Description": "Returns after a script call like _CALL.",
     "Dummy": false,
     "Animation": false,
     "Args": []
@@ -319,7 +319,7 @@
     "Args": [
       {
         "TentativeName": "Condition",
-        "Description": "Condition used for the comparison.",
+        "Description": "The comparison operator used for the comparison.",
         "Type": [
           "Label"
         ],
@@ -327,7 +327,7 @@
       },
       {
         "TentativeName": "Script",
-        "Description": "Script to jump to.",
+        "Description": "Script/Label to jump to.",
         "Type": [
           "Label"
         ],
@@ -361,8 +361,8 @@
         "Optional": false
       },
       {
-        "TentativeName": "Condition",
-        "Description": "Condition used for the comparison.",
+        "TentativeName": "Comparison",
+        "Description": "The comparison operator to use.",
         "Type": [
           "Label"
         ],
@@ -380,7 +380,7 @@
       },
       {
         "TentativeName": "Script",
-        "Description": "Script to jump to.",
+        "Description": "Script/Label to jump to.",
         "Type": [
           "Label"
         ],
@@ -407,7 +407,7 @@
       },
       {
         "TentativeName": "Condition",
-        "Description": "Condition used for the comparison.",
+        "Description": "The comparison operator to use.",
         "Type": [
           "Label"
         ],
@@ -425,7 +425,7 @@
       },
       {
         "TentativeName": "Script",
-        "Description": "Script to call.",
+        "Description": "Script/Label to call.",
         "Type": [
           "Label"
         ],
@@ -491,8 +491,8 @@
     "Animation": false,
     "Args": [
       {
-        "TentativeName": "Variable",
-        "Description": "Variable to use.",
+        "TentativeName": "Work",
+        "Description": "Work to use.",
         "Type": [
           "Work"
         ],
@@ -518,7 +518,7 @@
       },
       {
         "TentativeName": "Script",
-        "Description": "Script to jump to.",
+        "Description": "Script/Label to jump to.",
         "Type": [
           "Label"
         ],
@@ -529,7 +529,7 @@
   {
     "Id": 38,
     "Name": "_CASE_CANCEL",
-    "Description": "Compares the value of the variable given to the last _SWITCH command ran to the value of \"Cancel\", then jumps to a script if they are equal.",
+    "Description": "BROKEN COMMAND. Compares the value of the variable given to the last _SWITCH command ran to the value of \"Cancel\", then jumps to a script if they are equal.",
     "Dummy": false,
     "Animation": false,
     "Args": [
@@ -621,7 +621,17 @@
     "Description": "Unused.",
     "Dummy": false,
     "Animation": false,
-    "Args": []
+    "Args": [
+      {
+        "TentativeName": "Flag",
+        "Description": "Flag to check.",
+        "Type": [
+          "Flag",
+          "SysFlag"
+        ],
+        "Optional": false
+      }
+    ]
   },
   {
     "Id": 45,
@@ -730,10 +740,28 @@
   {
     "Id": 49,
     "Name": "_FLAG_CHECK_WK",
-    "Description": "Unused.",
+    "Description": "Checks if a flag is on or off and sets that value to a work. If a flag is on, it will set the work to 0, and will set the work to 1 if the flag is off",
     "Dummy": false,
     "Animation": false,
-    "Args": []
+    "Args": [
+      {
+        "TentativeName": "Flag",
+        "Description": "Flag to check.",
+        "Type": [
+          "Flag",
+          "SysFlag"
+        ],
+        "Optional": false
+      },
+      {
+        "TentativeName": "Result",
+        "Description": "The work to put the result in.",
+        "Type": [
+          "Work"
+        ],
+        "Optional": false
+      }
+    ]
   },
   {
     "Id": 50,
@@ -760,8 +788,8 @@
     "Animation": false,
     "Args": [
       {
-        "TentativeName": "Flag",
-        "Description": "Value of trainer flag to set.",
+        "TentativeName": "Trainer",
+        "Description": "The trainer id, or the name of the value in the TrainerID enum.",
         "Type": [
           "Work",
           "Number",
@@ -798,8 +826,8 @@
     "Animation": false,
     "Args": [
       {
-        "TentativeName": "Flag",
-        "Description": "Value of trainer flag to check.",
+        "TentativeName": "Trainer",
+        "Description": "The trainer id, or the name of the value in the TrainerID enum",
         "Type": [
           "Work",
           "Number",
@@ -1318,15 +1346,23 @@
   {
     "Id": 84,
     "Name": "_EASY_OBJ_MSG",
-    "Description": "Combines the commands _TALK_OBJ_START, _TALKMSG, _TALK_CLOSE, and _TALK_OBJ_END to show a textbox.",
+    "Description": "Macro that calls the commands _TALK_OBJ_START, _TALKMSG, _LAST_KEYWAIT, _TALK_CLOSE, and _TALK_OBJ_END to show a textbox.",
     "Dummy": false,
     "Animation": false,
     "Args": [
       {
         "TentativeName": "Message",
-        "Description": "Message to show.",
+        "Description": "The message to show in the textbox.",
         "Type": [
           "Label"
+        ],
+        "Optional": false
+      },
+      {
+        "TentativeName": "TextSound",
+        "Description": "Triggers the text box end sound if the value is 1. Does nothing otherwise",
+        "Type": [
+          "Number"
         ],
         "Optional": false
       }
@@ -7760,7 +7796,7 @@
   {
     "Id": 505,
     "Name": "_SXY_MV_CHANGE",
-    "Description": "",
+    "Description": "Changes the move code of the given entity to the one given.",
     "Dummy": false,
     "Animation": false,
     "Args": [
@@ -7769,8 +7805,8 @@
           "Label",
           "Work"
         ],
-        "Description": "[TODO] Update description",
-        "TentativeName": "arg0",
+        "Description": "The entity to change the move code of",
+        "TentativeName": "Entity",
         "Optional": false
       },
       {
@@ -7778,8 +7814,8 @@
           "Label",
           "Number"
         ],
-        "Description": "[TODO] Update description",
-        "TentativeName": "arg1",
+        "Description": "The move code to use for the entity. If the given move code is a string, it will set the move code to MV_DMY (0)",
+        "TentativeName": "MoveCode",
         "Optional": false
       }
     ]
@@ -9988,7 +10024,7 @@
   {
     "Id": 651,
     "Name": "_ZENKOKU_ZUKAN_FLAG",
-    "Description": "",
+    "Description": "Checks if the natdex is unlocked or unlocks natdex based on the value in NatDexValue",
     "Dummy": false,
     "Animation": false,
     "Args": [
@@ -9996,16 +10032,16 @@
         "Type": [
           "Number"
         ],
-        "Description": "[TODO] Update description",
-        "TentativeName": "arg0",
+        "Description": "If the value here is 2, then set the work in arg1 to if you have natdex unlocked. If the value is 1, then set the natdex as unlocked.",
+        "TentativeName": "NatDexValue",
         "Optional": false
       },
       {
         "Type": [
           "Work"
         ],
-        "Description": "[TODO] Update description",
-        "TentativeName": "arg1",
+        "Description": "If the NatDexValue is 2, then this will set the work to 1 if the natdex is unlocked and 0 if it isn't unlocked.",
+        "TentativeName": "NatDexCheck",
         "Optional": false
       }
     ]
@@ -11842,7 +11878,7 @@
   {
     "Id": 771,
     "Name": "AC_RIGHT",
-    "Description": "Moves the affected actor right an amount of tiles over an amount of frames.",
+    "Description": "Moves the affected actor right an amount of tiles over an amount of frames. If the Idle argument is provided, the entity will move while in it's idle animation.",
     "Dummy": false,
     "Animation": true,
     "Args": [
@@ -11865,8 +11901,8 @@
         "Optional": false
       },
       {
-        "TentativeName": "Unknown",
-        "Description": "Unknown use.",
+        "TentativeName": "Idle",
+        "Description": "Whether to use the idle animation",
         "Type": [
           "Number"
         ],
@@ -15397,31 +15433,33 @@
   {
     "Id": 995,
     "Name": "_TEMOTI_BOX_MONSNO",
-    "Description": "",
+    "Description": "Returns the Pokedex Number of the selected Pokémon.",
     "Dummy": false,
     "Animation": false,
     "Args": [
       {
         "Type": [
-          "Work"
+          "Work",
+          "Number"
         ],
-        "Description": "[TODO] Update description",
-        "TentativeName": "arg0",
+        "Description": "The position that the selected Pokémon is in the box.",
+        "TentativeName": "Index",
+        "Optional": false
+      },
+      {
+        "Type": [
+          "Work",
+          "Number"
+        ],
+        "Description": "The box that the selected Pokémon is in (party is -1)",
+        "TentativeName": "Box_Index",
         "Optional": false
       },
       {
         "Type": [
           "Work"
         ],
-        "Description": "[TODO] Update description",
-        "TentativeName": "arg1",
-        "Optional": false
-      },
-      {
-        "Type": [
-          "Work"
-        ],
-        "Description": "[TODO] Update description",
+        "Description": "The Pokedex Number of the selected Pokémon",
         "TentativeName": "arg2",
         "Optional": false
       }
@@ -16859,7 +16897,7 @@
   {
     "Id": 1084,
     "Name": "_LOCALKOUKAN_APPLY",
-    "Description": "",
+    "Description": "Executes a trade based on an entry in the LocalKoukanData file.",
     "Dummy": false,
     "Animation": false,
     "Args": [
@@ -16867,24 +16905,24 @@
         "Type": [
           "Number"
         ],
-        "Description": "[TODO] Update description",
-        "TentativeName": "arg0",
+        "Description": "Id of the trade in LocalKoukanData",
+        "TentativeName": "TradeId",
         "Optional": false
       },
       {
         "Type": [
           "Work"
         ],
-        "Description": "[TODO] Update description",
-        "TentativeName": "arg1",
+        "Description": "The position that the selected Pokémon is in the box.",
+        "TentativeName": "Index",
         "Optional": false
       },
       {
         "Type": [
           "Work"
         ],
-        "Description": "[TODO] Update description",
-        "TentativeName": "arg2",
+        "Description": "The box that the selected Pokémon is in (party is -1)",
+        "TentativeName": "BoxIndex",
         "Optional": false
       }
     ]
