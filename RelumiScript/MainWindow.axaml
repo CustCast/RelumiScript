@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:RelumiScript"
+        xmlns:models="clr-namespace:RelumiScript.Models"
         xmlns:webview="using:AvaloniaWebView"
         x:Class="RelumiScript.MainWindow"
         x:Name="MainWindowRef"
@@ -38,6 +39,32 @@
 			<Setter Property="Background" Value="Transparent"/>
 		</Style>
 
+		<Style Selector="ListBox.TabStrip">
+			<Setter Property="Background" Value="#252526"/>
+			<Setter Property="Padding" Value="0"/>
+			<Setter Property="Margin" Value="0"/>
+		</Style>
+		<Style Selector="ListBox.TabStrip ListBoxItem">
+			<Setter Property="Background" Value="#2D2D2D"/>
+			<Setter Property="Foreground" Value="#969696"/>
+			<Setter Property="Padding" Value="10,5"/>
+			<Setter Property="Margin" Value="1,0,0,0"/>
+			<Setter Property="BorderThickness" Value="0"/>
+			<Setter Property="Cursor" Value="Hand"/>
+		</Style>
+		<Style Selector="ListBox.TabStrip ListBoxItem:selected">
+			<Setter Property="Background" Value="#1E1E1E"/>
+			<Setter Property="Foreground" Value="#FFFFFF"/>
+			<Setter Property="BorderThickness" Value="0,1,0,0"/>
+			<Setter Property="BorderBrush" Value="#007ACC"/>
+		</Style>
+		<Style Selector="ListBox.TabStrip ListBoxItem:selected /template/ ContentPresenter">
+			<Setter Property="Background" Value="#1E1E1E"/>
+		</Style>
+		<Style Selector="ListBox.TabStrip ListBoxItem:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#1E1E1E"/>
+		</Style>
+
 		<Style Selector="Expander">
 			<Setter Property="Background" Value="Transparent"/>
 			<Setter Property="Padding" Value="0"/>
@@ -45,7 +72,6 @@
 			<Setter Property="MinHeight" Value="22"/>
 			<Setter Property="BorderThickness" Value="0"/>
 		</Style>
-
 		<Style Selector="Expander /template/ ToggleButton#PART_toggle">
 			<Setter Property="Padding" Value="0"/>
 			<Setter Property="Width" Value="20"/>
@@ -55,13 +81,6 @@
 			<Setter Property="HorizontalContentAlignment" Value="Center"/>
 			<Setter Property="VerticalContentAlignment" Value="Center"/>
 		</Style>
-		<Style Selector="Expander /template/ ToggleButton#PART_toggle:pointerover">
-			<Setter Property="Background" Value="Transparent"/>
-		</Style>
-		<Style Selector="Expander /template/ ToggleButton#PART_toggle:pressed">
-			<Setter Property="Background" Value="Transparent"/>
-		</Style>
-
 		<Style Selector="Expander /template/ Path">
 			<Setter Property="Fill" Value="#CCCCCC"/>
 			<Setter Property="Width" Value="8"/>
@@ -110,7 +129,6 @@
 				<Grid RowDefinitions="*, Auto">
 					<StackPanel Grid.Row="0">
 						<Button Classes="ActivityButton" x:Name="BtnActionOpen" Click="BtnLoad_Click" ToolTip.Tip="Open Folder (Ctrl+O)">📂</Button>
-						<Button Classes="ActivityButton" x:Name="BtnActionSave" Click="BtnSave_Click" ToolTip.Tip="Save (Ctrl+S)">💾</Button>
 						<Rectangle Height="1" Fill="#444" Margin="10,5"/>
 						<Button Classes="ActivityButton" x:Name="BtnNavExplorer" Click="OnSidebarNav_Click" Tag="Explorer" ToolTip.Tip="Explorer (Ctrl+Shift+E)">📁</Button>
 						<Button Classes="ActivityButton" x:Name="BtnNavSearch" Click="OnSidebarNav_Click" Tag="Search" ToolTip.Tip="Search (Ctrl+Shift+F)">🔍</Button>
@@ -128,21 +146,20 @@
 
 			<Border Grid.Column="1" Background="#252526" x:Name="SidePanelContainer">
 				<Grid>
-
 					<Grid x:Name="PanelExplorer" RowDefinitions="35, *">
 						<Border Grid.Row="0" Padding="10,0" Background="#252526">
 							<TextBlock Text="EXPLORER" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
 						</Border>
 						<TreeView Grid.Row="1" x:Name="ScriptTree" Background="#252526" BorderThickness="0" SelectionChanged="ScriptTree_SelectionChanged">
 							<TreeView.DataTemplates>
-								<TreeDataTemplate DataType="local:FileNode" ItemsSource="{Binding Scripts}">
-									<Grid ColumnDefinitions="Auto, *">
+								<TreeDataTemplate DataType="models:FileNode" ItemsSource="{Binding Scripts}">
+									<Grid ColumnDefinitions="Auto, *" Background="Transparent" DoubleTapped="OnExplorerItem_DoubleTapped">
 										<TextBlock Text="{Binding Icon}" Foreground="#4EC9B0" Margin="0,0,6,0" FontFamily="Segoe UI Symbol"/>
 										<TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis"/>
 									</Grid>
 								</TreeDataTemplate>
-								<DataTemplate DataType="local:ScriptNode">
-									<StackPanel Orientation="Horizontal">
+								<DataTemplate DataType="models:ScriptNode">
+									<StackPanel Orientation="Horizontal" Background="Transparent" DoubleTapped="OnExplorerItem_DoubleTapped">
 										<TextBlock Text="Js" Foreground="#D7BA7D" Margin="0,0,6,0" FontSize="10" VerticalAlignment="Center"/>
 										<TextBlock Text="{Binding Label}" Foreground="#D7BA7D"/>
 									</StackPanel>
@@ -180,8 +197,7 @@
 										<ItemsControl ItemsSource="{Binding Locations}" Background="#1E1E1E" BorderThickness="0" Margin="20,0,0,0">
 											<ItemsControl.ItemTemplate>
 												<DataTemplate>
-													<Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch"
-                                                            HorizontalContentAlignment="Left" Padding="5,2" Click="JumpToLocation_Click" Tag="{Binding}">
+													<Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="5,2" Click="JumpToLocation_Click" Tag="{Binding}">
 														<Grid ColumnDefinitions="30, Auto, *">
 															<TextBlock Text="{Binding LineNumber}" Foreground="#858585" FontSize="11" FontFamily="Consolas"/>
 															<TextBlock Grid.Column="1" Text="{Binding Command}" Foreground="#DCDCAA" FontSize="11" Margin="5,0"/>
@@ -206,11 +222,6 @@
 							<TextBox x:Name="FlagSearchBox" Watermark="Filter flags..." Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" TextChanged="FlagSearchBox_TextChanged" Padding="6,4"/>
 						</Border>
 						<ListBox Grid.Row="2" x:Name="FlagList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-							<ListBox.ItemsPanel>
-								<ItemsPanelTemplate>
-									<StackPanel/>
-								</ItemsPanelTemplate>
-							</ListBox.ItemsPanel>
 							<ListBox.ItemTemplate>
 								<DataTemplate>
 									<Grid ColumnDefinitions="Auto, *">
@@ -231,11 +242,6 @@
 							<TextBox x:Name="ScriptSearchBox" Watermark="Filter works..." Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" TextChanged="ScriptSearchBox_TextChanged" Padding="6,4"/>
 						</Border>
 						<ListBox Grid.Row="2" x:Name="ScriptList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-							<ListBox.ItemsPanel>
-								<ItemsPanelTemplate>
-									<StackPanel/>
-								</ItemsPanelTemplate>
-							</ListBox.ItemsPanel>
 							<ListBox.ItemTemplate>
 								<DataTemplate>
 									<Grid ColumnDefinitions="Auto, *">
@@ -253,28 +259,7 @@
 						</Grid>
 						<Border Grid.Row="1" Margin="10" BorderBrush="#444" BorderThickness="1" CornerRadius="4" Background="{Binding Colors.BackgroundColor}" Padding="10">
 							<StackPanel x:Name="PreviewBox">
-								<TextBlock Text="ev_demo_script:" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.ScriptLabel.Weight}" FontStyle="{Binding Syntax.ScriptLabel.FontStyle}" Foreground="{Binding Syntax.ScriptLabel.Brush}"/>
-								<StackPanel Orientation="Horizontal" Margin="20,0,0,0">
-									<TextBlock Text="_TALK_MSG" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.Command.Weight}" FontStyle="{Binding Syntax.Command.FontStyle}" Foreground="{Binding Syntax.Command.Brush}"/>
-									<TextBlock Text="(" FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
-								</StackPanel>
-								<StackPanel Orientation="Horizontal" Margin="40,0,0,0">
-									<TextBlock Text="@SCWK_TEMP0" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.WorkVar.Weight}" FontStyle="{Binding Syntax.WorkVar.FontStyle}" Foreground="{Binding Syntax.WorkVar.Brush}"/>
-									<TextBlock Text="," FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
-								</StackPanel>
-								<StackPanel Orientation="Horizontal" Margin="40,0,0,0">
-									<TextBlock Text="&quot;Hello World&quot;" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.String.Weight}" FontStyle="{Binding Syntax.String.FontStyle}" Foreground="{Binding Syntax.String.Brush}"/>
-									<TextBlock Text="," FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
-								</StackPanel>
-								<StackPanel Orientation="Horizontal" Margin="40,0,0,0">
-									<TextBlock Text="123" FontFamily="Consolas" FontSize="12" FontWeight="{Binding Syntax.Number.Weight}" FontStyle="{Binding Syntax.Number.FontStyle}" Foreground="{Binding Syntax.Number.Brush}"/>
-								</StackPanel>
-								<StackPanel Orientation="Horizontal" Margin="20,0,0,0">
-									<TextBlock Text=")" FontFamily="Consolas" FontSize="12" Foreground="{Binding Colors.ForegroundColor}"/>
-								</StackPanel>
-								<TextBlock Text="; This is a comment" FontFamily="Consolas" FontSize="12" Margin="20,0,0,0" FontWeight="{Binding Syntax.Comment.Weight}" FontStyle="{Binding Syntax.Comment.FontStyle}" Foreground="{Binding Syntax.Comment.Brush}"/>
-								<TextBlock Text="#FLAG_TEST" FontFamily="Consolas" FontSize="12" Margin="20,0,0,0" FontWeight="{Binding Syntax.Flag.Weight}" FontStyle="{Binding Syntax.Flag.FontStyle}" Foreground="{Binding Syntax.Flag.Brush}"/>
-								<TextBlock Text="$SYS_FLAG_TEST" FontFamily="Consolas" FontSize="12" Margin="20,0,0,0" FontWeight="{Binding Syntax.SysFlag.Weight}" FontStyle="{Binding Syntax.SysFlag.FontStyle}" Foreground="{Binding Syntax.SysFlag.Brush}"/>
+								<TextBlock Text="Theme Preview Code..." Foreground="#888" FontSize="10"/>
 							</StackPanel>
 						</Border>
 						<ScrollViewer Grid.Row="2" Margin="10,0">
@@ -288,15 +273,6 @@
 									<TextBlock Text="Editor Foreground" VerticalAlignment="Center" Foreground="#CCCCCC"/>
 									<ColorPicker Grid.Column="1" Color="{Binding Colors.ForegroundColor, Mode=TwoWay}" />
 								</Grid>
-								<TextBlock Text="Syntax Highlighting" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,10,0,5"/>
-								<StackPanel Spacing="10">
-									<StackPanel>
-										<Grid ColumnDefinitions="*, Auto">
-											<TextBlock Text="Commands" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-											<ColorPicker Grid.Column="1" Color="{Binding Syntax.Command.Color, Mode=TwoWay}" />
-										</Grid>
-									</StackPanel>
-								</StackPanel>
 								<Button Content="Save Theme" HorizontalAlignment="Stretch" Margin="0,20,0,0" Click="SaveTheme_Click"/>
 							</StackPanel>
 						</ScrollViewer>
@@ -306,14 +282,35 @@
 
 			<GridSplitter Grid.Column="2" Background="#1E1E1E" ResizeDirection="Columns"/>
 
-			<Grid x:Name="MainContentGrid" Grid.Column="3" Background="#1E1E1E" RowDefinitions="*, 4, Auto">
-				<Panel Grid.Row="0" Background="#1E1E1E">
+			<Grid x:Name="MainContentGrid" Grid.Column="3" Background="#1E1E1E" RowDefinitions="30, *, 4, Auto">
+
+				<ListBox Grid.Row="0" x:Name="TabStrip" Classes="TabStrip" SelectionChanged="TabStrip_SelectionChanged">
+					<ListBox.ItemsPanel>
+						<ItemsPanelTemplate>
+							<StackPanel Orientation="Horizontal"/>
+						</ItemsPanelTemplate>
+					</ListBox.ItemsPanel>
+					<ListBox.ItemTemplate>
+						<DataTemplate>
+							<Grid ColumnDefinitions="*, Auto" MinWidth="100">
+								<TextBlock Text="{Binding Title}" Foreground="#CCCCCC" FontSize="12" VerticalAlignment="Center" Margin="5,0,10,0" FontStyle="{Binding FontStyle}"/>
+								<Button Grid.Column="1" Content="✕" Click="BtnCloseTab_Click" Tag="{Binding}" Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" Padding="2" FontSize="10" VerticalAlignment="Center"/>
+							</Grid>
+						</DataTemplate>
+					</ListBox.ItemTemplate>
+				</ListBox>
+
+				<Panel Grid.Row="1" Background="#1E1E1E">
 					<webview:WebView x:Name="Editor" IsVisible="True"/>
+					<StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" IsVisible="False" x:Name="NoTabsPlaceholder">
+						<TextBlock Text="Relumi Script Viewer" FontSize="24" Foreground="#333" HorizontalAlignment="Center"/>
+						<TextBlock Text="Select a file to view or edit" FontSize="14" Foreground="#444" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+					</StackPanel>
 				</Panel>
 
-				<GridSplitter Grid.Row="1" Background="#1E1E1E" ResizeDirection="Rows" IsVisible="{Binding #BottomPanelContainer.IsVisible}"/>
+				<GridSplitter Grid.Row="2" Background="#1E1E1E" ResizeDirection="Rows" IsVisible="{Binding #BottomPanelContainer.IsVisible}"/>
 
-				<Grid Grid.Row="2" x:Name="BottomPanelContainer" IsVisible="False" Height="250" Background="#1E1E1E">
+				<Grid Grid.Row="3" x:Name="BottomPanelContainer" IsVisible="False" Height="250" Background="#1E1E1E">
 
 					<Border x:Name="PreviewPanel" IsVisible="False" Background="#1E1E1E" BorderBrush="#333" BorderThickness="0,1,0,0">
 						<Grid RowDefinitions="Auto, *">

@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RelumiScript.DiscardChangesDialog"
+        Title="Unsaved Changes"
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        SystemDecorations="None"
+        WindowStartupLocation="CenterOwner"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+
+	<Border Background="#252526" BorderBrush="#007ACC" BorderThickness="1" Padding="20" CornerRadius="4" Width="400">
+		<StackPanel Spacing="15">
+			<TextBlock Text="Do you want to discard your changes?" FontSize="16" Foreground="#FFFFFF" FontWeight="Bold"/>
+			<TextBlock x:Name="MessageText" Text="The file has unsaved changes. If you close it now, your changes will be lost." TextWrapping="Wrap" Foreground="#CCCCCC"/>
+			
+			<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+				<Button x:Name="BtnCancel" Content="Cancel" Click="BtnCancel_Click" Background="#3C3C3C" Foreground="White"/>
+				<Button x:Name="BtnDiscard" Content="Discard Changes" Click="BtnDiscard_Click" Background="#C62828" Foreground="White"/>
+			</StackPanel>
+		</StackPanel>
+	</Border>
+</Window>

@@ -1,25 +1,24 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using AvaloniaWebView;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using WebViewCore.Events;
-using Avalonia.Media;
-using System.Collections.ObjectModel;
-using Avalonia.Input;
-using System.Diagnostics;
 using RelumiScript.Models;
-using RelumiScript.ViewModels;
 using RelumiScript.Services;
+using RelumiScript.ViewModels;
+using WebViewCore.Events;
 
 namespace RelumiScript
 {
@@ -30,11 +29,14 @@ namespace RelumiScript
 
         private bool _isEditorReady = false;
         private bool _isNavigating = false;
-
-        private string _currentScriptContent = "";
-        private List<FileNode> _loadedMessages = new List<FileNode>();
         private string _workingDirectory = "";
 
+        // Document Management
+        private ObservableCollection<EditorDocument> _documents = new ObservableCollection<EditorDocument>();
+        private EditorDocument? _activeDocument;
+
+        // Trackers
+        private List<FileNode> _loadedMessages = new List<FileNode>();
         private List<string> _currentMessagePages = new List<string>();
         private int _currentPageIndex = 0;
 
@@ -45,16 +47,19 @@ namespace RelumiScript
         private Dictionary<int, string> _workIdMap = new Dictionary<int, string>();
 
         private ThemeEditorViewModel _themeVm = new ThemeEditorViewModel();
-
         private string _currentView = "Explorer";
         private string _currentBottomView = "";
-
         private GridLength _lastSidebarWidth = new GridLength(300);
 
         public MainWindow()
         {
             InitializeComponent();
             _service = new AssetBundleService();
+
+            // UI Init
+            TabStrip.ItemsSource = _documents;
+            UpdateNoTabsPlaceholder();
+
             InitializeEditor();
             TryInitMessageRenderer();
 
@@ -62,7 +67,274 @@ namespace RelumiScript
             SwitchSideView("Explorer");
         }
 
-        // --- SIDEBAR NAV ---
+        // -----------------------------------------------------------------------------
+        // TABBED BROWSING & DOCUMENT LOGIC
+        // -----------------------------------------------------------------------------
+
+        /// <summary>
+        /// Opens a document. If it's a peek (single click), it replaces the current preview tab.
+        /// If it's a keep (double click or edit), it makes the tab permanent.
+        /// </summary>
+        private async void OpenDocument(object node, bool isPeek)
+        {
+            if (node == null) return;
+
+            string docId = "";
+            string title = "";
+            string content = "";
+
+            // Extract info based on node type
+            if (node is FileNode fNode)
+            {
+                docId = "FILE:" + fNode.FileName;
+                title = fNode.Name;
+                content = string.Join(Environment.NewLine, fNode.Scripts.Select(x => x.Content));
+            }
+            else if (node is ScriptNode sNode)
+            {
+                docId = "SCRIPT:" + sNode.Label;
+                title = sNode.Label;
+                content = sNode.Content;
+            }
+            else return;
+
+            // Check if already open
+            var existing = _documents.FirstOrDefault(d => d.Id == docId);
+            if (existing != null)
+            {
+                // If we are "opening" (double click) and it was a preview, promote it to permanent
+                if (!isPeek && existing.IsPreview)
+                {
+                    existing.IsPreview = false;
+                }
+
+                SetActiveDocument(existing);
+                return;
+            }
+
+            // Create new document
+            var newDoc = new EditorDocument
+            {
+                Id = docId,
+                Title = title,
+                Content = content,
+                OriginalContent = content, // Snapshot for dirty checking
+                IsDirty = false,
+                IsPreview = isPeek,
+                SourceNode = node
+            };
+
+            // Handle Preview Replacement logic
+            if (isPeek)
+            {
+                // Find existing preview tab
+                var currentPreview = _documents.FirstOrDefault(d => d.IsPreview);
+                if (currentPreview != null)
+                {
+                    // If the current preview is dirty, we can't simply replace it (VS Code behavior: promote it, then open new)
+                    if (currentPreview.IsDirty)
+                    {
+                        currentPreview.IsPreview = false;
+                        _documents.Add(newDoc);
+                    }
+                    else
+                    {
+                        // Replace the preview tab with this one
+                        int index = _documents.IndexOf(currentPreview);
+                        _documents[index] = newDoc;
+                    }
+                }
+                else
+                {
+                    _documents.Add(newDoc);
+                }
+            }
+            else
+            {
+                // Permanent open always adds a new tab
+                _documents.Add(newDoc);
+            }
+
+            SetActiveDocument(newDoc);
+        }
+
+        private async void SetActiveDocument(EditorDocument doc)
+        {
+            if (_activeDocument == doc) return;
+
+            _activeDocument = doc;
+            TabStrip.SelectedItem = doc;
+
+            // Load content into Monaco
+            await SetEditorText(doc.Content);
+            UpdateNoTabsPlaceholder();
+        }
+
+        public void BtnCloseTab_Click(object? sender, RoutedEventArgs e)
+        {
+            if (sender is Button btn && btn.Tag is EditorDocument doc)
+            {
+                CloseDocument(doc);
+            }
+        }
+
+        private async void CloseDocument(EditorDocument doc)
+        {
+            if (doc.IsDirty)
+            {
+                var dialog = new DiscardChangesDialog(doc.Title.TrimEnd('*'));
+                var result = await dialog.ShowDialog<bool>(this);
+                if (result)
+                {
+                    ForceCloseDocument(doc);
+                }
+            }
+            else
+            {
+                ForceCloseDocument(doc);
+            }
+        }
+
+        private void ForceCloseDocument(EditorDocument doc)
+        {
+            int index = _documents.IndexOf(doc);
+            _documents.Remove(doc);
+
+            if (_documents.Count == 0)
+            {
+                _activeDocument = null;
+                // Clear editor
+                SetEditorText("");
+            }
+            else if (_activeDocument == doc)
+            {
+                // Select neighbor (prefer left, or right if 0)
+                int newIndex = Math.Max(0, index - 1);
+                if (newIndex < _documents.Count)
+                    SetActiveDocument(_documents[newIndex]);
+            }
+            UpdateNoTabsPlaceholder();
+        }
+
+        private void TabStrip_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+        {
+            // When TabStrip selection changes (user clicks a tab), update active doc
+            if (TabStrip.SelectedItem is EditorDocument doc)
+            {
+                SetActiveDocument(doc);
+            }
+        }
+
+        private void UpdateNoTabsPlaceholder()
+        {
+            if (NoTabsPlaceholder != null)
+                NoTabsPlaceholder.IsVisible = _documents.Count == 0;
+            if (Editor != null)
+                Editor.IsVisible = _documents.Count > 0;
+        }
+
+        // -----------------------------------------------------------------------------
+        // EDITOR & WEBVIEW
+        // -----------------------------------------------------------------------------
+
+        private void InitializeEditor()
+        {
+            string monacoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Monaco", "index.html");
+            if (File.Exists(monacoPath))
+            {
+                Editor.Url = new Uri($"file:///{monacoPath.Replace("\\", "/")}");
+                Editor.WebMessageReceived += OnEditorMessageReceived;
+                Editor.NavigationCompleted += async (s, e) => {
+                    if (e.IsSuccess)
+                    {
+                        _isEditorReady = true;
+                        await GenerateAndInjectSyntax();
+                        await InjectMonacoListeners();
+                        await InjectTheme();
+                    }
+                };
+            }
+        }
+
+        private async Task InjectMonacoListeners()
+        {
+            string script = @"editor.onDidChangeCursorPosition((e)=>{var l=editor.getModel().getLineContent(e.position.lineNumber);var m=l.match(/(?:_TALKMSG|_TALK_KEYWAIT|_EASY_OBJ_MSG|_EASY_BOARD_MSG)\s*\(\s*[@""']([^%]+)%([^)""']+)[""']?\s*\)/);if(m)window.chrome.webview.postMessage('PREVIEW:'+m[1]+'%'+m[2]);else window.chrome.webview.postMessage('HIDE_PREVIEW');});editor.addAction({id:'relumi-lookup',label:'Search in Global View',contextMenuGroupId:'navigation',contextMenuOrder:1.5,run:function(ed){var p=ed.getPosition();var m=ed.getModel();var w=m.getWordAtPosition(p);if(w){var charBefore=w.startColumn>1?m.getLineContent(p.lineNumber).charAt(w.startColumn-2):'';var prefix=(charBefore==='#'||charBefore==='$'||charBefore==='@')?charBefore:'';window.chrome.webview.postMessage('GLOBAL_SEARCH:'+prefix+w.word);}}});";
+
+            // Add change listener for content. 
+            // IMPORTANT: We check !e.isFlush to ignore the update triggered by setValue() when loading a file.
+            script += @" editor.onDidChangeModelContent((e) => { if(!e.isFlush) window.chrome.webview.postMessage('CONTENT_UPDATE:' + editor.getValue()); });";
+
+            await Editor.ExecuteScriptAsync(script);
+        }
+
+        private void OnEditorMessageReceived(object? sender, WebViewMessageReceivedEventArgs e)
+        {
+            if (e.Message == "HIDE_PREVIEW") return;
+
+            if (e.Message.StartsWith("PREVIEW:"))
+            {
+                var p = e.Message.Substring(8).Split('%');
+                if (p.Length == 2) ShowMessagePreview(p[0].Trim(), p[1].Trim());
+                return;
+            }
+            if (e.Message.StartsWith("GLOBAL_SEARCH:"))
+            {
+                SwitchSideView("Search", forceOpen: true);
+                SearchBox.Text = e.Message.Substring(e.Message.IndexOf(':') + 1).Trim();
+                return;
+            }
+            if (e.Message.StartsWith("CONTENT_UPDATE:"))
+            {
+                string newContent = e.Message.Substring(15);
+                if (_activeDocument != null)
+                {
+                    // Since we filtered isFlush, this is a genuine user edit.
+                    // If it was a preview tab, promote it to permanent immediately.
+                    if (_activeDocument.IsPreview)
+                    {
+                        _activeDocument.IsPreview = false;
+                    }
+
+                    _activeDocument.Content = newContent;
+
+                    // Simple dirty check against the content we loaded
+                    _activeDocument.IsDirty = !string.Equals(_activeDocument.Content, _activeDocument.OriginalContent);
+                }
+            }
+        }
+
+        private async Task SetEditorText(string content)
+        {
+            string safe = JsonConvert.ToString(content);
+            if (_isEditorReady)
+                await Editor.ExecuteScriptAsync($"editor.setValue(window.formatLegacyScript ? window.formatLegacyScript({safe}) : {safe}); editor.updateOptions({{readOnly: false}});");
+        }
+
+        // -----------------------------------------------------------------------------
+        // SIDEBAR & EXPLORER INTERACTION
+        // -----------------------------------------------------------------------------
+
+        // Single click (SelectionChanged) = PEEK
+        public void ScriptTree_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+        {
+            if (_isNavigating) return;
+
+            if (ScriptTree.SelectedItem is ScriptNode s)
+                OpenDocument(s, isPeek: true);
+            else if (ScriptTree.SelectedItem is FileNode f)
+                OpenDocument(f, isPeek: true);
+        }
+
+        // Double click = KEEP (Open permanently)
+        public void OnExplorerItem_DoubleTapped(object? sender, TappedEventArgs e)
+        {
+            var node = (sender as Control)?.DataContext;
+            if (node != null)
+            {
+                OpenDocument(node, isPeek: false);
+            }
+        }
+
         public void OnSidebarNav_Click(object? sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.Tag is string tag) SwitchSideView(tag);
@@ -114,7 +386,92 @@ namespace RelumiScript
             UpdateBtnStyle(BtnNavTheme, activeTag);
         }
 
-        // --- BOTTOM PANEL NAV ---
+        private void UpdateBtnStyle(Button btn, string? activeTag)
+        {
+            if (btn.Tag?.ToString() == activeTag)
+            {
+                if (!btn.Classes.Contains("Active")) btn.Classes.Add("Active");
+            }
+            else
+            {
+                btn.Classes.Remove("Active");
+            }
+        }
+
+        // -----------------------------------------------------------------------------
+        // LOADING & ACTIONS
+        // -----------------------------------------------------------------------------
+
+        public async void BtnLoad_Click(object? sender, RoutedEventArgs e)
+        {
+            var top = TopLevel.GetTopLevel(this);
+            var folders = await top!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Project Root Folder" });
+            if (folders.Count == 0) return;
+
+            var root = folders[0].Path.LocalPath;
+            _workingDirectory = root;
+            StatusText.Text = "Scanning...";
+
+            try
+            {
+                string? jsonDir = FindJsonFolder();
+                if (_service.InitSummary.Contains("Cmds: 0") && !string.IsNullOrEmpty(jsonDir))
+                    _service.Initialize(jsonDir);
+
+                StatusText.Text = "Loading Game Data...";
+                await Task.Run(() => _service.LoadGameData(root));
+
+                StatusText.Text = "Loading Scripts...";
+                var scripts = await Task.Run(() => _service.LoadAndDecompile(root));
+
+                StatusText.Text = "Loading Messages...";
+                _loadedMessages = await Task.Run(() => _service.LoadMessageFiles(root));
+
+                await GenerateAndInjectSyntax();
+
+                ScriptTree.ItemsSource = scripts.OrderBy(x => x.Name).ToList();
+                StatusText.Text = $"Loaded {scripts.Count} scripts.";
+
+                RefreshAllTrackers();
+                SwitchSideView("Explorer");
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Load Error: {ex.Message}";
+                Debug.WriteLine(ex);
+            }
+        }
+
+        public void CloseApp_Click(object? sender, RoutedEventArgs e) => Close();
+        public void ShowTheme_Click(object? sender, RoutedEventArgs e) => SwitchSideView("Theme");
+
+        public async void JumpToLocation_Click(object? sender, RoutedEventArgs e)
+        {
+            if (sender is Control c && c.Tag is FlagLocation loc)
+            {
+                _isNavigating = true;
+                try
+                {
+                    if (loc.NodeObject != null)
+                    {
+                        // Jumping implies we want to peek it
+                        OpenDocument(loc.NodeObject, isPeek: true);
+                    }
+
+                    if (_isEditorReady)
+                    {
+                        await Task.Delay(50);
+                        await Editor.ExecuteScriptAsync($"editor.revealLineInCenter({loc.LineNumber}); editor.setPosition({{lineNumber: {loc.LineNumber}, column: 1}}); editor.focus();");
+                    }
+                }
+                finally { _isNavigating = false; }
+            }
+        }
+
+        // -----------------------------------------------------------------------------
+        // SEARCH, THEME, BOTTOM NAV, UTILS
+        // -----------------------------------------------------------------------------
+
         public void OnBottomNav_Click(object? sender, RoutedEventArgs e)
         {
             if (sender is Button btn && btn.Tag is string tag) SwitchBottomView(tag);
@@ -148,21 +505,6 @@ namespace RelumiScript
             UpdateBtnStyle(BtnNavTerminal, activeTag);
             UpdateBtnStyle(BtnNavPreview, activeTag);
         }
-
-        private void UpdateBtnStyle(Button btn, string? activeTag)
-        {
-            if (btn.Tag?.ToString() == activeTag)
-            {
-                if (!btn.Classes.Contains("Active")) btn.Classes.Add("Active");
-            }
-            else
-            {
-                btn.Classes.Remove("Active");
-            }
-        }
-
-        public void CloseApp_Click(object? sender, RoutedEventArgs e) => Close();
-        public void ShowTheme_Click(object? sender, RoutedEventArgs e) => SwitchSideView("Theme");
 
         private async void RefreshAllTrackers()
         {
@@ -289,99 +631,8 @@ namespace RelumiScript
             if (_isEditorReady && Editor != null) await Editor.ExecuteScriptAsync($"if (window.updateRelumiTheme) window.updateRelumiTheme({JsonConvert.SerializeObject(settings)});");
         }
 
-        private void InitializeEditor()
-        {
-            string monacoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Monaco", "index.html");
-            if (File.Exists(monacoPath))
-            {
-                Editor.Url = new Uri($"file:///{monacoPath.Replace("\\", "/")}");
-                Editor.WebMessageReceived += OnEditorMessageReceived;
-                Editor.NavigationCompleted += async (s, e) => { if (e.IsSuccess) { _isEditorReady = true; await GenerateAndInjectSyntax(); await InjectMonacoListeners(); await InjectTheme(); } };
-            }
-        }
-
-        private async Task InjectMonacoListeners()
-        {
-            // Updated Regex to support single quotes
-            string script = @"editor.onDidChangeCursorPosition((e)=>{var l=editor.getModel().getLineContent(e.position.lineNumber);var m=l.match(/(?:_TALKMSG|_TALK_KEYWAIT|_EASY_OBJ_MSG|_EASY_BOARD_MSG)\s*\(\s*[@""']([^%]+)%([^)""']+)[""']?\s*\)/);if(m)window.chrome.webview.postMessage('PREVIEW:'+m[1]+'%'+m[2]);else window.chrome.webview.postMessage('HIDE_PREVIEW');});editor.addAction({id:'relumi-lookup',label:'Search in Global View',contextMenuGroupId:'navigation',contextMenuOrder:1.5,run:function(ed){var p=ed.getPosition();var m=ed.getModel();var w=m.getWordAtPosition(p);if(w){var charBefore=w.startColumn>1?m.getLineContent(p.lineNumber).charAt(w.startColumn-2):'';var prefix=(charBefore==='#'||charBefore==='$'||charBefore==='@')?charBefore:'';window.chrome.webview.postMessage('GLOBAL_SEARCH:'+prefix+w.word);}}});";
-            await Editor.ExecuteScriptAsync(script);
-        }
-
-        private void OnEditorMessageReceived(object? sender, WebViewMessageReceivedEventArgs e)
-        {
-            if (e.Message == "HIDE_PREVIEW") { /* No longer auto-hiding logic needed */ return; }
-            if (e.Message.StartsWith("PREVIEW:"))
-            {
-                var p = e.Message.Substring(8).Split('%');
-                if (p.Length == 2) ShowMessagePreview(p[0].Trim(), p[1].Trim());
-                return;
-            }
-            if (e.Message.StartsWith("GLOBAL_SEARCH:"))
-            {
-                SwitchSideView("Search", forceOpen: true);
-                SearchBox.Text = e.Message.Substring(e.Message.IndexOf(':') + 1).Trim();
-                return;
-            }
-            if (e.Message.StartsWith("CONTENT_UPDATE:")) _currentScriptContent = e.Message.Substring(15);
-        }
-
-        public async void BtnLoad_Click(object? sender, RoutedEventArgs e)
-        {
-            var top = TopLevel.GetTopLevel(this);
-            var folders = await top!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Project Root Folder" });
-            if (folders.Count == 0) return;
-
-            var root = folders[0].Path.LocalPath;
-            _workingDirectory = root;
-            StatusText.Text = "Scanning...";
-
-            try
-            {
-                string? jsonDir = FindJsonFolder();
-                if (_service.InitSummary.Contains("Cmds: 0") && !string.IsNullOrEmpty(jsonDir))
-                    _service.Initialize(jsonDir);
-
-                // 1. Load Game Data (Pokemon/Item Names from YAML assets)
-                StatusText.Text = "Loading Game Data...";
-                await Task.Run(() => _service.LoadGameData(root));
-
-                // 2. Load Scripts (.ev text files)
-                StatusText.Text = "Loading Scripts...";
-                var scripts = await Task.Run(() => _service.LoadAndDecompile(root));
-
-                // 3. Load Messages (.asset YAML files)
-                StatusText.Text = "Loading Messages...";
-                _loadedMessages = await Task.Run(() => _service.LoadMessageFiles(root));
-
-                await GenerateAndInjectSyntax();
-
-                ScriptTree.ItemsSource = scripts.OrderBy(x => x.Name).ToList();
-                StatusText.Text = $"Loaded {scripts.Count} scripts.";
-
-                RefreshAllTrackers();
-                SwitchSideView("Explorer");
-            }
-            catch (Exception ex)
-            {
-                StatusText.Text = $"Load Error: {ex.Message}";
-                Debug.WriteLine(ex);
-            }
-        }
-
-        public void BtnSave_Click(object? sender, RoutedEventArgs e)
-        {
-            StatusText.Text = "Saving is currently disabled.";
-        }
-
-        private string? FindFile(string root, params string[] segments)
-        {
-            string full = Path.Combine(root, Path.Combine(segments));
-            if (File.Exists(full)) return full;
-            try { return Directory.EnumerateFiles(root, segments.Last(), SearchOption.AllDirectories).FirstOrDefault(); } catch { return null; }
-        }
-
-        public void BtnPrevPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex > 0) { _currentPageIndex--; RenderCurrentPage(); } }
-        public void BtnNextPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex < _currentMessagePages.Count - 1) { _currentPageIndex++; RenderCurrentPage(); } }
+        private void BtnPrevPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex > 0) { _currentPageIndex--; RenderCurrentPage(); } }
+        private void BtnNextPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex < _currentMessagePages.Count - 1) { _currentPageIndex++; RenderCurrentPage(); } }
 
         private void ShowMessagePreview(string file, string label)
         {
@@ -424,36 +675,6 @@ namespace RelumiScript
                 }
                 catch (Exception ex) { Dispatcher.UIThread.Post(() => TerminalOutput.Text += $"Error: {ex.Message}\n"); }
             });
-        }
-
-        public async void ScriptTree_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-        {
-            if (_isNavigating) return;
-            if (e.RemovedItems.Count > 0 && e.RemovedItems[0] is ScriptNode oldNode) oldNode.Content = _currentScriptContent;
-            if (ScriptTree.SelectedItem is ScriptNode s) await SetEditorText(s.Content); else if (ScriptTree.SelectedItem is FileNode f) await SetEditorText(string.Join(Environment.NewLine, f.Scripts.Select(x => x.Content)));
-        }
-
-        public async void JumpToLocation_Click(object? sender, RoutedEventArgs e)
-        {
-            if (sender is Control c && c.Tag is FlagLocation loc)
-            {
-                _isNavigating = true;
-                try
-                {
-                    if (loc.NodeObject != null) ScriptTree.SelectedItem = loc.NodeObject;
-                    string content = ""; if (loc.NodeObject is ScriptNode sNode) content = sNode.Content; else if (loc.NodeObject is FileNode fNode) content = string.Join(Environment.NewLine, fNode.Scripts.Select(x => x.Content));
-                    if (!string.IsNullOrEmpty(content)) await SetEditorText(content);
-                    if (_isEditorReady) { await Task.Delay(50); await Editor.ExecuteScriptAsync($"editor.revealLineInCenter({loc.LineNumber}); editor.setPosition({{lineNumber: {loc.LineNumber}, column: 1}}); editor.focus();"); }
-                }
-                finally { _isNavigating = false; }
-            }
-        }
-
-        private async Task SetEditorText(string content)
-        {
-            _currentScriptContent = content;
-            string safe = JsonConvert.ToString(content);
-            if (_isEditorReady) await Editor.ExecuteScriptAsync($"editor.setValue(window.formatLegacyScript ? window.formatLegacyScript({safe}) : {safe}); editor.updateOptions({{readOnly: false}});");
         }
 
         private void TryInitMessageRenderer() { if (_messageRenderer == null && !string.IsNullOrEmpty(FindJsonFolder())) _messageRenderer = new MessageRenderer(Path.GetFullPath(Path.Combine(FindJsonFolder()!, "..", "Assets"))); }

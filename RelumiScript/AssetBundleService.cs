@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 using YamlDotNet.RepresentationModel;
+using RelumiScript.Models;
 
 namespace RelumiScript
 {
