@@ -197,7 +197,40 @@ namespace RelumiScript
 
         private async Task InjectMonacoListeners()
         {
-            string script = @"editor.onDidChangeCursorPosition((e)=>{var l=editor.getModel().getLineContent(e.position.lineNumber);var m=l.match(/(?:_TALKMSG|_TALK_KEYWAIT|_EASY_OBJ_MSG|_EASY_BOARD_MSG)\s*\(\s*[@""']([^%]+)%([^)""']+)[""']?\s*\)/);if(m)window.chrome.webview.postMessage('PREVIEW:'+m[1]+'%'+m[2]);else window.chrome.webview.postMessage('HIDE_PREVIEW');});editor.addAction({id:'relumi-lookup',label:'Search in Global View',contextMenuGroupId:'navigation',contextMenuOrder:1.5,run:function(ed){var p=ed.getPosition();var m=ed.getModel();var w=m.getWordAtPosition(p);if(w){var charBefore=w.startColumn>1?m.getLineContent(p.lineNumber).charAt(w.startColumn-2):'';var prefix=(charBefore==='#'||charBefore==='$'||charBefore==='@')?charBefore:'';window.chrome.webview.postMessage('GLOBAL_SEARCH:'+prefix+w.word);}}});";
+            string script = @"
+                editor.onDidChangeCursorPosition((e) => {
+                    var l = editor.getModel().getLineContent(e.position.lineNumber);
+                    var m = l.match(/(?:_TALKMSG|_TALK_KEYWAIT|_EASY_OBJ_MSG|_EASY_BOARD_MSG)\s*\(\s*'([\w-]+)%([\w-]+)'\s*.*\)/);
+                    var macroMatch = l.match(/(?:_MACRO_TALKMSG|_MACRO_TALK_KEYWAIT|_MACRO_EASY_OBJ_MSG)\s*\(\s*'([\w-]+)',\s*'([\w-]+)',\s*'([^']+)'\s*\)/);
+                    if (m) {
+                        window.chrome.webview.postMessage('PREVIEW:' + m[1] + '%' + m[2]);
+                    } else if (macroMatch) {
+                        window.chrome.webview.postMessage('PREVIEW:' + macroMatch[1] + '%' + macroMatch[2]);
+                    } else {
+                        window.chrome.webview.postMessage('HIDE_PREVIEW');
+                    }
+                });
+            ";
+
+            script += @"
+                editor.addAction({
+                    id: 'relumi-lookup',
+                    label: 'Search in Global View',
+                    contextMenuGroupId: 'navigation',
+                    contextMenuOrder: 1.5,
+                    run: function(ed) {
+                        var p = ed.getPosition();
+                        var m = ed.getModel();
+                        var w = m.getWordAtPosition(p);
+                        if (w) {
+                            var charBefore = w.startColumn > 1 ? m.getLineContent(p.lineNumber).charAt(w.startColumn - 2) : '';
+                            var prefix = (charBefore === '#' || charBefore === '$' || charBefore === '@') ? charBefore : '';
+                            window.chrome.webview.postMessage('GLOBAL_SEARCH:' + prefix + w.word);
+                        }
+                    }
+                });
+            ";
+
             script += @" editor.onDidChangeModelContent((e) => { if(!e.isFlush) window.chrome.webview.postMessage('CONTENT_UPDATE:' + editor.getValue()); });";
             script += @" editor.addAction({ id: 'relumi-save', label: 'Save', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S], run: function(ed) { window.chrome.webview.postMessage('SAVE_REQUEST'); } });";
             script += @" editor.addAction({ id: 'relumi-edit-def', label: 'Edit Definition', contextMenuGroupId: 'navigation', contextMenuOrder: 1.0, run: function(ed) { var p = ed.getPosition(); var m = ed.getModel(); var w = m.getWordAtPosition(p); if(w) { var charBefore = w.startColumn > 1 ? m.getLineContent(p.lineNumber).charAt(w.startColumn - 2) : ''; var prefix = (charBefore === '#' || charBefore === '$' || charBefore === '@') ? charBefore : ''; var token = prefix + w.word; if (prefix === '#') { window.chrome.webview.postMessage('EDIT_DEFINITION:FLG:' + w.word); } else if (prefix === '$') { window.chrome.webview.postMessage('EDIT_DEFINITION:SYS:' + w.word); } else if (prefix === '@') { window.chrome.webview.postMessage('EDIT_DEFINITION:WRK:' + w.word); } else if(token.startsWith('Cmd_') || token.startsWith('_') || /^[A-Z0-9_]+$/.test(token)) { window.chrome.webview.postMessage('EDIT_DEFINITION:CMD:' + w.word); } } } });";
