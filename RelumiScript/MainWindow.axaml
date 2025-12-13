@@ -7,7 +7,8 @@
         x:Name="MainWindowRef"
         x:CompileBindings="False"
         Title="Relumi Script Viewer" Height="700" Width="1200"
-        Background="#1E1E1E" Foreground="#CCCCCC"
+        Background="{DynamicResource ThemeWindowBackground}"
+        Foreground="{DynamicResource ThemeTextColor}"
         FontFamily="Segoe UI, Segoe UI Emoji, Segoe UI Symbol">
 
 	<Window.Resources>
@@ -23,11 +24,35 @@
 			<Setter Property="BorderThickness" Value="0"/>
 		</Style>
 
+		<Style Selector="Button.ActivityButton">
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="BorderThickness" Value="0"/>
+			<Setter Property="Width" Value="50"/>
+			<Setter Property="Height" Value="50"/>
+			<Setter Property="HorizontalContentAlignment" Value="Center"/>
+			<Setter Property="VerticalContentAlignment" Value="Center"/>
+			<Setter Property="Foreground" Value="{DynamicResource ThemeActivityForeground}"/>
+			<Setter Property="FontSize" Value="24"/>
+			<Setter Property="FontFamily" Value="Segoe UI Symbol"/>
+			<Setter Property="CornerRadius" Value="0"/>
+		</Style>
+
+		<Style Selector="Button.ActivityButton:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="Transparent"/>
+			<Setter Property="Foreground" Value="{DynamicResource ThemeActivityActiveForeground}"/>
+		</Style>
+
+		<Style Selector="Button.ActivityButton.Active">
+			<Setter Property="Foreground" Value="{DynamicResource ThemeActivityActiveForeground}"/>
+			<Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentColor}"/>
+			<Setter Property="BorderThickness" Value="2,0,0,0"/>
+		</Style>
+
 		<Style Selector="TreeViewItem">
 			<Setter Property="MinHeight" Value="22"/>
 			<Setter Property="Padding" Value="2,0"/>
 			<Setter Property="Margin" Value="0"/>
-			<Setter Property="Foreground" Value="#CCCCCC"/>
+			<Setter Property="Foreground" Value="{DynamicResource ThemeTextColor}"/>
 			<Setter Property="FontSize" Value="13"/>
 		</Style>
 		<Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
@@ -41,7 +66,7 @@
 			<Setter Property="Padding" Value="0"/>
 			<Setter Property="Margin" Value="0"/>
 			<Setter Property="MinHeight" Value="22"/>
-			<Setter Property="Foreground" Value="#CCCCCC"/>
+			<Setter Property="Foreground" Value="{DynamicResource ThemeTextColor}"/>
 			<Setter Property="FontSize" Value="13"/>
 		</Style>
 		<Style Selector="ListBoxItem:selected /template/ ContentPresenter">
@@ -52,7 +77,7 @@
 		</Style>
 
 		<Style Selector="ListBox.TabStrip">
-			<Setter Property="Background" Value="#252526"/>
+			<Setter Property="Background" Value="{DynamicResource ThemePanelBackground}"/>
 			<Setter Property="Padding" Value="0"/>
 			<Setter Property="Margin" Value="0"/>
 		</Style>
@@ -65,16 +90,16 @@
 			<Setter Property="Cursor" Value="Hand"/>
 		</Style>
 		<Style Selector="ListBox.TabStrip ListBoxItem:selected">
-			<Setter Property="Background" Value="#1E1E1E"/>
-			<Setter Property="Foreground" Value="#FFFFFF"/>
+			<Setter Property="Background" Value="{DynamicResource ThemeWindowBackground}"/>
+			<Setter Property="Foreground" Value="{DynamicResource ThemeTextColor}"/>
 			<Setter Property="BorderThickness" Value="0,1,0,0"/>
-			<Setter Property="BorderBrush" Value="#007ACC"/>
+			<Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentColor}"/>
 		</Style>
 		<Style Selector="ListBox.TabStrip ListBoxItem:selected /template/ ContentPresenter">
-			<Setter Property="Background" Value="#1E1E1E"/>
+			<Setter Property="Background" Value="{DynamicResource ThemeWindowBackground}"/>
 		</Style>
 		<Style Selector="ListBox.TabStrip ListBoxItem:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#1E1E1E"/>
+			<Setter Property="Background" Value="{DynamicResource ThemeWindowBackground}"/>
 		</Style>
 
 		<Style Selector="Expander">
@@ -96,7 +121,7 @@
 									<Border Background="Transparent" Padding="2">
 										<Grid ColumnDefinitions="20, *">
 											<Path x:Name="Arrow" Grid.Column="0" Data="M 6 4 L 10 8 L 6 12"
-                                                  Stroke="#CCCCCC" StrokeThickness="1.5" Fill="Transparent"
+                                                  Stroke="{DynamicResource ThemeTextColor}" StrokeThickness="1.5" Fill="Transparent"
                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
                                                   Width="16" Height="16" Stretch="None"/>
 											<ContentPresenter Grid.Column="1" Content="{TemplateBinding Content}"
@@ -112,7 +137,6 @@
 				</ControlTemplate>
 			</Setter>
 		</Style>
-
 		<Style Selector="Expander.SearchExpander:expanded /template/ ToggleButton#PART_toggle Path#Arrow">
 			<Setter Property="Data" Value="M 4 6 L 8 10 L 12 6"/>
 		</Style>
@@ -128,35 +152,13 @@
 		<Style Selector="ScrollBar /template/ Thumb:pointerover">
 			<Setter Property="Background" Value="#4F4F4F"/>
 		</Style>
-
-		<Style Selector="Button.ActivityButton">
-			<Setter Property="Background" Value="Transparent"/>
-			<Setter Property="BorderThickness" Value="0"/>
-			<Setter Property="Width" Value="50"/>
-			<Setter Property="Height" Value="50"/>
-			<Setter Property="HorizontalContentAlignment" Value="Center"/>
-			<Setter Property="VerticalContentAlignment" Value="Center"/>
-			<Setter Property="Foreground" Value="#858585"/>
-			<Setter Property="FontSize" Value="24"/>
-			<Setter Property="FontFamily" Value="Segoe UI Symbol"/>
-			<Setter Property="CornerRadius" Value="0"/>
-		</Style>
-		<Style Selector="Button.ActivityButton:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="Transparent"/>
-			<Setter Property="Foreground" Value="#E0E0E0"/>
-		</Style>
-		<Style Selector="Button.ActivityButton.Active">
-			<Setter Property="Foreground" Value="#FFFFFF"/>
-			<Setter Property="BorderBrush" Value="#FFFFFF"/>
-			<Setter Property="BorderThickness" Value="2,0,0,0"/>
-		</Style>
 	</Window.Styles>
 
 	<Grid RowDefinitions="*, 22">
 
 		<Grid Grid.Row="0" x:Name="SidebarGrid" ColumnDefinitions="50, 300, 4, *">
 
-			<Border Grid.Column="0" Background="#333333">
+			<Border Grid.Column="0" Background="{DynamicResource ThemeActivityBarBackground}">
 				<Grid RowDefinitions="*, Auto">
 					<StackPanel Grid.Row="0">
 						<Button Classes="ActivityButton" x:Name="BtnActionOpen" Click="BtnLoad_Click" ToolTip.Tip="Open Folder (Ctrl+O)">📂</Button>
@@ -175,18 +177,18 @@
 				</Grid>
 			</Border>
 
-			<Border Grid.Column="1" Background="#252526" x:Name="SidePanelContainer">
+			<Border Grid.Column="1" Background="{DynamicResource ThemeSidebarBackground}" x:Name="SidePanelContainer">
 				<Grid>
 					<Grid x:Name="PanelExplorer" RowDefinitions="35, *">
-						<Border Grid.Row="0" Padding="10,0" Background="#252526">
-							<TextBlock Text="EXPLORER" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
+						<Border Grid.Row="0" Padding="10,0" Background="{DynamicResource ThemeSidebarBackground}">
+							<TextBlock Text="EXPLORER" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
 						</Border>
-						<TreeView Grid.Row="1" x:Name="ScriptTree" Background="#252526" BorderThickness="0" SelectionChanged="ScriptTree_SelectionChanged">
+						<TreeView Grid.Row="1" x:Name="ScriptTree" Background="{DynamicResource ThemeSidebarBackground}" BorderThickness="0" SelectionChanged="ScriptTree_SelectionChanged">
 							<TreeView.DataTemplates>
 								<TreeDataTemplate DataType="models:FileNode" ItemsSource="{Binding Scripts}">
 									<Grid ColumnDefinitions="Auto, *" Background="Transparent" DoubleTapped="OnExplorerItem_DoubleTapped">
 										<TextBlock Text="{Binding Icon}" Foreground="#4EC9B0" Margin="0,0,6,0" FontFamily="Segoe UI Symbol"/>
-										<TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis"/>
+										<TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="{DynamicResource ThemeTextColor}" TextTrimming="CharacterEllipsis"/>
 									</Grid>
 								</TreeDataTemplate>
 								<DataTemplate DataType="models:ScriptNode">
@@ -200,14 +202,14 @@
 					</Grid>
 
 					<Grid x:Name="PanelSearch" IsVisible="False" RowDefinitions="35, 35, *">
-						<Border Grid.Row="0" Padding="10,0" Background="#252526">
+						<Border Grid.Row="0" Padding="10,0" Background="{DynamicResource ThemeSidebarBackground}">
 							<Grid ColumnDefinitions="*, Auto">
-								<TextBlock Text="SEARCH" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
+								<TextBlock Text="SEARCH" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
 								<Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh Search Index" Background="Transparent" Click="RefreshFlags_Click" BorderThickness="0"/>
 							</Grid>
 						</Border>
-						<Border Grid.Row="1" Margin="10,0,10,5" Background="#3C3C3C" CornerRadius="2">
-							<TextBox x:Name="SearchBox" Watermark="Global search..." Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" TextChanged="SearchBox_TextChanged" Padding="6,4"/>
+						<Border Grid.Row="1" Margin="10,0,10,5" Background="{DynamicResource ThemeInputBackground}" CornerRadius="2">
+							<TextBox x:Name="SearchBox" Watermark="Global search..." Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeInputForeground}" TextChanged="SearchBox_TextChanged" Padding="6,4"/>
 						</Border>
 						<ListBox Grid.Row="2" x:Name="SearchResultsList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
 							<ListBox.ItemsPanel>
@@ -222,34 +224,16 @@
 											<Grid ColumnDefinitions="Auto, Auto, *" Margin="2,0,0,0">
 												<TextBlock Text="{Binding Type, Converter={StaticResource SearchTypeToIconConverter}}" Foreground="{Binding Color}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" FontFamily="Segoe UI Symbol"/>
 												<TextBlock Grid.Column="1" Text="{Binding Id}" Foreground="#569CD6" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding Id}"/>
-												<TextBlock Grid.Column="2" Text="{Binding Name}" Foreground="#CCCCCC" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+												<TextBlock Grid.Column="2" Text="{Binding Name}" Foreground="{DynamicResource ThemeTextColor}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
 											</Grid>
 										</Expander.Header>
 										<ItemsControl ItemsSource="{Binding Locations}" Background="Transparent" BorderThickness="0" Margin="0">
 											<ItemsControl.ItemTemplate>
 												<DataTemplate>
-													<Button Background="Transparent"
-                                                            BorderThickness="0"
-                                                            HorizontalAlignment="Stretch"
-                                                            HorizontalContentAlignment="Left"
-                                                            Padding="25,2,5,2"
-                                                            Click="JumpToLocation_Click"
-                                                            PointerWheelChanged="SearchResult_PointerWheelChanged"
-                                                            ToolTip.Placement="Right"
-                                                            Tag="{Binding}">
-
+													<Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="25,2,5,2" Click="JumpToLocation_Click" PointerWheelChanged="SearchResult_PointerWheelChanged" Tag="{Binding}">
 														<ToolTip.Tip>
-															<Border Background="#1E1E1E"
-                                                                    BorderBrush="White"
-                                                                    BorderThickness="1"
-                                                                    CornerRadius="0"
-                                                                    Padding="10"
-                                                                    HorizontalAlignment="Left"
-                                                                    MaxWidth="1200"
-                                                                    MaxHeight="700">
-
-																<ScrollViewer VerticalScrollBarVisibility="Auto"
-                                                                              HorizontalScrollBarVisibility="Auto">
+															<Border Background="{DynamicResource ThemeWindowBackground}" BorderBrush="White" BorderThickness="1" Padding="10" MaxWidth="1200" MaxHeight="700">
+																<ScrollViewer>
 																	<ItemsControl>
 																		<ItemsControl.ItemsSource>
 																			<MultiBinding Converter="{StaticResource ScriptPreviewConverter}">
@@ -258,43 +242,10 @@
 																				<Binding Path="#MainWindowRef.ThemeVm"/>
 																			</MultiBinding>
 																		</ItemsControl.ItemsSource>
-																		<ItemsControl.ItemTemplate>
-																			<DataTemplate>
-																				<Border Background="{Binding Background}" Padding="2,0">
-																					<Grid ColumnDefinitions="40, Auto">
-																						<TextBlock Text="{Binding LineNumber}"
-                                                                                                   Foreground="#606060"
-                                                                                                   FontSize="10"
-                                                                                                   Margin="0,0,15,0"
-                                                                                                   TextAlignment="Right"
-                                                                                                   VerticalAlignment="Center"/>
-
-																						<ItemsControl Grid.Column="1" ItemsSource="{Binding Segments}">
-																							<ItemsControl.ItemsPanel>
-																								<ItemsPanelTemplate>
-																									<StackPanel Orientation="Horizontal"/>
-																								</ItemsPanelTemplate>
-																							</ItemsControl.ItemsPanel>
-																							<ItemsControl.ItemTemplate>
-																								<DataTemplate>
-																									<TextBlock Text="{Binding Text}"
-                                                                                                               Foreground="{Binding Foreground}"
-                                                                                                               FontWeight="{Binding Weight}"
-                                                                                                               FontStyle="{Binding Style}"
-                                                                                                               FontFamily="Consolas, Monospace"
-                                                                                                               FontSize="11"/>
-																								</DataTemplate>
-																							</ItemsControl.ItemTemplate>
-																						</ItemsControl>
-																					</Grid>
-																				</Border>
-																			</DataTemplate>
-																		</ItemsControl.ItemTemplate>
 																	</ItemsControl>
 																</ScrollViewer>
 															</Border>
 														</ToolTip.Tip>
-
 														<Grid ColumnDefinitions="Auto, *">
 															<TextBlock Text="{Binding Command}" Foreground="#DCDCAA" FontSize="11" Margin="5,0"/>
 															<TextBlock Grid.Column="1" Text="{Binding FileName}" Foreground="#808080" FontSize="10" FontStyle="Italic" TextTrimming="CharacterEllipsis" HorizontalAlignment="Right"/>
@@ -311,18 +262,18 @@
 
 					<Grid x:Name="PanelFlags" IsVisible="False" RowDefinitions="35, 35, *">
 						<Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="10,0">
-							<TextBlock Text="UNUSED FLAGS" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
+							<TextBlock Text="UNUSED FLAGS" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
 							<Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh" Background="Transparent" Click="RefreshFlags_Click" BorderThickness="0"/>
 						</Grid>
-						<Border Grid.Row="1" Margin="10,0,10,5" Background="#3C3C3C" CornerRadius="2">
-							<TextBox x:Name="FlagSearchBox" Watermark="Filter flags..." Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" TextChanged="FlagSearchBox_TextChanged" Padding="6,4"/>
+						<Border Grid.Row="1" Margin="10,0,10,5" Background="{DynamicResource ThemeInputBackground}" CornerRadius="2">
+							<TextBox x:Name="FlagSearchBox" Watermark="Filter flags..." Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeInputForeground}" TextChanged="FlagSearchBox_TextChanged" Padding="6,4"/>
 						</Border>
 						<ListBox Grid.Row="2" x:Name="FlagList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
 							<ListBox.ItemTemplate>
 								<DataTemplate>
 									<Grid ColumnDefinitions="Auto, *">
 										<TextBlock Text="🚩" Foreground="#569CD6" Margin="0,0,6,0" FontFamily="Segoe UI Symbol" VerticalAlignment="Center"/>
-										<TextBlock Grid.Column="1" Text="{Binding FlagName}" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+										<TextBlock Grid.Column="1" Text="{Binding FlagName}" Foreground="{DynamicResource ThemeTextColor}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
 									</Grid>
 								</DataTemplate>
 							</ListBox.ItemTemplate>
@@ -331,54 +282,158 @@
 
 					<Grid x:Name="PanelCommands" IsVisible="False" RowDefinitions="35, 35, *">
 						<Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="10,0">
-							<TextBlock Text="UNUSED WORKS" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
+							<TextBlock Text="UNUSED WORKS" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
 							<Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh" Background="Transparent" Click="RefreshScripts_Click" BorderThickness="0"/>
 						</Grid>
-						<Border Grid.Row="1" Margin="10,0,10,5" Background="#3C3C3C" CornerRadius="2">
-							<TextBox x:Name="ScriptSearchBox" Watermark="Filter works..." Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" TextChanged="ScriptSearchBox_TextChanged" Padding="6,4"/>
+						<Border Grid.Row="1" Margin="10,0,10,5" Background="{DynamicResource ThemeInputBackground}" CornerRadius="2">
+							<TextBox x:Name="ScriptSearchBox" Watermark="Filter works..." Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeInputForeground}" TextChanged="ScriptSearchBox_TextChanged" Padding="6,4"/>
 						</Border>
 						<ListBox Grid.Row="2" x:Name="ScriptList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
 							<ListBox.ItemTemplate>
 								<DataTemplate>
 									<Grid ColumnDefinitions="Auto, *">
 										<TextBlock Text="🔨" Foreground="#CE9178" Margin="0,0,6,0" FontFamily="Segoe UI Symbol" VerticalAlignment="Center"/>
-										<TextBlock Grid.Column="1" Text="{Binding FlagName}" Foreground="#CCCCCC" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+										<TextBlock Grid.Column="1" Text="{Binding FlagName}" Foreground="{DynamicResource ThemeTextColor}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
 									</Grid>
 								</DataTemplate>
 							</ListBox.ItemTemplate>
 						</ListBox>
 					</Grid>
 
-					<Grid x:Name="PanelTheme" IsVisible="False" RowDefinitions="35, Auto, *">
-						<Grid Grid.Row="0" Margin="10,0">
-							<TextBlock Text="THEME SETTINGS" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11" VerticalAlignment="Center"/>
+					<Grid x:Name="PanelTheme" IsVisible="False" RowDefinitions="Auto, 35, Auto, *">
+						<Grid Grid.Row="0" Margin="10,10,10,5">
+							<TextBlock Text="THEME SETTINGS" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
 						</Grid>
-						<Border Grid.Row="1" Margin="10" BorderBrush="#444" BorderThickness="1" CornerRadius="4" Background="{Binding Colors.BackgroundColor}" Padding="10">
+
+						<Grid Grid.Row="1" Margin="10,0" ColumnDefinitions="*, Auto">
+							<ComboBox ItemsSource="{Binding AvailableThemes}" SelectedItem="{Binding CurrentThemeName, Mode=TwoWay}"
+									  HorizontalAlignment="Stretch" Margin="0,0,5,0" SelectionChanged="ThemeComboBox_SelectionChanged"
+                                      Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}" BorderThickness="0"/>
+							<Button Grid.Column="1" Content="+" Width="30" ToolTip.Tip="Create New Theme" Click="BtnNewTheme_Click" Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}"/>
+						</Grid>
+
+						<Border Grid.Row="2" Margin="10" BorderBrush="#444" BorderThickness="1" CornerRadius="4" Background="{Binding Colors.BackgroundColor}" Padding="10">
 							<StackPanel x:Name="PreviewBox">
-								<TextBlock Text="Theme Preview Code..." Foreground="#888" FontSize="10"/>
+								<TextBlock Text="// RelumiScript Theme Preview" Foreground="{Binding Syntax.Comment.Brush}" FontStyle="{Binding Syntax.Comment.FontStyle}" FontWeight="{Binding Syntax.Comment.Weight}" FontSize="11" FontFamily="Consolas"/>
+								<StackPanel Orientation="Horizontal">
+									<TextBlock Text="Script " Foreground="{Binding Syntax.ScriptLabel.Brush}" FontStyle="{Binding Syntax.ScriptLabel.FontStyle}" FontWeight="{Binding Syntax.ScriptLabel.Weight}" FontSize="11" FontFamily="Consolas"/>
+									<TextBlock Text="Work_100 " Foreground="{Binding Syntax.WorkVar.Brush}" FontStyle="{Binding Syntax.WorkVar.FontStyle}" FontWeight="{Binding Syntax.WorkVar.Weight}" FontSize="11" FontFamily="Consolas"/>
+									<TextBlock Text="Cmd_01 " Foreground="{Binding Syntax.Command.Brush}" FontStyle="{Binding Syntax.Command.FontStyle}" FontWeight="{Binding Syntax.Command.Weight}" FontSize="11" FontFamily="Consolas"/>
+								</StackPanel>
+								<StackPanel Orientation="Horizontal">
+									<TextBlock Text="  Flag " Foreground="{Binding Syntax.Command.Brush}" FontStyle="{Binding Syntax.Command.FontStyle}" FontWeight="{Binding Syntax.Command.Weight}" FontSize="11" FontFamily="Consolas"/>
+									<TextBlock Text="#123 " Foreground="{Binding Syntax.Flag.Brush}" FontStyle="{Binding Syntax.Flag.FontStyle}" FontWeight="{Binding Syntax.Flag.Weight}" FontSize="11" FontFamily="Consolas"/>
+									<TextBlock Text="$SYS_01 " Foreground="{Binding Syntax.SysFlag.Brush}" FontStyle="{Binding Syntax.SysFlag.FontStyle}" FontWeight="{Binding Syntax.SysFlag.Weight}" FontSize="11" FontFamily="Consolas"/>
+								</StackPanel>
 							</StackPanel>
 						</Border>
-						<ScrollViewer Grid.Row="2" Margin="10,0">
-							<StackPanel Spacing="15">
-								<TextBlock Text="General" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,5"/>
-								<Grid ColumnDefinitions="*, Auto">
-									<TextBlock Text="Editor Background" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-									<ColorPicker Grid.Column="1" Color="{Binding Colors.BackgroundColor, Mode=TwoWay}" />
-								</Grid>
-								<Grid ColumnDefinitions="*, Auto">
-									<TextBlock Text="Editor Foreground" VerticalAlignment="Center" Foreground="#CCCCCC"/>
-									<ColorPicker Grid.Column="1" Color="{Binding Colors.ForegroundColor, Mode=TwoWay}" />
-								</Grid>
-								<Button Content="Save Theme" HorizontalAlignment="Stretch" Margin="0,20,0,0" Click="SaveTheme_Click"/>
-							</StackPanel>
+
+						<ScrollViewer Grid.Row="3" Margin="10,0">
+							<Border Padding="0,0,10,10">
+								<StackPanel Spacing="10">
+									<TextBlock Text="UI Colors" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,5"/>
+
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Window Background" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Colors.WindowBackground, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Sidebar Background" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Colors.SidebarBackground, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Panel Background" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Colors.PanelBackground, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Activity Bar" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Colors.ActivityBarBackground, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Accent Color" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Colors.AccentColor, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Text Color" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Colors.TextColor, Mode=TwoWay}" />
+									</Grid>
+
+									<TextBlock Text="Input &amp; Interactive" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,5"/>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Input Background" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Colors.InputBackground, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Input Text" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Colors.InputForeground, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Activity Icon" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Colors.ActivityForeground, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Activity Selected" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Colors.ActivityActiveForeground, Mode=TwoWay}" />
+									</Grid>
+
+									<TextBlock Text="Editor General" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,15,0,5"/>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Editor Background" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Colors.BackgroundColor, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Editor Foreground" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Colors.ForegroundColor, Mode=TwoWay}" />
+									</Grid>
+
+									<TextBlock Text="Syntax Highlighting" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,15,0,5"/>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Script Label" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Syntax.ScriptLabel.Color, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Work Variable" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Syntax.WorkVar.Color, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Flag" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Syntax.Flag.Color, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="System Flag" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Syntax.SysFlag.Color, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Command" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Syntax.Command.Color, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Number" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Syntax.Number.Color, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="String" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Syntax.String.Color, Mode=TwoWay}" />
+									</Grid>
+									<Grid ColumnDefinitions="*, Auto">
+										<TextBlock Text="Comment" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<ColorPicker Grid.Column="1" Color="{Binding Syntax.Comment.Color, Mode=TwoWay}" />
+									</Grid>
+
+									<Grid ColumnDefinitions="*, Auto" Margin="0,20,0,0">
+										<Button Content="Reset (Reload)" Click="BtnResetTheme_Click" Background="#444" Foreground="#CCC" Margin="0,0,10,0"/>
+										<Button Grid.Column="1" Content="Save Current Theme" Click="SaveTheme_Click" Background="{DynamicResource ThemeAccentColor}" Foreground="White"/>
+									</Grid>
+								</StackPanel>
+							</Border>
 						</ScrollViewer>
 					</Grid>
 				</Grid>
 			</Border>
 
-			<GridSplitter Grid.Column="2" Background="#1E1E1E" ResizeDirection="Columns"/>
+			<GridSplitter Grid.Column="2" Background="{DynamicResource ThemeSidebarBackground}" ResizeDirection="Columns"/>
 
-			<Grid x:Name="MainContentGrid" Grid.Column="3" Background="#1E1E1E" RowDefinitions="30, *, 4, Auto">
+			<Grid x:Name="MainContentGrid" Grid.Column="3" Background="{DynamicResource ThemeWindowBackground}" RowDefinitions="30, *, 4, Auto">
 
 				<ListBox Grid.Row="0" x:Name="TabStrip" Classes="TabStrip" SelectionChanged="TabStrip_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled">
 					<ListBox.ItemsPanel>
@@ -389,39 +444,39 @@
 					<ListBox.ItemTemplate>
 						<DataTemplate>
 							<Grid ColumnDefinitions="*, Auto" MinWidth="100">
-								<TextBlock Text="{Binding Title}" Foreground="#CCCCCC" FontSize="12" VerticalAlignment="Center" Margin="5,0,10,0" FontStyle="{Binding FontStyle}"/>
-								<Button Grid.Column="1" Content="✕" Click="BtnCloseTab_Click" Tag="{Binding}" Background="Transparent" BorderThickness="0" Foreground="#CCCCCC" Padding="2" FontSize="10" VerticalAlignment="Center"/>
+								<TextBlock Text="{Binding Title}" Foreground="{DynamicResource ThemeTextColor}" FontSize="12" VerticalAlignment="Center" Margin="5,0,10,0" FontStyle="{Binding FontStyle}"/>
+								<Button Grid.Column="1" Content="✕" Click="BtnCloseTab_Click" Tag="{Binding}" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeTextColor}" Padding="2" FontSize="10" VerticalAlignment="Center"/>
 							</Grid>
 						</DataTemplate>
 					</ListBox.ItemTemplate>
 				</ListBox>
 
-				<Panel Grid.Row="1" Background="#1E1E1E">
+				<Panel Grid.Row="1" Background="{DynamicResource ThemeWindowBackground}">
 					<webview:WebView x:Name="Editor" IsVisible="True"/>
 					<StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" IsVisible="False" x:Name="NoTabsPlaceholder">
-						<TextBlock Text="Relumi Script Viewer" FontSize="24" Foreground="#333" HorizontalAlignment="Center"/>
-						<TextBlock Text="Select a file to view or edit" FontSize="14" Foreground="#444" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+						<TextBlock Text="Relumi Script Viewer" FontSize="24" Foreground="{DynamicResource ThemeTextColor}" HorizontalAlignment="Center"/>
+						<TextBlock Text="Select a file to view or edit" FontSize="14" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" HorizontalAlignment="Center" Margin="0,10,0,0"/>
 					</StackPanel>
 				</Panel>
 
-				<GridSplitter Grid.Row="2" Background="#1E1E1E" ResizeDirection="Rows" IsVisible="{Binding #BottomPanelContainer.IsVisible}"/>
+				<GridSplitter Grid.Row="2" Background="{DynamicResource ThemePanelBackground}" ResizeDirection="Rows" IsVisible="{Binding #BottomPanelContainer.IsVisible}"/>
 
-				<Grid Grid.Row="3" x:Name="BottomPanelContainer" IsVisible="False" Height="250" Background="#1E1E1E">
+				<Grid Grid.Row="3" x:Name="BottomPanelContainer" IsVisible="False" Height="250" Background="{DynamicResource ThemePanelBackground}">
 
-					<Border x:Name="PreviewPanel" IsVisible="False" Background="#1E1E1E" BorderBrush="#333" BorderThickness="0,1,0,0">
+					<Border x:Name="PreviewPanel" IsVisible="False" Background="{DynamicResource ThemePanelBackground}" BorderBrush="#333" BorderThickness="0,1,0,0">
 						<Grid RowDefinitions="Auto, *">
-							<Border Grid.Row="0" Padding="10,5" Background="#252526">
+							<Border Grid.Row="0" Padding="10,5" Background="{DynamicResource ThemePanelBackground}">
 								<Grid ColumnDefinitions="*, Auto">
-									<TextBlock Text="PREVIEW" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11"/>
+									<TextBlock Text="PREVIEW" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11"/>
 									<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5">
 										<Button x:Name="BtnPrevPage" Content="◀" Padding="8,2" Background="Transparent" BorderThickness="0" Click="BtnPrevPage_Click" IsVisible="False"/>
 										<TextBlock x:Name="PageIndicator" Text="" VerticalAlignment="Center" Foreground="#888" FontSize="11" IsVisible="False"/>
 										<Button x:Name="BtnNextPage" Content="▶" Padding="8,2" Background="Transparent" BorderThickness="0" Click="BtnNextPage_Click" IsVisible="False"/>
-										<Button Content="✕" Padding="5,0" Background="Transparent" BorderThickness="0" Click="BtnPreviewClose_Click" Foreground="#CCCCCC" FontSize="10" Margin="10,0,0,0"/>
+										<Button Content="✕" Padding="5,0" Background="Transparent" BorderThickness="0" Click="BtnPreviewClose_Click" Foreground="{DynamicResource ThemeTextColor}" FontSize="10" Margin="10,0,0,0"/>
 									</StackPanel>
 								</Grid>
 							</Border>
-							<Border Grid.Row="1" Padding="10" Background="#1E1E1E">
+							<Border Grid.Row="1" Padding="10" Background="{DynamicResource ThemeWindowBackground}">
 								<Viewbox Stretch="Uniform">
 									<ContentControl x:Name="MessagePreviewContent"/>
 								</Viewbox>
@@ -429,24 +484,23 @@
 						</Grid>
 					</Border>
 
-					<Border x:Name="TerminalPanel" IsVisible="False" Background="#1E1E1E" BorderBrush="#333" BorderThickness="0,1,0,0">
+					<Border x:Name="TerminalPanel" IsVisible="False" Background="{DynamicResource ThemePanelBackground}" BorderBrush="#333" BorderThickness="0,1,0,0">
 						<Grid RowDefinitions="Auto, *, Auto">
-							<Border Grid.Row="0" Padding="10,5" Background="#252526">
+							<Border Grid.Row="0" Padding="10,5" Background="{DynamicResource ThemePanelBackground}">
 								<Grid ColumnDefinitions="*, Auto">
-									<TextBlock Text="TERMINAL" FontWeight="Bold" Foreground="#BBBBBB" FontSize="11"/>
-									<Button Grid.Column="1" Content="✕" Padding="5,0" Background="Transparent" BorderThickness="0" Click="BtnTerminalClose_Click" Foreground="#CCCCCC" FontSize="10"/>
+									<TextBlock Text="TERMINAL" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11"/>
+									<Button Grid.Column="1" Content="✕" Padding="5,0" Background="Transparent" BorderThickness="0" Click="BtnTerminalClose_Click" Foreground="{DynamicResource ThemeTextColor}" FontSize="10"/>
 								</Grid>
 							</Border>
-							<TextBox Grid.Row="1" x:Name="TerminalOutput" IsReadOnly="True" Background="#1E1E1E" Foreground="#CCCCCC" BorderThickness="0" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" AcceptsReturn="True"/>
-							<TextBox Grid.Row="2" x:Name="TerminalInput" Background="#252526" Foreground="#E0E0E0" BorderBrush="#333" BorderThickness="0,1,0,0" FontFamily="Consolas" FontSize="12" KeyDown="TerminalInput_KeyDown"/>
+							<TextBox Grid.Row="1" x:Name="TerminalOutput" IsReadOnly="True" Background="{DynamicResource ThemeWindowBackground}" Foreground="{DynamicResource ThemeTextColor}" BorderThickness="0" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap" AcceptsReturn="True"/>
+							<TextBox Grid.Row="2" x:Name="TerminalInput" Background="{DynamicResource ThemePanelBackground}" Foreground="{DynamicResource ThemeTextColor}" BorderBrush="#333" BorderThickness="0,1,0,0" FontFamily="Consolas" FontSize="12" KeyDown="TerminalInput_KeyDown"/>
 						</Grid>
 					</Border>
-
 				</Grid>
 			</Grid>
 		</Grid>
 
-		<Border Grid.Row="1" Background="#007ACC" Padding="10,0">
+		<Border Grid.Row="1" Background="{DynamicResource ThemeAccentColor}" Padding="10,0">
 			<TextBlock x:Name="StatusText" Text="Ready" VerticalAlignment="Center" Foreground="White" FontSize="11"/>
 		</Border>
 	</Grid>
