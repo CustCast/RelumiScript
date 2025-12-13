@@ -58,6 +58,10 @@ namespace RelumiScript
         private string _currentBottomView = "";
         private GridLength _lastSidebarWidth = new GridLength(300);
 
+        // Terminal
+        private TerminalSession? _terminalSession;
+        private int _consoleInputStart = 0;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -73,6 +77,9 @@ namespace RelumiScript
             RefreshThemeList();
             SwitchSideView("Explorer");
             SetupAutosave();
+
+            // Cleanup terminal on close
+            this.Closing += (s, e) => _terminalSession?.Dispose();
         }
 
         private void SetupAutosave()
@@ -85,7 +92,6 @@ namespace RelumiScript
 
         private async void AutoSaveTimer_Tick(object? sender, EventArgs e)
         {
-            // Only autosave if we have a valid working directory and there are dirty files
             if (!string.IsNullOrEmpty(_workingDirectory) && _documents.Any(d => d.IsDirty))
             {
                 await SaveDirtyFiles(isAutoSave: true);
@@ -127,7 +133,6 @@ namespace RelumiScript
         public void BtnResetTheme_Click(object? sender, RoutedEventArgs e) { if (!string.IsNullOrEmpty(_themeVm.CurrentThemeName)) { LoadThemeByName(_themeVm.CurrentThemeName); StatusText.Text = "Theme changes discarded."; } }
         private async Task InjectTheme(ThemeSettings? directSettings = null) { ThemeSettings settings = directSettings ?? _themeVm.ToSettings(); _themeVm.LoadFromSettings(settings); UpdateDynamicResources(); if (_isEditorReady && Editor != null) { await Editor.ExecuteScriptAsync($"if (window.updateRelumiTheme) window.updateRelumiTheme({JsonConvert.SerializeObject(settings)});"); } }
 
-        // Helper to find parent file and line offset
         private (FileNode? file, int startLine) GetParentFileAndLine(ScriptNode sNode)
         {
             if (ScriptTree.ItemsSource is IEnumerable<FileNode> files)
@@ -139,8 +144,6 @@ namespace RelumiScript
                     foreach (var s in parent.Scripts)
                     {
                         if (s == sNode) return (parent, line);
-                        // Fixed: Removed the +1 which was causing the drift.
-                        // We use a robust split to ensure we count lines correctly regardless of \r\n or \n
                         line += s.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None).Length;
                     }
                 }
@@ -151,17 +154,12 @@ namespace RelumiScript
         private async void OpenDocument(object node, bool isPeek)
         {
             if (node == null) return;
-
-            // Redirect ScriptNode to FileNode
             if (node is ScriptNode sNode)
             {
                 var (parent, offset) = GetParentFileAndLine(sNode);
                 if (parent != null)
                 {
-                    // Open the parent file instead
                     OpenDocument(parent, isPeek);
-
-                    // Scroll to the start of the script
                     if (_isEditorReady)
                     {
                         await Task.Delay(50);
@@ -200,37 +198,8 @@ namespace RelumiScript
         {
             string script = @"editor.onDidChangeCursorPosition((e)=>{var l=editor.getModel().getLineContent(e.position.lineNumber);var m=l.match(/(?:_TALKMSG|_TALK_KEYWAIT|_EASY_OBJ_MSG|_EASY_BOARD_MSG)\s*\(\s*[@""']([^%]+)%([^)""']+)[""']?\s*\)/);if(m)window.chrome.webview.postMessage('PREVIEW:'+m[1]+'%'+m[2]);else window.chrome.webview.postMessage('HIDE_PREVIEW');});editor.addAction({id:'relumi-lookup',label:'Search in Global View',contextMenuGroupId:'navigation',contextMenuOrder:1.5,run:function(ed){var p=ed.getPosition();var m=ed.getModel();var w=m.getWordAtPosition(p);if(w){var charBefore=w.startColumn>1?m.getLineContent(p.lineNumber).charAt(w.startColumn-2):'';var prefix=(charBefore==='#'||charBefore==='$'||charBefore==='@')?charBefore:'';window.chrome.webview.postMessage('GLOBAL_SEARCH:'+prefix+w.word);}}});";
             script += @" editor.onDidChangeModelContent((e) => { if(!e.isFlush) window.chrome.webview.postMessage('CONTENT_UPDATE:' + editor.getValue()); });";
-
-            script += @"
-editor.addAction({
-    id: 'relumi-save',
-    label: 'Save',
-    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S],
-    run: function(ed) { window.chrome.webview.postMessage('SAVE_REQUEST'); }
-});";
-
-            script += @"
-editor.addAction({
-    id: 'relumi-edit-def',
-    label: 'Edit Definition',
-    contextMenuGroupId: 'navigation',
-    contextMenuOrder: 1.0,
-    run: function(ed) {
-        var p = ed.getPosition();
-        var m = ed.getModel();
-        var w = m.getWordAtPosition(p);
-        if(w) {
-            var charBefore = w.startColumn > 1 ? m.getLineContent(p.lineNumber).charAt(w.startColumn - 2) : '';
-            var prefix = (charBefore === '#' || charBefore === '$' || charBefore === '@') ? charBefore : '';
-            var token = prefix + w.word;
-            
-            if (prefix === '#') { window.chrome.webview.postMessage('EDIT_DEFINITION:FLG:' + w.word); }
-            else if (prefix === '$') { window.chrome.webview.postMessage('EDIT_DEFINITION:SYS:' + w.word); }
-            else if (prefix === '@') { window.chrome.webview.postMessage('EDIT_DEFINITION:WRK:' + w.word); }
-            else if(token.startsWith('Cmd_') || token.startsWith('_') || /^[A-Z0-9_]+$/.test(token)) { window.chrome.webview.postMessage('EDIT_DEFINITION:CMD:' + w.word); }
-        }
-    }
-});";
+            script += @" editor.addAction({ id: 'relumi-save', label: 'Save', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S], run: function(ed) { window.chrome.webview.postMessage('SAVE_REQUEST'); } });";
+            script += @" editor.addAction({ id: 'relumi-edit-def', label: 'Edit Definition', contextMenuGroupId: 'navigation', contextMenuOrder: 1.0, run: function(ed) { var p = ed.getPosition(); var m = ed.getModel(); var w = m.getWordAtPosition(p); if(w) { var charBefore = w.startColumn > 1 ? m.getLineContent(p.lineNumber).charAt(w.startColumn - 2) : ''; var prefix = (charBefore === '#' || charBefore === '$' || charBefore === '@') ? charBefore : ''; var token = prefix + w.word; if (prefix === '#') { window.chrome.webview.postMessage('EDIT_DEFINITION:FLG:' + w.word); } else if (prefix === '$') { window.chrome.webview.postMessage('EDIT_DEFINITION:SYS:' + w.word); } else if (prefix === '@') { window.chrome.webview.postMessage('EDIT_DEFINITION:WRK:' + w.word); } else if(token.startsWith('Cmd_') || token.startsWith('_') || /^[A-Z0-9_]+$/.test(token)) { window.chrome.webview.postMessage('EDIT_DEFINITION:CMD:' + w.word); } } } });";
             await Editor.ExecuteScriptAsync(script);
         }
 
@@ -316,7 +285,16 @@ editor.addAction({
         public async void BtnLoad_Click(object? sender, RoutedEventArgs e)
         {
             var top = TopLevel.GetTopLevel(this); var folders = await top!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Project Root Folder" }); if (folders.Count == 0) return; var root = folders[0].Path.LocalPath; _workingDirectory = root; StatusText.Text = "Scanning...";
-            try { string? jsonDir = FindJsonFolder(); if (_service.InitSummary.Contains("Cmds: 0") && !string.IsNullOrEmpty(jsonDir)) _service.Initialize(jsonDir); StatusText.Text = "Loading Game Data..."; await Task.Run(() => _service.LoadGameData(root)); StatusText.Text = "Loading Scripts..."; var scripts = await Task.Run(() => _service.LoadAndDecompile(root)); StatusText.Text = "Loading Messages..."; _loadedMessages = await Task.Run(() => _service.LoadMessageFiles(root)); await GenerateAndInjectSyntax(); ScriptTree.ItemsSource = scripts.OrderBy(x => x.Name).ToList(); StatusText.Text = $"Loaded {scripts.Count} scripts."; RefreshAllTrackers(); SwitchSideView("Explorer"); } catch (Exception ex) { StatusText.Text = $"Load Error: {ex.Message}"; Debug.WriteLine(ex); }
+            try
+            {
+                string? jsonDir = FindJsonFolder(); if (_service.InitSummary.Contains("Cmds: 0") && !string.IsNullOrEmpty(jsonDir)) _service.Initialize(jsonDir); StatusText.Text = "Loading Game Data..."; await Task.Run(() => _service.LoadGameData(root)); StatusText.Text = "Loading Scripts..."; var scripts = await Task.Run(() => _service.LoadAndDecompile(root)); StatusText.Text = "Loading Messages..."; _loadedMessages = await Task.Run(() => _service.LoadMessageFiles(root)); await GenerateAndInjectSyntax(); ScriptTree.ItemsSource = scripts.OrderBy(x => x.Name).ToList(); StatusText.Text = $"Loaded {scripts.Count} scripts."; RefreshAllTrackers(); SwitchSideView("Explorer");
+                // Auto-nav terminal: Checks if terminal is running and forces a directory change
+                if (_terminalSession != null && _terminalSession.IsRunning)
+                {
+                    _terminalSession.SendCommand($"Set-Location -Path \"{_workingDirectory}\"; Write-Host 'Terminal set to project root.' -ForegroundColor Cyan");
+                }
+            }
+            catch (Exception ex) { StatusText.Text = $"Load Error: {ex.Message}"; Debug.WriteLine(ex); }
         }
 
         public async void BtnSave_Click(object? sender, RoutedEventArgs e)
@@ -435,7 +413,78 @@ editor.addAction({
         public void BtnTerminal_Click(object? sender, RoutedEventArgs e) => SwitchBottomView("Terminal");
         public void BtnTerminalClose_Click(object? sender, RoutedEventArgs e) => SwitchBottomView("Terminal");
         public void BtnPreviewClose_Click(object? sender, RoutedEventArgs e) => SwitchBottomView("Preview");
-        private void SwitchBottomView(string viewName) { if (BottomPanelContainer.IsVisible && _currentBottomView == viewName) { BottomPanelContainer.IsVisible = false; SetBottomButtonActive(null); return; } BottomPanelContainer.IsVisible = true; _currentBottomView = viewName; TerminalPanel.IsVisible = viewName == "Terminal"; PreviewPanel.IsVisible = viewName == "Preview"; SetBottomButtonActive(viewName); if (viewName == "Terminal") TerminalInput.Focus(); }
+
+        private void SwitchBottomView(string viewName)
+        {
+            if (BottomPanelContainer.IsVisible && _currentBottomView == viewName) { BottomPanelContainer.IsVisible = false; SetBottomButtonActive(null); return; }
+            BottomPanelContainer.IsVisible = true;
+            _currentBottomView = viewName;
+            TerminalPanel.IsVisible = viewName == "Terminal";
+            PreviewPanel.IsVisible = viewName == "Preview";
+            SetBottomButtonActive(viewName);
+
+            if (viewName == "Terminal")
+            {
+                if (_terminalSession == null)
+                {
+                    _terminalSession = new TerminalSession();
+                    _terminalSession.OutputReceived += OnTerminalOutput;
+                    // Starts the terminal in the currently loaded project directory (if one exists)
+                    _terminalSession.Start(_workingDirectory);
+                }
+                ConsoleBox.Focus();
+                ConsoleBox.CaretIndex = ConsoleBox.Text?.Length ?? 0;
+            }
+        }
+
+        private void OnTerminalOutput(string text)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                ConsoleBox.Text += text;
+                ConsoleBox.CaretIndex = ConsoleBox.Text.Length;
+                _consoleInputStart = ConsoleBox.Text.Length;
+            });
+        }
+
+        private void ConsoleBox_KeyDown(object? sender, KeyEventArgs e)
+        {
+            // Simple terminal emulation logic for single textbox
+            if (e.Key == Key.Enter)
+            {
+                e.Handled = true;
+                string allText = ConsoleBox.Text ?? "";
+                if (_consoleInputStart <= allText.Length)
+                {
+                    string cmd = allText.Substring(_consoleInputStart);
+
+                    // Remove input from UI immediately to avoid double-echo from cmd.exe
+                    ConsoleBox.Text = allText.Substring(0, _consoleInputStart);
+
+                    if (_terminalSession != null)
+                    {
+                        _terminalSession.SendCommand(cmd);
+                    }
+                }
+            }
+            else if (e.Key == Key.Back || e.Key == Key.Left)
+            {
+                if (ConsoleBox.CaretIndex <= _consoleInputStart)
+                {
+                    e.Handled = true;
+                }
+            }
+            else if (e.Key == Key.Home)
+            {
+                // Prevent going before prompt
+                ConsoleBox.CaretIndex = _consoleInputStart;
+                e.Handled = true;
+            }
+
+            // Prevent caret from moving into read-only zone via mouse click or arrow keys logic could be extended here
+            // For now, rudimentary checks on destructive keys are sufficient for a basic console
+        }
+
         private void SetBottomButtonActive(string? activeTag) { UpdateBtnStyle(BtnNavTerminal, activeTag); UpdateBtnStyle(BtnNavPreview, activeTag); }
         private async void RefreshAllTrackers()
         {
@@ -481,7 +530,6 @@ editor.addAction({
         private void BtnNextPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex < _currentMessagePages.Count - 1) { _currentPageIndex++; RenderCurrentPage(); } }
         private void ShowMessagePreview(string file, string label) { TryInitMessageRenderer(); if (_messageRenderer == null) return; var target = _loadedMessages.FirstOrDefault(f => f.Name.Equals(file, StringComparison.OrdinalIgnoreCase))?.Scripts.FirstOrDefault(s => s.Label.Equals(label, StringComparison.OrdinalIgnoreCase)); if (target != null) { _currentMessagePages = _messageRenderer.SplitIntoPages(target.Content); _currentPageIndex = 0; RenderCurrentPage(); } }
         private void RenderCurrentPage() { if (_messageRenderer == null || _currentMessagePages.Count == 0) return; _currentPageIndex = Math.Clamp(_currentPageIndex, 0, _currentMessagePages.Count - 1); MessagePreviewContent.Content = _messageRenderer.RenderPage(_currentMessagePages[_currentPageIndex], _currentPageIndex + 1, _currentMessagePages.Count); PageIndicator.Text = $"{_currentPageIndex + 1} / {_currentMessagePages.Count}"; BtnPrevPage.IsVisible = BtnNextPage.IsVisible = PageIndicator.IsVisible = _currentMessagePages.Count > 1; }
-        private async void TerminalInput_KeyDown(object? sender, KeyEventArgs e) { if (e.Key != Key.Enter || string.IsNullOrWhiteSpace(TerminalInput.Text)) return; string cmd = TerminalInput.Text; TerminalOutput.Text += $"> {cmd}\n"; TerminalInput.Text = ""; if (cmd.ToLower() == "cls") { TerminalOutput.Text = ""; return; } await Task.Run(() => { try { var info = new ProcessStartInfo("cmd.exe", $"/c {cmd}") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = string.IsNullOrEmpty(_workingDirectory) ? AppDomain.CurrentDomain.BaseDirectory : _workingDirectory }; using var p = Process.Start(info); if (p == null) return; string o = p.StandardOutput.ReadToEnd(); string err = p.StandardError.ReadToEnd(); p.WaitForExit(); Dispatcher.UIThread.Post(() => TerminalOutput.Text += $"{o}{err}\n"); } catch (Exception ex) { Dispatcher.UIThread.Post(() => TerminalOutput.Text += $"Error: {ex.Message}\n"); } }); }
         private void TryInitMessageRenderer() { if (_messageRenderer == null && !string.IsNullOrEmpty(FindJsonFolder())) _messageRenderer = new MessageRenderer(Path.GetFullPath(Path.Combine(FindJsonFolder()!, "..", "Assets"))); }
         private async Task GenerateAndInjectSyntax() { string? jd = FindJsonFolder(); if (string.IsNullOrEmpty(jd)) return; await Task.Run(() => { string cmds = File.Exists(Path.Combine(jd, "commands.json")) ? File.ReadAllText(Path.Combine(jd, "commands.json")) : "[]"; string js = $"window.RELUMI_DATA = {{ commands: {cmds}, flags: [], sysflags: [], works: [], pokes: {JsonConvert.SerializeObject(_service.PokemonMap)}, items: {JsonConvert.SerializeObject(_service.ItemMap)} }}; window.RELUMI_DATA_LOADED = true;"; File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Monaco", "syntax_data.js"), js, Encoding.UTF8); }); if (_isEditorReady) await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={DateTime.Now.Ticks}');"); }
         private string? FindJsonFolder() { string b = AppDomain.CurrentDomain.BaseDirectory; if (Directory.Exists(Path.Combine(b, "JSON"))) return Path.Combine(b, "JSON"); if (Directory.Exists(Path.Combine(b, "..", "..", "..", "JSON"))) return Path.GetFullPath(Path.Combine(b, "..", "..", "..", "JSON")); return null; }
