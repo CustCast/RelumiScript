@@ -77,7 +77,7 @@ namespace RelumiScript
 
                 // Highlight Color (Dark Blue selection)
                 IBrush colHighlight = new SolidColorBrush(Color.Parse("#264F78"));
-                // Default theme background - Explicit cast to IBrush to fix CS0173
+                // Default theme background
                 IBrush themeBg = (themeVm?.Colors.BackgroundColor != null)
                     ? (IBrush)new SolidColorBrush(themeVm.Colors.BackgroundColor)
                     : Brushes.Transparent;
@@ -121,7 +121,8 @@ namespace RelumiScript
                 return segments;
             }
 
-            string pattern = @"(//.*|;.*)|(""[^""]*"")|([#$@][\w]+)|(\w+:)|(\w+)|(\s+)|(.)";
+            // UPDATED REGEX: Added support for single quotes: 'text'
+            string pattern = @"(//.*|;.*)|(""[^""]*""|'[^']*')|([#$@][\w]+)|(\w+:)|(\w+)|(\s+)|(.)";
             var matches = Regex.Matches(line, pattern);
 
             foreach (Match m in matches)
@@ -142,7 +143,8 @@ namespace RelumiScript
                     weight = syntax.Comment.Weight;
                     style = syntax.Comment.FontStyle;
                 }
-                else if (text.StartsWith("\""))
+                // CHECK UPDATED: Now checks for single quotes too
+                else if (text.StartsWith("\"") || text.StartsWith("'"))
                 {
                     fg = syntax.String.Brush;
                     weight = syntax.String.Weight;

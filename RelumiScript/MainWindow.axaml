@@ -127,7 +127,7 @@
                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
                                                   Width="16" Height="16" Stretch="None"/>
 											<ContentPresenter Grid.Column="1" Content="{TemplateBinding Content}"
-                                                              VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                                                            VerticalAlignment="Center" HorizontalAlignment="Left"/>
 										</Grid>
 									</Border>
 								</ControlTemplate>
@@ -310,7 +310,7 @@
 										<ItemsControl ItemsSource="{Binding Locations}" Background="Transparent" BorderThickness="0" Margin="0">
 											<ItemsControl.ItemTemplate>
 												<DataTemplate>
-													<Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="25,2,5,2" Click="JumpToLocation_Click" PointerWheelChanged="SearchResult_PointerWheelChanged" Tag="{Binding}">
+													<Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="25,2,5,2" Click="JumpToLocation_Click" PointerWheelChanged="SearchResult_PointerWheelChanged" Tag="{Binding}" ToolTip.Placement="Right">
 														<ToolTip.Tip>
 															<Border Background="{DynamicResource ThemeWindowBackground}" BorderBrush="White" BorderThickness="1" Padding="10" MaxWidth="1200" MaxHeight="700">
 																<ScrollViewer>
@@ -322,6 +322,27 @@
 																				<Binding Path="#MainWindowRef.ThemeVm"/>
 																			</MultiBinding>
 																		</ItemsControl.ItemsSource>
+																		<ItemsControl.ItemTemplate>
+																			<DataTemplate>
+																				<Border Background="{Binding Background}" Padding="2,0">
+																					<StackPanel Orientation="Horizontal">
+																						<TextBlock Text="{Binding LineNumber}" Width="35" Foreground="#808080" FontFamily="Consolas" FontSize="11" Margin="0,0,10,0"/>
+																						<ItemsControl ItemsSource="{Binding Segments}">
+																							<ItemsControl.ItemsPanel>
+																								<ItemsPanelTemplate>
+																									<StackPanel Orientation="Horizontal"/>
+																								</ItemsPanelTemplate>
+																							</ItemsControl.ItemsPanel>
+																							<ItemsControl.ItemTemplate>
+																								<DataTemplate>
+																									<TextBlock Text="{Binding Text}" Foreground="{Binding Foreground}" FontWeight="{Binding Weight}" FontStyle="{Binding Style}" FontFamily="Consolas" FontSize="11"/>
+																								</DataTemplate>
+																							</ItemsControl.ItemTemplate>
+																						</ItemsControl>
+																					</StackPanel>
+																				</Border>
+																			</DataTemplate>
+																		</ItemsControl.ItemTemplate>
 																	</ItemsControl>
 																</ScrollViewer>
 															</Border>
