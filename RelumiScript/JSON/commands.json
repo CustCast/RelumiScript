@@ -11736,7 +11736,7 @@
   },
   {
     "Id": 768,
-    "Name": "AC_UP",
+    "Name": "_AC_UP",
     "Description": "Moves the affected actor up an amount of tiles over an amount of frames.",
     "Dummy": false,
     "Animation": true,
@@ -11771,7 +11771,7 @@
   },
   {
     "Id": 769,
-    "Name": "AC_DOWN",
+    "Name": "_AC_DOWN",
     "Description": "Moves the affected actor down an amount of tiles over an amount of frames.",
     "Dummy": false,
     "Animation": true,
@@ -11806,7 +11806,7 @@
   },
   {
     "Id": 770,
-    "Name": "AC_LEFT",
+    "Name": "_AC_LEFT",
     "Description": "Moves the affected actor left an amount of tiles over an amount of frames.",
     "Dummy": false,
     "Animation": true,
@@ -11841,7 +11841,7 @@
   },
   {
     "Id": 771,
-    "Name": "AC_RIGHT",
+    "Name": "_AC_RIGHT",
     "Description": "Moves the affected actor right an amount of tiles over an amount of frames.",
     "Dummy": false,
     "Animation": true,
@@ -11876,7 +11876,7 @@
   },
   {
     "Id": 772,
-    "Name": "AC_LOOP",
+    "Name": "_AC_LOOP",
     "Description": "Unused.",
     "Dummy": false,
     "Animation": true,
@@ -11884,7 +11884,7 @@
   },
   {
     "Id": 773,
-    "Name": "AC_DIR_U",
+    "Name": "_AC_DIR_U",
     "Description": "Turns the affected actor up over an amount of frames.",
     "Dummy": false,
     "Animation": true,
@@ -11910,7 +11910,7 @@
   },
   {
     "Id": 774,
-    "Name": "AC_DIR_R",
+    "Name": "_AC_DIR_R",
     "Description": "Turns the affected actor right over an amount of frames.",
     "Dummy": false,
     "Animation": true,
@@ -11936,7 +11936,7 @@
   },
   {
     "Id": 775,
-    "Name": "AC_DIR_D",
+    "Name": "_AC_DIR_D",
     "Description": "Turns the affected actor down over an amount of frames.",
     "Dummy": false,
     "Animation": true,
@@ -11962,7 +11962,7 @@
   },
   {
     "Id": 776,
-    "Name": "AC_DIR_L",
+    "Name": "_AC_DIR_L",
     "Description": "Turns the affected actor left over an amount of frames.",
     "Dummy": false,
     "Animation": true,
@@ -11988,7 +11988,7 @@
   },
   {
     "Id": 777,
-    "Name": "ACMD_END",
+    "Name": "_ACMD_END",
     "Description": "Ends a movement script.",
     "Dummy": false,
     "Animation": true,
@@ -11996,7 +11996,7 @@
   },
   {
     "Id": 778,
-    "Name": "AC_DIR_VAL",
+    "Name": "_AC_DIR_VAL",
     "Description": "Turns the affected actor to a specific angle over an amount of frames.",
     "Dummy": false,
     "Animation": true,
@@ -12022,7 +12022,7 @@
   },
   {
     "Id": 779,
-    "Name": "AC_WAIT",
+    "Name": "_AC_WAIT",
     "Description": "Waits for the specified amount of frames before continuing the movement script.",
     "Dummy": false,
     "Animation": true,
@@ -12082,7 +12082,7 @@
   },
   {
     "Id": 783,
-    "Name": "AC_MARK_GYOE",
+    "Name": "_AC_MARK_GYOE",
     "Description": "Shows a [!] bubble above the affected actor.",
     "Dummy": false,
     "Animation": true,
@@ -12124,7 +12124,7 @@
   },
   {
     "Id": 786,
-    "Name": "AC_WORLD_X",
+    "Name": "_AC_WORLD_X",
     "Description": "",
     "Dummy": false,
     "Animation": true,
@@ -12149,7 +12149,7 @@
   },
   {
     "Id": 787,
-    "Name": "AC_WORLD_Z",
+    "Name": "_AC_WORLD_Z",
     "Description": "",
     "Dummy": false,
     "Animation": true,
@@ -12174,7 +12174,7 @@
   },
   {
     "Id": 788,
-    "Name": "AC_HERO_MATCH_X",
+    "Name": "_AC_HERO_MATCH_X",
     "Description": "Moves the affected actor up or down to match the X position of the player.",
     "Dummy": false,
     "Animation": true,
@@ -12192,7 +12192,7 @@
   },
   {
     "Id": 789,
-    "Name": "AC_HERO_MATCH_Z",
+    "Name": "_AC_HERO_MATCH_Z",
     "Description": "Moves the affected actor left or right to match the Z position of the player.",
     "Dummy": false,
     "Animation": true,
@@ -12226,7 +12226,7 @@
   },
   {
     "Id": 792,
-    "Name": "AC_UP_CENTER",
+    "Name": "_AC_UP_CENTER",
     "Description": "Moves the affected actor up an amount of tiles over an amount of frames. The actor ends on the center of the final tile.",
     "Dummy": false,
     "Animation": true,
@@ -12253,7 +12253,7 @@
   },
   {
     "Id": 793,
-    "Name": "AC_DOWN_CENTER",
+    "Name": "_AC_DOWN_CENTER",
     "Description": "Moves the affected actor down an amount of tiles over an amount of frames. The actor ends on the center of the final tile.",
     "Dummy": false,
     "Animation": true,
@@ -12280,7 +12280,7 @@
   },
   {
     "Id": 794,
-    "Name": "AC_LEFT_CENTER",
+    "Name": "_AC_LEFT_CENTER",
     "Description": "Moves the affected actor left an amount of tiles over an amount of frames. The actor ends on the center of the final tile.",
     "Dummy": false,
     "Animation": true,
@@ -12307,7 +12307,7 @@
   },
   {
     "Id": 795,
-    "Name": "AC_RIGHT_CENTER",
+    "Name": "_AC_RIGHT_CENTER",
     "Description": "Moves the affected actor right an amount of tiles over an amount of frames. The actor ends on the center of the final tile.",
     "Dummy": false,
     "Animation": true,
@@ -12334,7 +12334,7 @@
   },
   {
     "Id": 796,
-    "Name": "AC_DIR_UP_CENTER",
+    "Name": "_AC_DIR_UP_CENTER",
     "Description": "(?) Turns the affected actor up and centers it on the tile.",
     "Dummy": false,
     "Animation": true,
@@ -12359,7 +12359,7 @@
   },
   {
     "Id": 797,
-    "Name": "AC_DIR_DOWN_CENTER",
+    "Name": "_AC_DIR_DOWN_CENTER",
     "Description": "Unused.",
     "Dummy": false,
     "Animation": true,
@@ -12367,7 +12367,7 @@
   },
   {
     "Id": 798,
-    "Name": "AC_DIR_LEFT_CENTER",
+    "Name": "_AC_DIR_LEFT_CENTER",
     "Description": "(?) Turns the affected actor left and centers it on the tile.",
     "Dummy": false,
     "Animation": true,
@@ -12392,7 +12392,7 @@
   },
   {
     "Id": 799,
-    "Name": "AC_DIR_RIGHT_CENTER",
+    "Name": "_AC_DIR_RIGHT_CENTER",
     "Description": "(?) Turns the affected actor right and centers it on the tile.",
     "Dummy": false,
     "Animation": true,
@@ -12417,7 +12417,7 @@
   },
   {
     "Id": 800,
-    "Name": "AC_VANISH_ON",
+    "Name": "_AC_VANISH_ON",
     "Description": "",
     "Dummy": false,
     "Animation": true,
@@ -12434,7 +12434,7 @@
   },
   {
     "Id": 801,
-    "Name": "AC_VANISH_OFF",
+    "Name": "_AC_VANISH_OFF",
     "Description": "",
     "Dummy": false,
     "Animation": true,
@@ -12451,7 +12451,7 @@
   },
   {
     "Id": 802,
-    "Name": "AC_DIR_PAUSE_ON",
+    "Name": "_AC_DIR_PAUSE_ON",
     "Description": "Locks the direction of the affected actor.",
     "Dummy": false,
     "Animation": true,
@@ -12468,7 +12468,7 @@
   },
   {
     "Id": 803,
-    "Name": "AC_DIR_PAUSE_OFF",
+    "Name": "_AC_DIR_PAUSE_OFF",
     "Description": "Unlocks the direction of the affected actor.",
     "Dummy": false,
     "Animation": true,
@@ -12485,7 +12485,7 @@
   },
   {
     "Id": 804,
-    "Name": "AC_ANM_PAUSE_ON",
+    "Name": "_AC_ANM_PAUSE_ON",
     "Description": "Unused.",
     "Dummy": false,
     "Animation": true,
@@ -12493,7 +12493,7 @@
   },
   {
     "Id": 805,
-    "Name": "AC_ANM_PAUSE_OFF",
+    "Name": "_AC_ANM_PAUSE_OFF",
     "Description": "Unused.",
     "Dummy": false,
     "Animation": true,
@@ -12501,7 +12501,7 @@
   },
   {
     "Id": 806,
-    "Name": "AC_PC_BOW",
+    "Name": "_AC_PC_BOW",
     "Description": "",
     "Dummy": false,
     "Animation": true,
@@ -12509,7 +12509,7 @@
   },
   {
     "Id": 807,
-    "Name": "AC_HIDE_PULLOFF",
+    "Name": "_AC_HIDE_PULLOFF",
     "Description": "Unused.",
     "Dummy": false,
     "Animation": true,
@@ -12517,7 +12517,7 @@
   },
   {
     "Id": 808,
-    "Name": "AC_HERO_BANZAI",
+    "Name": "_AC_HERO_BANZAI",
     "Description": "Unused.",
     "Dummy": false,
     "Animation": true,
@@ -12525,7 +12525,7 @@
   },
   {
     "Id": 809,
-    "Name": "AC_MARK_SAISEN",
+    "Name": "_AC_MARK_SAISEN",
     "Description": "Unused.",
     "Dummy": false,
     "Animation": true,
@@ -12533,7 +12533,7 @@
   },
   {
     "Id": 810,
-    "Name": "AC_HERO_BANZAI_UKE",
+    "Name": "_AC_HERO_BANZAI_UKE",
     "Description": "Unused.",
     "Dummy": false,
     "Animation": true,
@@ -12541,7 +12541,7 @@
   },
   {
     "Id": 811,
-    "Name": "ACMD_NOT",
+    "Name": "_ACMD_NOT",
     "Description": "Unused.",
     "Dummy": false,
     "Animation": true,
@@ -13471,7 +13471,7 @@
   },
   {
     "Id": 870,
-    "Name": "AC_INDEX_ANIME",
+    "Name": "_AC_INDEX_ANIME",
     "Description": "Animates the affected actor with a specific animation.",
     "Dummy": false,
     "Animation": true,
@@ -13498,7 +13498,7 @@
   },
   {
     "Id": 871,
-    "Name": "AC_INDEX_ANIME_WAIT",
+    "Name": "_AC_INDEX_ANIME_WAIT",
     "Description": "Waits for the currently playing animation from AC_INDEX_ANIME to end.",
     "Dummy": false,
     "Animation": true,
@@ -13965,7 +13965,7 @@
   },
   {
     "Id": 900,
-    "Name": "AC_MARK_EMO",
+    "Name": "_AC_MARK_EMO",
     "Description": "Shows an emotion bubble above the affected actor.",
     "Dummy": false,
     "Animation": true,
@@ -14082,7 +14082,7 @@
   },
   {
     "Id": 908,
-    "Name": "AC_NECK_ROTATE",
+    "Name": "_AC_NECK_ROTATE",
     "Description": "Rotates the head of the affected actor.",
     "Dummy": false,
     "Animation": true,
@@ -14336,7 +14336,7 @@
   },
   {
     "Id": 927,
-    "Name": "AC_OFFSET",
+    "Name": "_AC_OFFSET",
     "Description": "",
     "Dummy": false,
     "Animation": true,
@@ -14897,7 +14897,7 @@
   },
   {
     "Id": 964,
-    "Name": "AC_INVISIBLE_ON",
+    "Name": "_AC_INVISIBLE_ON",
     "Description": "Hides the affected actor.",
     "Dummy": false,
     "Animation": true,
@@ -14905,7 +14905,7 @@
   },
   {
     "Id": 965,
-    "Name": "AC_INVISIBLE_OFF",
+    "Name": "_AC_INVISIBLE_OFF",
     "Description": "Unhides the affected actor.",
     "Dummy": false,
     "Animation": true,
@@ -15113,7 +15113,7 @@
   },
   {
     "Id": 976,
-    "Name": "AC_FACE_INDEX",
+    "Name": "_AC_FACE_INDEX",
     "Description": "Changes the face of the affected actor.",
     "Dummy": false,
     "Animation": true,
@@ -17834,7 +17834,7 @@
   },
   {
     "Id": 1142,
-    "Name": "AC_STOP_WALK_ANIME",
+    "Name": "_AC_STOP_WALK_ANIME",
     "Description": "",
     "Dummy": false,
     "Animation": true,
@@ -18074,7 +18074,7 @@
   },
   {
     "Id": 1155,
-    "Name": "AC_ANIME_DURATION",
+    "Name": "_AC_ANIME_DURATION",
     "Description": "(?) Sets the length of the next animation.",
     "Dummy": false,
     "Animation": true,

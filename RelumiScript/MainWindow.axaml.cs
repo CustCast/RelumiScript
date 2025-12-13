@@ -127,7 +127,62 @@ namespace RelumiScript
         public void BtnResetTheme_Click(object? sender, RoutedEventArgs e) { if (!string.IsNullOrEmpty(_themeVm.CurrentThemeName)) { LoadThemeByName(_themeVm.CurrentThemeName); StatusText.Text = "Theme changes discarded."; } }
         private async Task InjectTheme(ThemeSettings? directSettings = null) { ThemeSettings settings = directSettings ?? _themeVm.ToSettings(); _themeVm.LoadFromSettings(settings); UpdateDynamicResources(); if (_isEditorReady && Editor != null) { await Editor.ExecuteScriptAsync($"if (window.updateRelumiTheme) window.updateRelumiTheme({JsonConvert.SerializeObject(settings)});"); } }
 
-        private async void OpenDocument(object node, bool isPeek) { if (node == null) return; string docId = "", title = "", content = ""; if (node is FileNode fNode) { docId = "FILE:" + fNode.FileName; title = fNode.Name; content = string.Join(Environment.NewLine, fNode.Scripts.Select(x => x.Content)); } else if (node is ScriptNode sNode) { docId = "SCRIPT:" + sNode.Label; title = sNode.Label; content = sNode.Content; } else return; var existing = _documents.FirstOrDefault(d => d.Id == docId); if (existing != null) { if (!isPeek && existing.IsPreview) existing.IsPreview = false; SetActiveDocument(existing); return; } var newDoc = new EditorDocument { Id = docId, Title = title, Content = content, OriginalContent = content, IsDirty = false, IsPreview = isPeek, SourceNode = node }; if (isPeek) { var currentPreview = _documents.FirstOrDefault(d => d.IsPreview); if (currentPreview != null) { if (currentPreview.IsDirty) { currentPreview.IsPreview = false; _documents.Add(newDoc); } else { int index = _documents.IndexOf(currentPreview); _documents[index] = newDoc; } } else _documents.Add(newDoc); } else _documents.Add(newDoc); SetActiveDocument(newDoc); }
+        // Helper to find parent file and line offset
+        private (FileNode? file, int startLine) GetParentFileAndLine(ScriptNode sNode)
+        {
+            if (ScriptTree.ItemsSource is IEnumerable<FileNode> files)
+            {
+                var parent = files.FirstOrDefault(f => f.Scripts.Contains(sNode));
+                if (parent != null)
+                {
+                    int line = 1;
+                    foreach (var s in parent.Scripts)
+                    {
+                        if (s == sNode) return (parent, line);
+                        // Fixed: Removed the +1 which was causing the drift.
+                        // We use a robust split to ensure we count lines correctly regardless of \r\n or \n
+                        line += s.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None).Length;
+                    }
+                }
+            }
+            return (null, 0);
+        }
+
+        private async void OpenDocument(object node, bool isPeek)
+        {
+            if (node == null) return;
+
+            // Redirect ScriptNode to FileNode
+            if (node is ScriptNode sNode)
+            {
+                var (parent, offset) = GetParentFileAndLine(sNode);
+                if (parent != null)
+                {
+                    // Open the parent file instead
+                    OpenDocument(parent, isPeek);
+
+                    // Scroll to the start of the script
+                    if (_isEditorReady)
+                    {
+                        await Task.Delay(50);
+                        await Editor.ExecuteScriptAsync($"editor.revealLineInCenter({offset}); editor.setPosition({{lineNumber: {offset}, column: 1}}); editor.focus();");
+                    }
+                    return;
+                }
+            }
+
+            string docId = "", title = "", content = "";
+            if (node is FileNode fNode) { docId = "FILE:" + fNode.FileName; title = fNode.Name; content = string.Join(Environment.NewLine, fNode.Scripts.Select(x => x.Content)); }
+            else if (node is ScriptNode scriptNode) { docId = "SCRIPT:" + scriptNode.Label; title = scriptNode.Label; content = scriptNode.Content; }
+            else return;
+
+            var existing = _documents.FirstOrDefault(d => d.Id == docId);
+            if (existing != null) { if (!isPeek && existing.IsPreview) existing.IsPreview = false; SetActiveDocument(existing); return; }
+            var newDoc = new EditorDocument { Id = docId, Title = title, Content = content, OriginalContent = content, IsDirty = false, IsPreview = isPeek, SourceNode = node };
+            if (isPeek) { var currentPreview = _documents.FirstOrDefault(d => d.IsPreview); if (currentPreview != null) { if (currentPreview.IsDirty) { currentPreview.IsPreview = false; _documents.Add(newDoc); } else { int index = _documents.IndexOf(currentPreview); _documents[index] = newDoc; } } else _documents.Add(newDoc); } else _documents.Add(newDoc);
+            SetActiveDocument(newDoc);
+        }
+
         private async void SetActiveDocument(EditorDocument doc) { if (_activeDocument == doc) return; _activeDocument = doc; TabStrip.SelectedItem = doc; await SetEditorText(doc.Content); UpdateNoTabsPlaceholder(); }
         public void BtnCloseTab_Click(object? sender, RoutedEventArgs e) { if (sender is Button btn && btn.Tag is EditorDocument doc) CloseDocument(doc); }
         private async void CloseDocument(EditorDocument doc) { if (doc.IsDirty) { var dialog = new DiscardChangesDialog(doc.Title.TrimEnd('*')); var result = await dialog.ShowDialog<bool>(this); if (result) ForceCloseDocument(doc); } else ForceCloseDocument(doc); }
@@ -279,9 +334,7 @@ editor.addAction({
             }
             else
             {
-                // If it's autosave and we don't have a folder, just return silently
                 if (isAutoSave) return;
-
                 var top = TopLevel.GetTopLevel(this);
                 var folders = await top!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Save Destination (Debug)" });
                 if (folders.Count == 0) return;
@@ -291,15 +344,11 @@ editor.addAction({
             try
             {
                 int savedCount = 0;
-                // Only take dirty documents
                 var dirtyDocs = _documents.Where(d => d.IsDirty).ToList();
-
-                // If autosave and nothing dirty, just return
                 if (isAutoSave && dirtyDocs.Count == 0) return;
 
                 var allFiles = ScriptTree.ItemsSource as IEnumerable<FileNode>;
                 var affectedFiles = new HashSet<FileNode>();
-
                 foreach (var doc in dirtyDocs)
                 {
                     if (doc.SourceNode is FileNode fn) affectedFiles.Add(fn);
@@ -314,7 +363,6 @@ editor.addAction({
                 {
                     string content;
                     var fileDoc = dirtyDocs.FirstOrDefault(d => d.SourceNode == file);
-
                     if (fileDoc != null)
                     {
                         content = fileDoc.Content;
@@ -324,14 +372,12 @@ editor.addAction({
                         var scriptDocs = dirtyDocs.Where(d => d.SourceNode is ScriptNode sn && file.Scripts.Contains(sn)).ToDictionary(d => (ScriptNode)d.SourceNode!, d => d.Content);
                         content = string.Join(Environment.NewLine, file.Scripts.Select(s => scriptDocs.ContainsKey(s) ? scriptDocs[s] : s.Content));
                     }
-
                     string fileName = file.FileName;
                     if (!fileName.EndsWith(".ev", StringComparison.OrdinalIgnoreCase)) fileName += ".ev";
                     await File.WriteAllTextAsync(Path.Combine(saveDir, Path.GetFileName(fileName)), content);
                     savedCount++;
                 }
 
-                // Update the dirty state for successfully saved documents
                 foreach (var doc in dirtyDocs)
                 {
                     doc.OriginalContent = doc.Content;
@@ -349,7 +395,42 @@ editor.addAction({
 
         public void CloseApp_Click(object? sender, RoutedEventArgs e) => Close();
         public void ShowTheme_Click(object? sender, RoutedEventArgs e) => SwitchSideView("Theme");
-        public async void JumpToLocation_Click(object? sender, RoutedEventArgs e) { if (sender is Control c && c.Tag is FlagLocation loc) { _isNavigating = true; try { if (loc.NodeObject != null) OpenDocument(loc.NodeObject, isPeek: true); if (_isEditorReady) { await Task.Delay(50); await Editor.ExecuteScriptAsync($"editor.revealLineInCenter({loc.LineNumber}); editor.setPosition({{lineNumber: {loc.LineNumber}, column: 1}}); editor.focus();"); } } finally { _isNavigating = false; } } }
+
+        public async void JumpToLocation_Click(object? sender, RoutedEventArgs e)
+        {
+            if (sender is Control c && c.Tag is FlagLocation loc)
+            {
+                _isNavigating = true;
+                try
+                {
+                    int targetLine = loc.LineNumber;
+                    object targetNode = loc.NodeObject;
+
+                    if (loc.NodeObject is ScriptNode sNode)
+                    {
+                        var (parent, offset) = GetParentFileAndLine(sNode);
+                        if (parent != null)
+                        {
+                            targetNode = sNode;
+                            targetLine = offset + loc.LineNumber - 1;
+                        }
+                    }
+
+                    if (targetNode != null) OpenDocument(targetNode, isPeek: true);
+
+                    if (_isEditorReady)
+                    {
+                        await Task.Delay(100);
+                        await Editor.ExecuteScriptAsync($"editor.revealLineInCenter({targetLine}); editor.setPosition({{lineNumber: {targetLine}, column: 1}}); editor.focus();");
+                    }
+                }
+                finally
+                {
+                    _isNavigating = false;
+                }
+            }
+        }
+
         public void OnBottomNav_Click(object? sender, RoutedEventArgs e) { if (sender is Button btn && btn.Tag is string tag) SwitchBottomView(tag); }
         public void BtnTerminal_Click(object? sender, RoutedEventArgs e) => SwitchBottomView("Terminal");
         public void BtnTerminalClose_Click(object? sender, RoutedEventArgs e) => SwitchBottomView("Terminal");
