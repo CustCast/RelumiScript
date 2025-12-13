@@ -37,6 +37,9 @@ namespace RelumiScript
         private ObservableCollection<EditorDocument> _documents = new ObservableCollection<EditorDocument>();
         private EditorDocument? _activeDocument;
 
+        // Autosave
+        private DispatcherTimer _autoSaveTimer;
+
         // Trackers
         private List<FileNode> _loadedMessages = new List<FileNode>();
         private List<string> _currentMessagePages = new List<string>();
@@ -69,6 +72,24 @@ namespace RelumiScript
             PanelTheme.DataContext = _themeVm;
             RefreshThemeList();
             SwitchSideView("Explorer");
+            SetupAutosave();
+        }
+
+        private void SetupAutosave()
+        {
+            _autoSaveTimer = new DispatcherTimer();
+            _autoSaveTimer.Interval = TimeSpan.FromSeconds(2);
+            _autoSaveTimer.Tick += AutoSaveTimer_Tick;
+            _autoSaveTimer.Start();
+        }
+
+        private async void AutoSaveTimer_Tick(object? sender, EventArgs e)
+        {
+            // Only autosave if we have a valid working directory and there are dirty files
+            if (!string.IsNullOrEmpty(_workingDirectory) && _documents.Any(d => d.IsDirty))
+            {
+                await SaveDirtyFiles(isAutoSave: true);
+            }
         }
 
         public void TitleBar_PointerPressed(object sender, PointerPressedEventArgs e) { if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) BeginMoveDrag(e); }
@@ -127,6 +148,14 @@ namespace RelumiScript
 
             script += @"
 editor.addAction({
+    id: 'relumi-save',
+    label: 'Save',
+    keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S],
+    run: function(ed) { window.chrome.webview.postMessage('SAVE_REQUEST'); }
+});";
+
+            script += @"
+editor.addAction({
     id: 'relumi-edit-def',
     label: 'Edit Definition',
     contextMenuGroupId: 'navigation',
@@ -153,6 +182,7 @@ editor.addAction({
         private async void OnEditorMessageReceived(object? sender, WebViewMessageReceivedEventArgs e)
         {
             if (e.Message == "HIDE_PREVIEW") return;
+            if (e.Message == "SAVE_REQUEST") { await SaveDirtyFiles(false); return; }
             if (e.Message.StartsWith("PREVIEW:")) { var p = e.Message.Substring(8).Split('%'); if (p.Length == 2) ShowMessagePreview(p[0].Trim(), p[1].Trim()); return; }
             if (e.Message.StartsWith("GLOBAL_SEARCH:")) { SwitchSideView("Search", forceOpen: true); SearchBox.Text = e.Message.Substring(e.Message.IndexOf(':') + 1).Trim(); return; }
             if (e.Message.StartsWith("CONTENT_UPDATE:")) { string newContent = e.Message.Substring(15); if (_activeDocument != null) { if (_activeDocument.IsPreview) _activeDocument.IsPreview = false; _activeDocument.Content = newContent; _activeDocument.IsDirty = !string.Equals(_activeDocument.Content, _activeDocument.OriginalContent); } return; }
@@ -181,7 +211,6 @@ editor.addAction({
                 {
                     foundId = cmd.Id;
                     description = cmd.Description;
-                    // Properly load the arguments
                     parameters = cmd.Args.ToList();
                 }
             }
@@ -217,16 +246,107 @@ editor.addAction({
         }
         private void SetButtonActive(string? activeTag) { UpdateBtnStyle(BtnNavFile, activeTag); UpdateBtnStyle(BtnNavExplorer, activeTag); UpdateBtnStyle(BtnNavSearch, activeTag); UpdateBtnStyle(BtnNavFlags, activeTag); UpdateBtnStyle(BtnNavCommands, activeTag); UpdateBtnStyle(BtnNavTheme, activeTag); }
         private void UpdateBtnStyle(Button btn, string? activeTag) { if (btn.Tag?.ToString() == activeTag) { if (!btn.Classes.Contains("Active")) btn.Classes.Add("Active"); } else btn.Classes.Remove("Active"); }
+
+        public void OnPlaceholder_PointerPressed(object? sender, PointerPressedEventArgs e) { BtnLoad_Click(sender, e); }
+
+        public async void OnWindowKeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.KeyModifiers == KeyModifiers.Control && e.Key == Key.S)
+            {
+                e.Handled = true;
+                await SaveDirtyFiles(false);
+            }
+        }
+
         public async void BtnLoad_Click(object? sender, RoutedEventArgs e)
         {
             var top = TopLevel.GetTopLevel(this); var folders = await top!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Project Root Folder" }); if (folders.Count == 0) return; var root = folders[0].Path.LocalPath; _workingDirectory = root; StatusText.Text = "Scanning...";
             try { string? jsonDir = FindJsonFolder(); if (_service.InitSummary.Contains("Cmds: 0") && !string.IsNullOrEmpty(jsonDir)) _service.Initialize(jsonDir); StatusText.Text = "Loading Game Data..."; await Task.Run(() => _service.LoadGameData(root)); StatusText.Text = "Loading Scripts..."; var scripts = await Task.Run(() => _service.LoadAndDecompile(root)); StatusText.Text = "Loading Messages..."; _loadedMessages = await Task.Run(() => _service.LoadMessageFiles(root)); await GenerateAndInjectSyntax(); ScriptTree.ItemsSource = scripts.OrderBy(x => x.Name).ToList(); StatusText.Text = $"Loaded {scripts.Count} scripts."; RefreshAllTrackers(); SwitchSideView("Explorer"); } catch (Exception ex) { StatusText.Text = $"Load Error: {ex.Message}"; Debug.WriteLine(ex); }
         }
+
         public async void BtnSave_Click(object? sender, RoutedEventArgs e)
         {
-            var top = TopLevel.GetTopLevel(this); var folders = await top!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Save Destination (Debug)" }); if (folders.Count == 0) return; string saveDir = folders[0].Path.LocalPath;
-            try { int savedCount = 0; var dirtyDocs = _documents.Where(d => d.IsDirty).ToList(); var allFiles = ScriptTree.ItemsSource as IEnumerable<FileNode>; var affectedFiles = new HashSet<FileNode>(); foreach (var doc in dirtyDocs) { if (doc.SourceNode is FileNode fn) affectedFiles.Add(fn); else if (doc.SourceNode is ScriptNode sn && allFiles != null) { var parent = allFiles.FirstOrDefault(f => f.Scripts.Contains(sn)); if (parent != null) affectedFiles.Add(parent); } } foreach (var file in affectedFiles) { string content; var fileDoc = dirtyDocs.FirstOrDefault(d => d.SourceNode == file); if (fileDoc != null) { content = fileDoc.Content; } else { var scriptDocs = dirtyDocs.Where(d => d.SourceNode is ScriptNode sn && file.Scripts.Contains(sn)).ToDictionary(d => (ScriptNode)d.SourceNode!, d => d.Content); content = string.Join(Environment.NewLine, file.Scripts.Select(s => scriptDocs.ContainsKey(s) ? scriptDocs[s] : s.Content)); } string fileName = file.FileName; if (!fileName.EndsWith(".ev", StringComparison.OrdinalIgnoreCase)) fileName += ".ev"; await File.WriteAllTextAsync(Path.Combine(saveDir, Path.GetFileName(fileName)), content); savedCount++; } StatusText.Text = $"Saved {savedCount} files to {saveDir}"; } catch (Exception ex) { StatusText.Text = $"Save Error: {ex.Message}"; }
+            await SaveDirtyFiles(false);
         }
+
+        private async Task SaveDirtyFiles(bool isAutoSave)
+        {
+            string saveDir;
+            if (!string.IsNullOrEmpty(_workingDirectory))
+            {
+                saveDir = Path.Combine(_workingDirectory, "scripts");
+                if (!Directory.Exists(saveDir)) { try { Directory.CreateDirectory(saveDir); } catch { } }
+            }
+            else
+            {
+                // If it's autosave and we don't have a folder, just return silently
+                if (isAutoSave) return;
+
+                var top = TopLevel.GetTopLevel(this);
+                var folders = await top!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Save Destination (Debug)" });
+                if (folders.Count == 0) return;
+                saveDir = folders[0].Path.LocalPath;
+            }
+
+            try
+            {
+                int savedCount = 0;
+                // Only take dirty documents
+                var dirtyDocs = _documents.Where(d => d.IsDirty).ToList();
+
+                // If autosave and nothing dirty, just return
+                if (isAutoSave && dirtyDocs.Count == 0) return;
+
+                var allFiles = ScriptTree.ItemsSource as IEnumerable<FileNode>;
+                var affectedFiles = new HashSet<FileNode>();
+
+                foreach (var doc in dirtyDocs)
+                {
+                    if (doc.SourceNode is FileNode fn) affectedFiles.Add(fn);
+                    else if (doc.SourceNode is ScriptNode sn && allFiles != null)
+                    {
+                        var parent = allFiles.FirstOrDefault(f => f.Scripts.Contains(sn));
+                        if (parent != null) affectedFiles.Add(parent);
+                    }
+                }
+
+                foreach (var file in affectedFiles)
+                {
+                    string content;
+                    var fileDoc = dirtyDocs.FirstOrDefault(d => d.SourceNode == file);
+
+                    if (fileDoc != null)
+                    {
+                        content = fileDoc.Content;
+                    }
+                    else
+                    {
+                        var scriptDocs = dirtyDocs.Where(d => d.SourceNode is ScriptNode sn && file.Scripts.Contains(sn)).ToDictionary(d => (ScriptNode)d.SourceNode!, d => d.Content);
+                        content = string.Join(Environment.NewLine, file.Scripts.Select(s => scriptDocs.ContainsKey(s) ? scriptDocs[s] : s.Content));
+                    }
+
+                    string fileName = file.FileName;
+                    if (!fileName.EndsWith(".ev", StringComparison.OrdinalIgnoreCase)) fileName += ".ev";
+                    await File.WriteAllTextAsync(Path.Combine(saveDir, Path.GetFileName(fileName)), content);
+                    savedCount++;
+                }
+
+                // Update the dirty state for successfully saved documents
+                foreach (var doc in dirtyDocs)
+                {
+                    doc.OriginalContent = doc.Content;
+                    doc.IsDirty = false;
+                }
+
+                if (!isAutoSave && savedCount > 0)
+                    StatusText.Text = $"Saved {savedCount} files to {saveDir}";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Save Error: {ex.Message}";
+            }
+        }
+
         public void CloseApp_Click(object? sender, RoutedEventArgs e) => Close();
         public void ShowTheme_Click(object? sender, RoutedEventArgs e) => SwitchSideView("Theme");
         public async void JumpToLocation_Click(object? sender, RoutedEventArgs e) { if (sender is Control c && c.Tag is FlagLocation loc) { _isNavigating = true; try { if (loc.NodeObject != null) OpenDocument(loc.NodeObject, isPeek: true); if (_isEditorReady) { await Task.Delay(50); await Editor.ExecuteScriptAsync($"editor.revealLineInCenter({loc.LineNumber}); editor.setPosition({{lineNumber: {loc.LineNumber}, column: 1}}); editor.focus();"); } } finally { _isNavigating = false; } } }

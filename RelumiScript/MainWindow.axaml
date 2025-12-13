@@ -9,11 +9,13 @@
         Title="Relumi Script Viewer" Height="700" Width="1200"
         Background="{DynamicResource ThemeWindowBackground}"
         Foreground="{DynamicResource ThemeTextColor}"
-        FontFamily="Segoe UI, Segoe UI Emoji, Segoe UI Symbol"
+        FontFamily="Segoe UI, Segoe UI Emoji, 
+Segoe UI Symbol"
         ExtendClientAreaToDecorationsHint="True"
         ExtendClientAreaChromeHints="PreferSystemChrome"
         ExtendClientAreaTitleBarHeightHint="-1"
-        Padding="{Binding $self.OffScreenMargin}">
+        Padding="{Binding $self.OffScreenMargin}"
+        KeyDown="OnWindowKeyDown">
 
 	<Window.Resources>
 		<local:ScriptPreviewConverter x:Key="ScriptPreviewConverter" />
@@ -58,7 +60,8 @@
 			<Setter Property="Background" Value="{DynamicResource ThemeInputBackground}"/>
 			<Setter Property="Foreground" Value="{DynamicResource ThemeInputForeground}"/>
 			<Setter Property="Padding" Value="10,8"/>
-			<Setter Property="Margin" Value="0,0,0,10"/>
+			<Setter
+Property="Margin" Value="0,0,0,10"/>
 			<Setter Property="HorizontalAlignment" Value="Stretch"/>
 			<Setter Property="HorizontalContentAlignment" Value="Left"/>
 			<Setter Property="BorderThickness" Value="0"/>
@@ -117,7 +120,8 @@
 			<Setter Property="Background" Value="{DynamicResource ThemeWindowBackground}"/>
 			<Setter Property="Foreground" Value="{DynamicResource ThemeTextColor}"/>
 			<Setter Property="BorderThickness" Value="0,1,0,0"/>
-			<Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentColor}"/>
+			<Setter Property="BorderBrush"
+Value="{DynamicResource ThemeAccentColor}"/>
 		</Style>
 		<Style Selector="ListBox.TabStrip ListBoxItem:selected /template/ ContentPresenter">
 			<Setter Property="Background" Value="{DynamicResource ThemeWindowBackground}"/>
@@ -145,16 +149,19 @@
 									<Border Background="Transparent" Padding="2">
 										<Grid ColumnDefinitions="20, *">
 											<Path x:Name="Arrow" Grid.Column="0" Data="M 6 4 L 10 8 L 6 12"
-                                                  Stroke="{DynamicResource ThemeTextColor}" StrokeThickness="1.5" Fill="Transparent"
+            
+                                      Stroke="{DynamicResource ThemeTextColor}" StrokeThickness="1.5" Fill="Transparent"
                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                  Width="16" Height="16" Stretch="None"/>
+        
+                                          Width="16" Height="16" Stretch="None"/>
 											<ContentPresenter Grid.Column="1" Content="{TemplateBinding Content}"
                                                   VerticalAlignment="Center" HorizontalAlignment="Left"/>
 										</Grid>
 									</Border>
 								</ControlTemplate>
 							</ToggleButton.Template>
-							<ContentPresenter Content="{TemplateBinding Header}" />
+							<ContentPresenter Content="{TemplateBinding 
+Header}" />
 						</ToggleButton>
 						<ContentPresenter x:Name="PART_ContentPresenter" Content="{TemplateBinding Content}" IsVisible="{TemplateBinding IsExpanded}" />
 					</StackPanel>
@@ -205,7 +212,8 @@
 
 						<Rectangle Height="1" Fill="#444" Margin="10,5"/>
 
-						<Button Classes="ActivityButton" x:Name="BtnNavExplorer" Click="OnSidebarNav_Click" Tag="Explorer" ToolTip.Tip="Explorer (Ctrl+Shift+E)">
+						<Button Classes="ActivityButton" x:Name="BtnNavExplorer"
+Click="OnSidebarNav_Click" Tag="Explorer" ToolTip.Tip="Explorer (Ctrl+Shift+E)">
 							<Panel>
 								<Rectangle Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasExplorer}" Fill="{Binding $parent[Button].Foreground}">
 									<Rectangle.OpacityMask>
@@ -264,7 +272,8 @@
 					<StackPanel Grid.Row="1">
 						<Button Classes="ActivityButton" x:Name="BtnNavPreview" Click="OnBottomNav_Click" Tag="Preview" ToolTip.Tip="Message Preview">
 							<Panel>
-								<Rectangle Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasPreview}" Fill="{Binding $parent[Button].Foreground}">
+								<Rectangle
+Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasPreview}" Fill="{Binding $parent[Button].Foreground}">
 									<Rectangle.OpacityMask>
 										<ImageBrush Source="{Binding ThemeVm.Icons.PreviewIcon}" Stretch="Uniform"/>
 									</Rectangle.OpacityMask>
@@ -308,7 +317,8 @@
 						<TreeView Grid.Row="1" x:Name="ScriptTree" Background="{DynamicResource ThemeSidebarBackground}" BorderThickness="0" SelectionChanged="ScriptTree_SelectionChanged">
 							<TreeView.DataTemplates>
 								<TreeDataTemplate DataType="models:FileNode" ItemsSource="{Binding Scripts}">
-									<Grid ColumnDefinitions="Auto, *" Background="Transparent" DoubleTapped="OnExplorerItem_DoubleTapped">
+									<Grid ColumnDefinitions="Auto, 
+*" Background="Transparent" DoubleTapped="OnExplorerItem_DoubleTapped">
 										<TextBlock Text="{Binding Icon}" Foreground="#4EC9B0" Margin="0,0,6,0" FontFamily="Segoe UI Symbol"/>
 										<TextBlock Grid.Column="1" Text="{Binding Name}" Foreground="{DynamicResource ThemeTextColor}" TextTrimming="CharacterEllipsis"/>
 									</Grid>
@@ -345,7 +355,8 @@
 										<Expander.Header>
 											<Grid ColumnDefinitions="Auto, Auto, *" Margin="2,0,0,0">
 												<TextBlock Text="{Binding Type, Converter={StaticResource SearchTypeToIconConverter}}" Foreground="{Binding Color}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" FontFamily="Segoe UI Symbol"/>
-												<TextBlock Grid.Column="1" Text="{Binding Id}" Foreground="#569CD6" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding Id}"/>
+												<TextBlock Grid.Column="1" Text="{Binding Id}"
+Foreground="#569CD6" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" IsVisible="{Binding Id}"/>
 												<TextBlock Grid.Column="2" Text="{Binding Name}" Foreground="{DynamicResource ThemeTextColor}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
 											</Grid>
 										</Expander.Header>
@@ -406,7 +417,8 @@
 					<Grid x:Name="PanelFlags" IsVisible="False" RowDefinitions="35, 35, *">
 						<Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="10,0">
 							<TextBlock Text="UNUSED FLAGS" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
-							<Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh" Background="Transparent" Click="RefreshFlags_Click" BorderThickness="0"/>
+							<Button Grid.Column="1" Content="↻" Padding="4,0" ToolTip.Tip="Refresh" Background="Transparent"
+Click="RefreshFlags_Click" BorderThickness="0"/>
 						</Grid>
 						<Border Grid.Row="1" Margin="10,0,10,5" Background="{DynamicResource ThemeInputBackground}" CornerRadius="2">
 							<TextBox x:Name="FlagSearchBox" Watermark="Filter flags..." Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeInputForeground}" TextChanged="FlagSearchBox_TextChanged" Padding="6,4"/>
@@ -443,7 +455,8 @@
 						</ListBox>
 					</Grid>
 
-					<Grid x:Name="PanelTheme" IsVisible="False" RowDefinitions="Auto, 35, Auto, *">
+					<Grid x:Name="PanelTheme" IsVisible="False" RowDefinitions="Auto, 35, 
+Auto, *">
 						<Grid Grid.Row="0" Margin="10,10,10,5">
 							<TextBlock Text="THEME SETTINGS" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
 						</Grid>
@@ -459,7 +472,8 @@
 							<StackPanel x:Name="PreviewBox">
 								<TextBlock Text="// RelumiScript Theme Preview" Foreground="{Binding Syntax.Comment.Brush}" FontStyle="{Binding Syntax.Comment.FontStyle}" FontWeight="{Binding Syntax.Comment.Weight}" FontSize="11" FontFamily="Consolas"/>
 								<StackPanel Orientation="Horizontal">
-									<TextBlock Text="Script " Foreground="{Binding Syntax.ScriptLabel.Brush}" FontStyle="{Binding Syntax.ScriptLabel.FontStyle}" FontWeight="{Binding Syntax.ScriptLabel.Weight}" FontSize="11" FontFamily="Consolas"/>
+									<TextBlock
+Text="Script " Foreground="{Binding Syntax.ScriptLabel.Brush}" FontStyle="{Binding Syntax.ScriptLabel.FontStyle}" FontWeight="{Binding Syntax.ScriptLabel.Weight}" FontSize="11" FontFamily="Consolas"/>
 									<TextBlock Text="Work_100 " Foreground="{Binding Syntax.WorkVar.Brush}" FontStyle="{Binding Syntax.WorkVar.FontStyle}" FontWeight="{Binding Syntax.WorkVar.Weight}" FontSize="11" FontFamily="Consolas"/>
 									<TextBlock Text="Cmd_01 " Foreground="{Binding Syntax.Command.Brush}" FontStyle="{Binding Syntax.Command.FontStyle}" FontWeight="{Binding Syntax.Command.Weight}" FontSize="11" FontFamily="Consolas"/>
 								</StackPanel>
@@ -485,7 +499,8 @@
 										<ColorPicker Grid.Column="1" Color="{Binding Colors.SidebarBackground, Mode=TwoWay}" />
 									</Grid>
 									<Grid ColumnDefinitions="*, Auto">
-										<TextBlock Text="Panel Background" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<TextBlock Text="Panel 
+Background" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
 										<ColorPicker Grid.Column="1" Color="{Binding Colors.PanelBackground, Mode=TwoWay}" />
 									</Grid>
 									<Grid ColumnDefinitions="*, Auto">
@@ -501,7 +516,8 @@
 										<ColorPicker Grid.Column="1" Color="{Binding Colors.TextColor, Mode=TwoWay}" />
 									</Grid>
 
-									<TextBlock Text="Input &amp; Interactive" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,5"/>
+									<TextBlock Text="Input &amp;
+Interactive" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,5"/>
 									<Grid ColumnDefinitions="*, Auto">
 										<TextBlock Text="Input Background" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
 										<ColorPicker Grid.Column="1" Color="{Binding Colors.InputBackground, Mode=TwoWay}" />
@@ -527,7 +543,8 @@
 										<TextBlock Grid.Row="1" Text="Explorer" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
 										<TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Icons.Explorer, Mode=TwoWay}" Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}" BorderThickness="0" Margin="0,2"/>
 
-										<TextBlock Grid.Row="2" Text="Search" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<TextBlock Grid.Row="2"
+Text="Search" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
 										<TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Icons.Search, Mode=TwoWay}" Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}" BorderThickness="0" Margin="0,2"/>
 
 										<TextBlock Grid.Row="3" Text="Flags" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
@@ -546,7 +563,8 @@
 										<TextBox Grid.Row="7" Grid.Column="1" Text="{Binding Icons.Terminal, Mode=TwoWay}" Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}" BorderThickness="0" Margin="0,2"/>
 									</Grid>
 
-									<TextBlock Text="Editor General" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,15,0,5"/>
+									<TextBlock Text="Editor General" FontWeight="Bold" Foreground="#888" FontSize="12"
+Margin="0,15,0,5"/>
 									<Grid ColumnDefinitions="*, Auto">
 										<TextBlock Text="Editor Background" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
 										<ColorPicker Grid.Column="1" Color="{Binding Colors.BackgroundColor, Mode=TwoWay}" />
@@ -581,7 +599,8 @@
 										<TextBlock Text="Number" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
 										<ColorPicker Grid.Column="1" Color="{Binding Syntax.Number.Color, Mode=TwoWay}" />
 									</Grid>
-									<Grid ColumnDefinitions="*, Auto">
+									<Grid
+ColumnDefinitions="*, Auto">
 										<TextBlock Text="String" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
 										<ColorPicker Grid.Column="1" Color="{Binding Syntax.String.Color, Mode=TwoWay}" />
 									</Grid>
@@ -623,10 +642,12 @@
 
 				<Panel Grid.Row="1" Background="{DynamicResource ThemeWindowBackground}">
 					<webview:WebView x:Name="Editor" IsVisible="True"/>
-					<StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" IsVisible="False" x:Name="NoTabsPlaceholder">
-						<TextBlock Text="Relumi Script Viewer" FontSize="24" Foreground="{DynamicResource ThemeTextColor}" HorizontalAlignment="Center"/>
-						<TextBlock Text="Select a file to view or edit" FontSize="14" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" HorizontalAlignment="Center" Margin="0,10,0,0"/>
-					</StackPanel>
+					<Grid x:Name="NoTabsPlaceholder" IsVisible="False" Background="Transparent" PointerPressed="OnPlaceholder_PointerPressed">
+						<StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+							<TextBlock Text="Relumi Script Viewer" FontSize="24" Foreground="{DynamicResource ThemeTextColor}" HorizontalAlignment="Center"/>
+							<TextBlock Text="Click anywhere to open project" FontSize="14" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" HorizontalAlignment="Center" Margin="0,10,0,0"/>
+						</StackPanel>
+					</Grid>
 				</Panel>
 
 				<GridSplitter Grid.Row="2" Background="{DynamicResource ThemePanelBackground}" ResizeDirection="Rows" IsVisible="{Binding #BottomPanelContainer.IsVisible}"/>
@@ -658,7 +679,8 @@
 						<Grid RowDefinitions="Auto, *, Auto">
 							<Border Grid.Row="0" Padding="10,5" Background="{DynamicResource ThemePanelBackground}">
 								<Grid ColumnDefinitions="*, Auto">
-									<TextBlock Text="TERMINAL" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11"/>
+									<TextBlock Text="TERMINAL" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7"
+FontSize="11"/>
 									<Button Grid.Column="1" Content="✕" Padding="5,0" Background="Transparent" BorderThickness="0" Click="BtnTerminalClose_Click" Foreground="{DynamicResource ThemeTextColor}" FontSize="10"/>
 								</Grid>
 							</Border>
