@@ -37,7 +37,7 @@ namespace RelumiScript
         private const double BaseMetric = 573.0;
         private const double MaxWidth = 1080.0;
         private const string CalibrationPhrase = "Oh. And it needs to be found and caught down";
-        private const double TextScale = 0.75;
+        private const double TextScale = 1;
 
         private double _canvasWidth = 1500;
         private double _canvasHeight = 230;
@@ -189,11 +189,13 @@ namespace RelumiScript
                 foreach (char c in line)
                 {
                     string charStr = c.ToString();
-                    if (charStr == "'") charStr = "'";
+                    if (charStr == "'") charStr = "’"; // Normalize apostrophe to match metrics
+
                     double metricWidth = 8.67;
                     if (_metrics.TryGetValue(charStr, out double w)) metricWidth = w;
                     else if (char.IsDigit(c)) metricWidth = 15.0;
 
+                    // Calculate advance using metrics (strlength.txt) rather than texture atlas data
                     double advancePx = (metricWidth * _pixelsPerUnitCalculated * lineScale) * TextScale;
 
                     if (c == ' ') { cursorX += advancePx; continue; }
@@ -212,15 +214,16 @@ namespace RelumiScript
                         Canvas.SetLeft(img, cursorX + (data.OffsetX * renderScale));
                         Canvas.SetTop(img, currentY + (data.OffsetY * renderScale));
                         canvas.Children.Add(img);
-                        cursorX += data.AdvanceX * renderScale;
+
+                        // Use calculated metric advance for cursor position
+                        cursorX += advancePx;
                     }
                     else
                     {
                         var err = new Border { Background = Brushes.Red, Width = 10, Height = targetFontSize };
                         Canvas.SetLeft(err, cursorX); Canvas.SetTop(err, currentY);
                         canvas.Children.Add(err);
-                        double fallbackWidth = _metrics.TryGetValue(charStr, out double fw) ? fw : (char.IsDigit(c) ? 15.0 : 8.67);
-                        cursorX += (fallbackWidth * _pixelsPerUnitCalculated * lineScale) * TextScale;
+                        cursorX += advancePx;
                     }
                 }
                 currentY += (targetFontSize + 10);
