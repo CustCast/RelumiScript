@@ -20,11 +20,9 @@ namespace RelumiScript.Services
 
             var startInfo = new ProcessStartInfo
             {
-                // Switch to PowerShell
                 FileName = "powershell.exe",
-                // -NoLogo: Hides the copyright banner
-                // -NoExit: Ensures the process doesn't quit after running a command (vital for interactive mode)
-                // -ExecutionPolicy Bypass: Ensures you can run scripts if needed without permission errors
+                // -NoExit: Keep session alive
+                // -ExecutionPolicy Bypass: Allow scripts
                 Arguments = "-NoLogo -NoExit -ExecutionPolicy Bypass",
 
                 UseShellExecute = false,
@@ -32,11 +30,15 @@ namespace RelumiScript.Services
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 CreateNoWindow = true,
-                // PowerShell output often works best with the default system encoding in this context,
-                // but if you see weird characters, try Encoding.UTF8.
-                StandardOutputEncoding = Encoding.Default,
-                StandardErrorEncoding = Encoding.Default
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
+                StandardInputEncoding = Encoding.UTF8
             };
+
+            // Fix for Git paging issues
+            startInfo.EnvironmentVariables["GIT_PAGER"] = "cat";
+            startInfo.EnvironmentVariables["PAGER"] = "cat";
+            startInfo.EnvironmentVariables["TERM"] = "xterm-256color";
 
             if (!string.IsNullOrEmpty(workingDirectory) && Directory.Exists(workingDirectory))
                 startInfo.WorkingDirectory = workingDirectory;
@@ -48,13 +50,16 @@ namespace RelumiScript.Services
                 _process = new Process { StartInfo = startInfo };
                 _process.Start();
 
+                // CRITICAL: AutoFlush ensures commands are sent immediately
+                _process.StandardInput.AutoFlush = true;
+
                 // Start background threads to read output continuously
                 Task.Run(() => ReadStream(_process.StandardOutput));
                 Task.Run(() => ReadStream(_process.StandardError));
             }
             catch (Exception ex)
             {
-                OutputReceived?.Invoke($"Error starting PowerShell: {ex.Message}\n");
+                OutputReceived?.Invoke($"\x1b[31mError starting PowerShell: {ex.Message}\x1b[0m\r\n");
             }
         }
 
@@ -65,7 +70,6 @@ namespace RelumiScript.Services
             {
                 try
                 {
-                    // Read asynchronously to keep UI responsive
                     int readCount = await reader.ReadAsync(buffer, 0, buffer.Length);
                     if (readCount > 0)
                     {
@@ -74,7 +78,7 @@ namespace RelumiScript.Services
                     }
                     else
                     {
-                        await Task.Delay(50);
+                        await Task.Delay(10);
                     }
                 }
                 catch
@@ -90,11 +94,12 @@ namespace RelumiScript.Services
             {
                 try
                 {
+                    // Write command to stdin
                     _process.StandardInput.WriteLine(command);
                 }
                 catch (Exception ex)
                 {
-                    OutputReceived?.Invoke($"\nError sending command: {ex.Message}\n");
+                    OutputReceived?.Invoke($"\r\n\x1b[31mError sending command: {ex.Message}\x1b[0m\r\n");
                 }
             }
         }

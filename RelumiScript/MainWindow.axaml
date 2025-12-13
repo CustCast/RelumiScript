@@ -665,17 +665,7 @@
 									<Button Grid.Column="1" Content="✕" Padding="5,0" Background="Transparent" BorderThickness="0" Click="BtnTerminalClose_Click" Foreground="{DynamicResource ThemeTextColor}" FontSize="10"/>
 								</Grid>
 							</Border>
-							<TextBox Grid.Row="1" x:Name="ConsoleBox"
-                                     Background="#0C0C0C"
-                                     Foreground="#CCCCCC"
-                                     BorderThickness="0"
-                                     FontFamily="Consolas"
-                                     FontSize="14"
-                                     TextWrapping="Wrap"
-                                     AcceptsReturn="False"
-                                     CaretBrush="White"
-                                     KeyDown="ConsoleBox_KeyDown"
-                                     Padding="5"/>
+							<webview:WebView x:Name="TerminalWebView" Grid.Row="1" />
 						</Grid>
 					</Border>
 				</Grid>

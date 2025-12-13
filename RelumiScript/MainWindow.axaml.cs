@@ -30,6 +30,7 @@ namespace RelumiScript
         private AppConfig _config = new AppConfig();
 
         private bool _isEditorReady = false;
+        private bool _isTerminalReady = false;
         private bool _isNavigating = false;
         private string _workingDirectory = "";
 
@@ -60,7 +61,6 @@ namespace RelumiScript
 
         // Terminal
         private TerminalSession? _terminalSession;
-        private int _consoleInputStart = 0;
 
         public MainWindow()
         {
@@ -72,6 +72,7 @@ namespace RelumiScript
             TabStrip.ItemsSource = _documents;
             UpdateNoTabsPlaceholder();
             InitializeEditor();
+            InitializeTerminal();
             TryInitMessageRenderer();
             PanelTheme.DataContext = _themeVm;
             RefreshThemeList();
@@ -288,7 +289,7 @@ namespace RelumiScript
             try
             {
                 string? jsonDir = FindJsonFolder(); if (_service.InitSummary.Contains("Cmds: 0") && !string.IsNullOrEmpty(jsonDir)) _service.Initialize(jsonDir); StatusText.Text = "Loading Game Data..."; await Task.Run(() => _service.LoadGameData(root)); StatusText.Text = "Loading Scripts..."; var scripts = await Task.Run(() => _service.LoadAndDecompile(root)); StatusText.Text = "Loading Messages..."; _loadedMessages = await Task.Run(() => _service.LoadMessageFiles(root)); await GenerateAndInjectSyntax(); ScriptTree.ItemsSource = scripts.OrderBy(x => x.Name).ToList(); StatusText.Text = $"Loaded {scripts.Count} scripts."; RefreshAllTrackers(); SwitchSideView("Explorer");
-                // Auto-nav terminal: Checks if terminal is running and forces a directory change
+                // Auto-nav terminal
                 if (_terminalSession != null && _terminalSession.IsRunning)
                 {
                     _terminalSession.SendCommand($"Set-Location -Path \"{_workingDirectory}\"; Write-Host 'Terminal set to project root.' -ForegroundColor Cyan");
@@ -429,11 +430,131 @@ namespace RelumiScript
                 {
                     _terminalSession = new TerminalSession();
                     _terminalSession.OutputReceived += OnTerminalOutput;
-                    // Starts the terminal in the currently loaded project directory (if one exists)
                     _terminalSession.Start(_workingDirectory);
                 }
-                ConsoleBox.Focus();
-                ConsoleBox.CaretIndex = ConsoleBox.Text?.Length ?? 0;
+                // Initial focus attempt
+                TerminalWebView.Focus();
+            }
+        }
+
+        private void InitializeTerminal()
+        {
+            // Robust Xterm.js HTML template with Bridge verification
+            string html = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel=""stylesheet"" href=""https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css"" />
+    <script src=""https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js""></script>
+    <script src=""https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js""></script>
+    <style>
+        body { margin: 0; padding: 0; background-color: #0C0C0C; overflow: hidden; }
+        #terminal { width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+    <div id=""terminal""></div>
+    <script>
+        var term = new Terminal({
+            cursorBlink: true,
+            theme: { background: '#0C0C0C', foreground: '#CCCCCC' },
+            fontFamily: 'Consolas, monospace',
+            fontSize: 14,
+            convertEol: true, // Handle \n vs \r\n
+            rendererType: 'dom'
+        });
+        var fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(document.getElementById('terminal'));
+        fitAddon.fit();
+
+        window.onresize = function() { fitAddon.fit(); };
+        
+        // Ensure focus is captured
+        window.addEventListener('click', function() { term.focus(); });
+        term.focus();
+
+        // Check for Bridge
+        if (!window.chrome || !window.chrome.webview) {
+            term.write('\x1b[31mError: WebView Bridge not found. \r\nThis usually happens with Data URIs.\r\nAttempting local echo only.\x1b[0m\r\n');
+        } else {
+            // Signal ready
+            window.chrome.webview.postMessage('TERM_READY');
+        }
+
+        // Buffer for Line-Mode Input
+        var currentLine = """";
+        
+        term.onData(e => {
+            // Local Echo immediately so user sees typing
+            // This is 'Cooked Mode' simulation
+            
+            if (e === '\r') { // Enter
+                term.write('\r\n');
+                if (window.chrome && window.chrome.webview) {
+                    window.chrome.webview.postMessage('TERM_INPUT:' + currentLine);
+                }
+                currentLine = """";
+            } else if (e === '\u007F') { // Backspace
+                if (currentLine.length > 0) {
+                    term.write('\b \b');
+                    currentLine = currentLine.substring(0, currentLine.length - 1);
+                }
+            } else if (e === '\u0003') { // Ctrl+C
+                 term.write('^C\r\n');
+                 currentLine = """";
+                 // Ideally send signal to backend here
+            } else {
+                // Printable characters
+                if (e.length === 1 && e.charCodeAt(0) >= 32) {
+                    currentLine += e;
+                    term.write(e);
+                }
+            }
+        });
+
+        // Function called from C# to write output
+        window.writeOutput = function(data) {
+            term.write(data);
+        };
+    </script>
+</body>
+</html>";
+
+            // Fix: Save to temporary file to allow bridge access (avoids Data URI sandbox)
+            try
+            {
+                string tempPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "terminal.html");
+                File.WriteAllText(tempPath, html);
+                TerminalWebView.Url = new Uri($"file:///{tempPath.Replace("\\", "/")}");
+            }
+            catch (Exception ex)
+            {
+                // Fallback if file write fails (shouldn't happen in app dir usually)
+                Debug.WriteLine("Terminal Init Error: " + ex.Message);
+            }
+
+            TerminalWebView.WebMessageReceived += OnTerminalMessageReceived;
+            TerminalWebView.NavigationCompleted += (s, e) => {
+                if (e.IsSuccess)
+                {
+                    _isTerminalReady = true;
+                    TerminalWebView.Focus();
+                }
+            };
+        }
+
+        private void OnTerminalMessageReceived(object? sender, WebViewMessageReceivedEventArgs e)
+        {
+            if (e.Message == "TERM_READY")
+            {
+                _isTerminalReady = true;
+                return;
+            }
+            if (e.Message.StartsWith("TERM_INPUT:"))
+            {
+                string input = e.Message.Substring(11);
+                _terminalSession?.SendCommand(input);
             }
         }
 
@@ -441,48 +562,12 @@ namespace RelumiScript
         {
             Dispatcher.UIThread.Post(() =>
             {
-                ConsoleBox.Text += text;
-                ConsoleBox.CaretIndex = ConsoleBox.Text.Length;
-                _consoleInputStart = ConsoleBox.Text.Length;
+                if (_isTerminalReady)
+                {
+                    string safe = JsonConvert.ToString(text);
+                    TerminalWebView.ExecuteScriptAsync($"window.writeOutput({safe});");
+                }
             });
-        }
-
-        private void ConsoleBox_KeyDown(object? sender, KeyEventArgs e)
-        {
-            // Simple terminal emulation logic for single textbox
-            if (e.Key == Key.Enter)
-            {
-                e.Handled = true;
-                string allText = ConsoleBox.Text ?? "";
-                if (_consoleInputStart <= allText.Length)
-                {
-                    string cmd = allText.Substring(_consoleInputStart);
-
-                    // Remove input from UI immediately to avoid double-echo from cmd.exe
-                    ConsoleBox.Text = allText.Substring(0, _consoleInputStart);
-
-                    if (_terminalSession != null)
-                    {
-                        _terminalSession.SendCommand(cmd);
-                    }
-                }
-            }
-            else if (e.Key == Key.Back || e.Key == Key.Left)
-            {
-                if (ConsoleBox.CaretIndex <= _consoleInputStart)
-                {
-                    e.Handled = true;
-                }
-            }
-            else if (e.Key == Key.Home)
-            {
-                // Prevent going before prompt
-                ConsoleBox.CaretIndex = _consoleInputStart;
-                e.Handled = true;
-            }
-
-            // Prevent caret from moving into read-only zone via mouse click or arrow keys logic could be extended here
-            // For now, rudimentary checks on destructive keys are sufficient for a basic console
         }
 
         private void SetBottomButtonActive(string? activeTag) { UpdateBtnStyle(BtnNavTerminal, activeTag); UpdateBtnStyle(BtnNavPreview, activeTag); }
