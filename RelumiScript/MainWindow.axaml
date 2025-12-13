@@ -9,7 +9,11 @@
         Title="Relumi Script Viewer" Height="700" Width="1200"
         Background="{DynamicResource ThemeWindowBackground}"
         Foreground="{DynamicResource ThemeTextColor}"
-        FontFamily="Segoe UI, Segoe UI Emoji, Segoe UI Symbol">
+        FontFamily="Segoe UI, Segoe UI Emoji, Segoe UI Symbol"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaChromeHints="PreferSystemChrome"
+        ExtendClientAreaTitleBarHeightHint="-1"
+        Padding="{Binding $self.OffScreenMargin}">
 
 	<Window.Resources>
 		<local:ScriptPreviewConverter x:Key="ScriptPreviewConverter" />
@@ -48,6 +52,24 @@
 			<Setter Property="Foreground" Value="{DynamicResource ThemeActivityActiveForeground}"/>
 			<Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentColor}"/>
 			<Setter Property="BorderThickness" Value="2,0,0,0"/>
+		</Style>
+
+		<Style Selector="Button.PanelButton">
+			<Setter Property="Background" Value="{DynamicResource ThemeInputBackground}"/>
+			<Setter Property="Foreground" Value="{DynamicResource ThemeInputForeground}"/>
+			<Setter Property="Padding" Value="10,8"/>
+			<Setter Property="Margin" Value="0,0,0,10"/>
+			<Setter Property="HorizontalAlignment" Value="Stretch"/>
+			<Setter Property="HorizontalContentAlignment" Value="Left"/>
+			<Setter Property="BorderThickness" Value="0"/>
+			<Setter Property="CornerRadius" Value="2"/>
+		</Style>
+		<Style Selector="Button.PanelButton:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#444"/>
+		</Style>
+		<Style Selector="Button.PanelButton:disabled /template/ ContentPresenter">
+			<Setter Property="Opacity" Value="0.5"/>
+			<Setter Property="Background" Value="{DynamicResource ThemeInputBackground}"/>
 		</Style>
 
 		<Style Selector="TreeViewItem">
@@ -127,7 +149,7 @@
                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
                                                   Width="16" Height="16" Stretch="None"/>
 											<ContentPresenter Grid.Column="1" Content="{TemplateBinding Content}"
-                                                            VerticalAlignment="Center" HorizontalAlignment="Left"/>
+                                                  VerticalAlignment="Center" HorizontalAlignment="Left"/>
 										</Grid>
 									</Border>
 								</ControlTemplate>
@@ -156,14 +178,21 @@
 		</Style>
 	</Window.Styles>
 
-	<Grid RowDefinitions="*, 22">
+	<Grid RowDefinitions="30, *, 25">
 
-		<Grid Grid.Row="0" x:Name="SidebarGrid" ColumnDefinitions="50, 300, 4, *">
+		<Grid Grid.Row="0" Background="{DynamicResource ThemePanelBackground}" PointerPressed="TitleBar_PointerPressed">
+			<StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="15,0" Spacing="8">
+				<TextBlock Text="💠" FontSize="14" VerticalAlignment="Center" Foreground="{DynamicResource ThemeAccentColor}"/>
+				<TextBlock Text="Relumi Script Viewer" FontSize="12" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.9" FontWeight="SemiBold"/>
+			</StackPanel>
+		</Grid>
+
+		<Grid Grid.Row="1" x:Name="SidebarGrid" ColumnDefinitions="50, 300, 4, *">
 
 			<Border Grid.Column="0" Background="{DynamicResource ThemeActivityBarBackground}">
 				<Grid RowDefinitions="*, Auto">
 					<StackPanel Grid.Row="0">
-						<Button Classes="ActivityButton" x:Name="BtnActionOpen" Click="BtnLoad_Click" ToolTip.Tip="Open Folder (Ctrl+O)">
+						<Button Classes="ActivityButton" x:Name="BtnNavFile" Click="OnSidebarNav_Click" Tag="File" ToolTip.Tip="File Operations">
 							<Panel>
 								<Rectangle Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasOpen}" Fill="{Binding $parent[Button].Foreground}">
 									<Rectangle.OpacityMask>
@@ -173,6 +202,7 @@
 								<TextBlock Text="📂" IsVisible="{Binding !ThemeVm.Icons.HasOpen}" />
 							</Panel>
 						</Button>
+
 						<Rectangle Height="1" Fill="#444" Margin="10,5"/>
 
 						<Button Classes="ActivityButton" x:Name="BtnNavExplorer" Click="OnSidebarNav_Click" Tag="Explorer" ToolTip.Tip="Explorer (Ctrl+Shift+E)">
@@ -259,6 +289,18 @@
 
 			<Border Grid.Column="1" Background="{DynamicResource ThemeSidebarBackground}" x:Name="SidePanelContainer">
 				<Grid>
+					<Grid x:Name="PanelFile" IsVisible="False" RowDefinitions="35, *">
+						<Border Grid.Row="0" Padding="10,0" Background="{DynamicResource ThemeSidebarBackground}">
+							<TextBlock Text="FILE OPERATIONS" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
+						</Border>
+						<StackPanel Grid.Row="1" Margin="10">
+							<Button Classes="PanelButton" Content="📂 Load Project" Click="BtnLoad_Click"/>
+							<Button Classes="PanelButton" Content="💾 Save Changed Scripts (.ev)" Click="BtnSave_Click"/>
+							<Button Classes="PanelButton" Content="📦 Unpack Bundle" IsEnabled="False"/>
+							<Button Classes="PanelButton" Content="📦 Pack Bundle" IsEnabled="False"/>
+						</StackPanel>
+					</Grid>
+
 					<Grid x:Name="PanelExplorer" RowDefinitions="35, *">
 						<Border Grid.Row="0" Padding="10,0" Background="{DynamicResource ThemeSidebarBackground}">
 							<TextBlock Text="EXPLORER" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
@@ -628,7 +670,7 @@
 			</Grid>
 		</Grid>
 
-		<Border Grid.Row="1" Background="{DynamicResource ThemeAccentColor}" Padding="10,0">
+		<Border Grid.Row="2" Background="{DynamicResource ThemeAccentColor}" Padding="10,0">
 			<TextBlock x:Name="StatusText" Text="Ready" VerticalAlignment="Center" Foreground="White" FontSize="11"/>
 		</Border>
 	</Grid>

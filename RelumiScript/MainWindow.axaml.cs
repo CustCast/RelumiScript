@@ -82,6 +82,18 @@ namespace RelumiScript
         }
 
         // -----------------------------------------------------------------------------
+        // WINDOW BEHAVIOR
+        // -----------------------------------------------------------------------------
+
+        public void TitleBar_PointerPressed(object sender, PointerPressedEventArgs e)
+        {
+            if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                BeginMoveDrag(e);
+            }
+        }
+
+        // -----------------------------------------------------------------------------
         // THEME MANAGEMENT
         // -----------------------------------------------------------------------------
 
@@ -349,14 +361,22 @@ namespace RelumiScript
             if (!SidePanelContainer.IsVisible) { SidebarGrid.ColumnDefinitions[1].Width = _lastSidebarWidth; SidebarGrid.ColumnDefinitions[2].Width = new GridLength(4); }
             SidePanelContainer.IsVisible = true;
             _currentView = viewName;
-            PanelExplorer.IsVisible = viewName == "Explorer"; PanelSearch.IsVisible = viewName == "Search"; PanelFlags.IsVisible = viewName == "Flags"; PanelCommands.IsVisible = viewName == "Commands"; PanelTheme.IsVisible = viewName == "Theme";
+
+            // Toggle Visibility
+            PanelFile.IsVisible = viewName == "File";
+            PanelExplorer.IsVisible = viewName == "Explorer";
+            PanelSearch.IsVisible = viewName == "Search";
+            PanelFlags.IsVisible = viewName == "Flags";
+            PanelCommands.IsVisible = viewName == "Commands";
+            PanelTheme.IsVisible = viewName == "Theme";
+
             SetButtonActive(viewName);
             if (viewName == "Search") Dispatcher.UIThread.Post(() => { SearchBox.Focus(); if (!string.IsNullOrWhiteSpace(SearchBox.Text)) PerformSearch(SearchBox.Text); });
             else if (viewName == "Flags") { if (_allFlagUsages.Count == 0) RefreshAllTrackers(); }
             else if (viewName == "Commands") { if (_allWorkUsages.Count == 0) RefreshAllTrackers(); }
         }
 
-        private void SetButtonActive(string? activeTag) { UpdateBtnStyle(BtnNavExplorer, activeTag); UpdateBtnStyle(BtnNavSearch, activeTag); UpdateBtnStyle(BtnNavFlags, activeTag); UpdateBtnStyle(BtnNavCommands, activeTag); UpdateBtnStyle(BtnNavTheme, activeTag); }
+        private void SetButtonActive(string? activeTag) { UpdateBtnStyle(BtnNavFile, activeTag); UpdateBtnStyle(BtnNavExplorer, activeTag); UpdateBtnStyle(BtnNavSearch, activeTag); UpdateBtnStyle(BtnNavFlags, activeTag); UpdateBtnStyle(BtnNavCommands, activeTag); UpdateBtnStyle(BtnNavTheme, activeTag); }
         private void UpdateBtnStyle(Button btn, string? activeTag) { if (btn.Tag?.ToString() == activeTag) { if (!btn.Classes.Contains("Active")) btn.Classes.Add("Active"); } else btn.Classes.Remove("Active"); }
 
         // -----------------------------------------------------------------------------
@@ -385,6 +405,65 @@ namespace RelumiScript
                 SwitchSideView("Explorer");
             }
             catch (Exception ex) { StatusText.Text = $"Load Error: {ex.Message}"; Debug.WriteLine(ex); }
+        }
+
+        public async void BtnSave_Click(object? sender, RoutedEventArgs e)
+        {
+            var top = TopLevel.GetTopLevel(this);
+            var folders = await top!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Save Destination (Debug)" });
+            if (folders.Count == 0) return;
+            string saveDir = folders[0].Path.LocalPath;
+
+            try
+            {
+                int savedCount = 0;
+                var dirtyDocs = _documents.Where(d => d.IsDirty).ToList();
+                var allFiles = ScriptTree.ItemsSource as IEnumerable<FileNode>;
+                var affectedFiles = new HashSet<FileNode>();
+
+                // Identify all FileNodes that need saving
+                foreach (var doc in dirtyDocs)
+                {
+                    if (doc.SourceNode is FileNode fn) affectedFiles.Add(fn);
+                    else if (doc.SourceNode is ScriptNode sn && allFiles != null)
+                    {
+                        var parent = allFiles.FirstOrDefault(f => f.Scripts.Contains(sn));
+                        if (parent != null) affectedFiles.Add(parent);
+                    }
+                }
+
+                foreach (var file in affectedFiles)
+                {
+                    string content;
+
+                    // Priority: If the whole file is open and dirty, use that content.
+                    var fileDoc = dirtyDocs.FirstOrDefault(d => d.SourceNode == file);
+                    if (fileDoc != null)
+                    {
+                        content = fileDoc.Content;
+                    }
+                    else
+                    {
+                        // Reconstruction: Combine scripts, using dirty script docs where available.
+                        var scriptDocs = dirtyDocs.Where(d => d.SourceNode is ScriptNode sn && file.Scripts.Contains(sn))
+                                                  .ToDictionary(d => (ScriptNode)d.SourceNode!, d => d.Content);
+
+                        content = string.Join(Environment.NewLine, file.Scripts.Select(s => scriptDocs.ContainsKey(s) ? scriptDocs[s] : s.Content));
+                    }
+
+                    string fileName = file.FileName;
+                    if (!fileName.EndsWith(".ev", StringComparison.OrdinalIgnoreCase)) fileName += ".ev";
+
+                    await File.WriteAllTextAsync(Path.Combine(saveDir, Path.GetFileName(fileName)), content);
+                    savedCount++;
+                }
+
+                StatusText.Text = $"Saved {savedCount} files to {saveDir}";
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = $"Save Error: {ex.Message}";
+            }
         }
 
         public void CloseApp_Click(object? sender, RoutedEventArgs e) => Close();
