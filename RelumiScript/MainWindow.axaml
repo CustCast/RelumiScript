@@ -37,9 +37,11 @@
 			<Setter Property="CornerRadius" Value="0"/>
 		</Style>
 
+		<Style Selector="Button.ActivityButton:pointerover">
+			<Setter Property="Foreground" Value="{DynamicResource ThemeActivityActiveForeground}"/>
+		</Style>
 		<Style Selector="Button.ActivityButton:pointerover /template/ ContentPresenter">
 			<Setter Property="Background" Value="Transparent"/>
-			<Setter Property="Foreground" Value="{DynamicResource ThemeActivityActiveForeground}"/>
 		</Style>
 
 		<Style Selector="Button.ActivityButton.Active">
@@ -161,18 +163,96 @@
 			<Border Grid.Column="0" Background="{DynamicResource ThemeActivityBarBackground}">
 				<Grid RowDefinitions="*, Auto">
 					<StackPanel Grid.Row="0">
-						<Button Classes="ActivityButton" x:Name="BtnActionOpen" Click="BtnLoad_Click" ToolTip.Tip="Open Folder (Ctrl+O)">📂</Button>
+						<Button Classes="ActivityButton" x:Name="BtnActionOpen" Click="BtnLoad_Click" ToolTip.Tip="Open Folder (Ctrl+O)">
+							<Panel>
+								<Rectangle Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasOpen}" Fill="{Binding $parent[Button].Foreground}">
+									<Rectangle.OpacityMask>
+										<ImageBrush Source="{Binding ThemeVm.Icons.OpenIcon}" Stretch="Uniform"/>
+									</Rectangle.OpacityMask>
+								</Rectangle>
+								<TextBlock Text="📂" IsVisible="{Binding !ThemeVm.Icons.HasOpen}" />
+							</Panel>
+						</Button>
 						<Rectangle Height="1" Fill="#444" Margin="10,5"/>
-						<Button Classes="ActivityButton" x:Name="BtnNavExplorer" Click="OnSidebarNav_Click" Tag="Explorer" ToolTip.Tip="Explorer (Ctrl+Shift+E)">📁</Button>
-						<Button Classes="ActivityButton" x:Name="BtnNavSearch" Click="OnSidebarNav_Click" Tag="Search" ToolTip.Tip="Search (Ctrl+Shift+F)">🔍</Button>
-						<Button Classes="ActivityButton" x:Name="BtnNavFlags" Click="OnSidebarNav_Click" Tag="Flags" ToolTip.Tip="Unused Flags">🚩</Button>
-						<Button Classes="ActivityButton" x:Name="BtnNavCommands" Click="OnSidebarNav_Click" Tag="Commands" ToolTip.Tip="Unused Works">🔨</Button>
-						<Button Classes="ActivityButton" x:Name="BtnNavTheme" Click="OnSidebarNav_Click" Tag="Theme" ToolTip.Tip="Theme Settings">🎨</Button>
+
+						<Button Classes="ActivityButton" x:Name="BtnNavExplorer" Click="OnSidebarNav_Click" Tag="Explorer" ToolTip.Tip="Explorer (Ctrl+Shift+E)">
+							<Panel>
+								<Rectangle Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasExplorer}" Fill="{Binding $parent[Button].Foreground}">
+									<Rectangle.OpacityMask>
+										<ImageBrush Source="{Binding ThemeVm.Icons.ExplorerIcon}" Stretch="Uniform"/>
+									</Rectangle.OpacityMask>
+								</Rectangle>
+								<TextBlock Text="📁" IsVisible="{Binding !ThemeVm.Icons.HasExplorer}" />
+							</Panel>
+						</Button>
+
+						<Button Classes="ActivityButton" x:Name="BtnNavSearch" Click="OnSidebarNav_Click" Tag="Search" ToolTip.Tip="Search (Ctrl+Shift+F)">
+							<Panel>
+								<Rectangle Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasSearch}" Fill="{Binding $parent[Button].Foreground}">
+									<Rectangle.OpacityMask>
+										<ImageBrush Source="{Binding ThemeVm.Icons.SearchIcon}" Stretch="Uniform"/>
+									</Rectangle.OpacityMask>
+								</Rectangle>
+								<TextBlock Text="🔍" IsVisible="{Binding !ThemeVm.Icons.HasSearch}" />
+							</Panel>
+						</Button>
+
+						<Button Classes="ActivityButton" x:Name="BtnNavFlags" Click="OnSidebarNav_Click" Tag="Flags" ToolTip.Tip="Unused Flags">
+							<Panel>
+								<Rectangle Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasFlags}" Fill="{Binding $parent[Button].Foreground}">
+									<Rectangle.OpacityMask>
+										<ImageBrush Source="{Binding ThemeVm.Icons.FlagsIcon}" Stretch="Uniform"/>
+									</Rectangle.OpacityMask>
+								</Rectangle>
+								<TextBlock Text="🚩" IsVisible="{Binding !ThemeVm.Icons.HasFlags}" />
+							</Panel>
+						</Button>
+
+						<Button Classes="ActivityButton" x:Name="BtnNavCommands" Click="OnSidebarNav_Click" Tag="Commands" ToolTip.Tip="Unused Works">
+							<Panel>
+								<Rectangle Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasCommands}" Fill="{Binding $parent[Button].Foreground}">
+									<Rectangle.OpacityMask>
+										<ImageBrush Source="{Binding ThemeVm.Icons.CommandsIcon}" Stretch="Uniform"/>
+									</Rectangle.OpacityMask>
+								</Rectangle>
+								<TextBlock Text="🔨" IsVisible="{Binding !ThemeVm.Icons.HasCommands}" />
+							</Panel>
+						</Button>
+
+						<Button Classes="ActivityButton" x:Name="BtnNavTheme" Click="OnSidebarNav_Click" Tag="Theme" ToolTip.Tip="Theme Settings">
+							<Panel>
+								<Rectangle Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasTheme}" Fill="{Binding $parent[Button].Foreground}">
+									<Rectangle.OpacityMask>
+										<ImageBrush Source="{Binding ThemeVm.Icons.ThemeIcon}" Stretch="Uniform"/>
+									</Rectangle.OpacityMask>
+								</Rectangle>
+								<TextBlock Text="🎨" IsVisible="{Binding !ThemeVm.Icons.HasTheme}" />
+							</Panel>
+						</Button>
 					</StackPanel>
 
 					<StackPanel Grid.Row="1">
-						<Button Classes="ActivityButton" x:Name="BtnNavPreview" Click="OnBottomNav_Click" Tag="Preview" ToolTip.Tip="Message Preview">👁</Button>
-						<Button Classes="ActivityButton" x:Name="BtnNavTerminal" Click="OnBottomNav_Click" Tag="Terminal" ToolTip.Tip="Terminal (Ctrl+`)">💻</Button>
+						<Button Classes="ActivityButton" x:Name="BtnNavPreview" Click="OnBottomNav_Click" Tag="Preview" ToolTip.Tip="Message Preview">
+							<Panel>
+								<Rectangle Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasPreview}" Fill="{Binding $parent[Button].Foreground}">
+									<Rectangle.OpacityMask>
+										<ImageBrush Source="{Binding ThemeVm.Icons.PreviewIcon}" Stretch="Uniform"/>
+									</Rectangle.OpacityMask>
+								</Rectangle>
+								<TextBlock Text="👁" IsVisible="{Binding !ThemeVm.Icons.HasPreview}" />
+							</Panel>
+						</Button>
+
+						<Button Classes="ActivityButton" x:Name="BtnNavTerminal" Click="OnBottomNav_Click" Tag="Terminal" ToolTip.Tip="Terminal (Ctrl+`)">
+							<Panel>
+								<Rectangle Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasTerminal}" Fill="{Binding $parent[Button].Foreground}">
+									<Rectangle.OpacityMask>
+										<ImageBrush Source="{Binding ThemeVm.Icons.TerminalIcon}" Stretch="Uniform"/>
+									</Rectangle.OpacityMask>
+								</Rectangle>
+								<TextBlock Text="💻" IsVisible="{Binding !ThemeVm.Icons.HasTerminal}" />
+							</Panel>
+						</Button>
 					</StackPanel>
 				</Grid>
 			</Border>
@@ -374,6 +454,33 @@
 									<Grid ColumnDefinitions="*, Auto">
 										<TextBlock Text="Activity Selected" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
 										<ColorPicker Grid.Column="1" Color="{Binding Colors.ActivityActiveForeground, Mode=TwoWay}" />
+									</Grid>
+
+									<TextBlock Text="Icon Configuration (Filename in 'Icons' folder)" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,15,0,5"/>
+									<Grid ColumnDefinitions="*, 120" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
+										<TextBlock Grid.Row="0" Text="Open Folder" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Icons.Open, Mode=TwoWay}" Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}" BorderThickness="0" Margin="0,2"/>
+
+										<TextBlock Grid.Row="1" Text="Explorer" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<TextBox Grid.Row="1" Grid.Column="1" Text="{Binding Icons.Explorer, Mode=TwoWay}" Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}" BorderThickness="0" Margin="0,2"/>
+
+										<TextBlock Grid.Row="2" Text="Search" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Icons.Search, Mode=TwoWay}" Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}" BorderThickness="0" Margin="0,2"/>
+
+										<TextBlock Grid.Row="3" Text="Flags" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Icons.Flags, Mode=TwoWay}" Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}" BorderThickness="0" Margin="0,2"/>
+
+										<TextBlock Grid.Row="4" Text="Commands" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<TextBox Grid.Row="4" Grid.Column="1" Text="{Binding Icons.Commands, Mode=TwoWay}" Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}" BorderThickness="0" Margin="0,2"/>
+
+										<TextBlock Grid.Row="5" Text="Theme" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<TextBox Grid.Row="5" Grid.Column="1" Text="{Binding Icons.Theme, Mode=TwoWay}" Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}" BorderThickness="0" Margin="0,2"/>
+
+										<TextBlock Grid.Row="6" Text="Preview" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<TextBox Grid.Row="6" Grid.Column="1" Text="{Binding Icons.Preview, Mode=TwoWay}" Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}" BorderThickness="0" Margin="0,2"/>
+
+										<TextBlock Grid.Row="7" Text="Terminal" VerticalAlignment="Center" Foreground="{DynamicResource ThemeTextColor}"/>
+										<TextBox Grid.Row="7" Grid.Column="1" Text="{Binding Icons.Terminal, Mode=TwoWay}" Background="{DynamicResource ThemeInputBackground}" Foreground="{DynamicResource ThemeInputForeground}" BorderThickness="0" Margin="0,2"/>
 									</Grid>
 
 									<TextBlock Text="Editor General" FontWeight="Bold" Foreground="#888" FontSize="12" Margin="0,15,0,5"/>

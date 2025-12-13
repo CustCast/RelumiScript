@@ -1,38 +1,51 @@
 ﻿using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
+using Avalonia.Svg.Skia;
+using SkiaSharp;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 
 namespace RelumiScript.ViewModels
 {
+    // ... [Classes ThemeSettings, ThemeIcons, ThemeColors, SyntaxTheme, TokenStyle same as previously provided] ...
     public class ThemeSettings
     {
         public ThemeColors Colors { get; set; } = new ThemeColors();
+        public ThemeIcons Icons { get; set; } = new ThemeIcons();
         public SyntaxTheme Syntax { get; set; } = new SyntaxTheme();
+    }
+
+    public class ThemeIcons
+    {
+        public string Open { get; set; } = "folder.svg";
+        public string Explorer { get; set; } = "files.svg";
+        public string Search { get; set; } = "search.svg";
+        public string Flags { get; set; } = "flag.svg";
+        public string Commands { get; set; } = "tools.svg";
+        public string Theme { get; set; } = "palette.svg";
+        public string Preview { get; set; } = "eye.svg";
+        public string Terminal { get; set; } = "terminal.svg";
     }
 
     public class ThemeColors
     {
-        // Editor
         public string Background { get; set; } = "#FF1E1E1E";
         public string Foreground { get; set; } = "#FFF8F8F2";
-
-        // Window UI
         public string WindowBackground { get; set; } = "#FF1E1E1E";
-        public string SidebarBackground { get; set; } = "#FF252526"; // Explorer Panel
-        public string PanelBackground { get; set; } = "#FF1E1E1E";   // Bottom Panel
-        public string ActivityBarBackground { get; set; } = "#FF333333"; // Far Left Bar
+        public string SidebarBackground { get; set; } = "#FF252526";
+        public string PanelBackground { get; set; } = "#FF1E1E1E";
+        public string ActivityBarBackground { get; set; } = "#FF333333";
         public string AccentColor { get; set; } = "#FF007ACC";
         public string TextColor { get; set; } = "#FFCCCCCC";
-
-        // Inputs (Search, Dropdowns)
         public string InputBackground { get; set; } = "#FF3C3C3C";
         public string InputForeground { get; set; } = "#FFCCCCCC";
-
-        // Activity Bar Icons
-        public string ActivityForeground { get; set; } = "#FF858585"; // Inactive
-        public string ActivityActiveForeground { get; set; } = "#FFFFFFFF"; // Active
+        public string ActivityForeground { get; set; } = "#FF858585";
+        public string ActivityActiveForeground { get; set; } = "#FFFFFFFF";
     }
 
     public class SyntaxTheme
@@ -56,6 +69,7 @@ namespace RelumiScript.ViewModels
     public class ThemeEditorViewModel : INotifyPropertyChanged
     {
         public ThemeColorsVM Colors { get; set; } = new ThemeColorsVM();
+        public ThemeIconsVM Icons { get; set; } = new ThemeIconsVM();
         public SyntaxThemeVM Syntax { get; set; } = new SyntaxThemeVM();
 
         public ObservableCollection<string> AvailableThemes { get; set; } = new ObservableCollection<string>();
@@ -85,6 +99,8 @@ namespace RelumiScript.ViewModels
             if (Color.TryParse(s.Colors.ActivityForeground, out var afg)) Colors.ActivityForeground = afg;
             if (Color.TryParse(s.Colors.ActivityActiveForeground, out var aafg)) Colors.ActivityActiveForeground = aafg;
 
+            Icons.Load(s.Icons);
+
             Syntax.ScriptLabel.Load(s.Syntax.ScriptLabel);
             Syntax.WorkVar.Load(s.Syntax.WorkVar);
             Syntax.Flag.Load(s.Syntax.Flag);
@@ -95,6 +111,7 @@ namespace RelumiScript.ViewModels
             Syntax.Comment.Load(s.Syntax.Comment);
 
             OnPropertyChanged(nameof(Colors));
+            OnPropertyChanged(nameof(Icons));
             OnPropertyChanged(nameof(Syntax));
         }
 
@@ -117,6 +134,7 @@ namespace RelumiScript.ViewModels
                     ActivityForeground = ThemeColorsVM.ToHex(Colors.ActivityForeground),
                     ActivityActiveForeground = ThemeColorsVM.ToHex(Colors.ActivityActiveForeground),
                 },
+                Icons = Icons.ToModel(),
                 Syntax = new SyntaxTheme
                 {
                     ScriptLabel = Syntax.ScriptLabel.ToModel(),
@@ -130,6 +148,159 @@ namespace RelumiScript.ViewModels
                 }
             };
         }
+    }
+
+    public class ThemeIconsVM : INotifyPropertyChanged
+    {
+        private string _basePath = "";
+
+        // Remove debug property as requested
+        // public string DebugInfo { get; } 
+
+        private string _open = "folder.svg";
+        private string _explorer = "files.svg";
+        private string _search = "search.svg";
+        private string _flags = "flag.svg";
+        private string _commands = "tools.svg";
+        private string _theme = "palette.svg";
+        private string _preview = "eye.svg";
+        private string _terminal = "terminal.svg";
+
+        public string Open { get => _open; set { _open = value; NotifyChange(nameof(Open)); UpdateIcon(nameof(OpenIcon)); } }
+        public string Explorer { get => _explorer; set { _explorer = value; NotifyChange(nameof(Explorer)); UpdateIcon(nameof(ExplorerIcon)); } }
+        public string Search { get => _search; set { _search = value; NotifyChange(nameof(Search)); UpdateIcon(nameof(SearchIcon)); } }
+        public string Flags { get => _flags; set { _flags = value; NotifyChange(nameof(Flags)); UpdateIcon(nameof(FlagsIcon)); } }
+        public string Commands { get => _commands; set { _commands = value; NotifyChange(nameof(Commands)); UpdateIcon(nameof(CommandsIcon)); } }
+        public string Theme { get => _theme; set { _theme = value; NotifyChange(nameof(Theme)); UpdateIcon(nameof(ThemeIcon)); } }
+        public string Preview { get => _preview; set { _preview = value; NotifyChange(nameof(Preview)); UpdateIcon(nameof(PreviewIcon)); } }
+        public string Terminal { get => _terminal; set { _terminal = value; NotifyChange(nameof(Terminal)); UpdateIcon(nameof(TerminalIcon)); } }
+
+        public Bitmap? OpenIcon => LoadSvgToBitmap(Open);
+        public Bitmap? ExplorerIcon => LoadSvgToBitmap(Explorer);
+        public Bitmap? SearchIcon => LoadSvgToBitmap(Search);
+        public Bitmap? FlagsIcon => LoadSvgToBitmap(Flags);
+        public Bitmap? CommandsIcon => LoadSvgToBitmap(Commands);
+        public Bitmap? ThemeIcon => LoadSvgToBitmap(Theme);
+        public Bitmap? PreviewIcon => LoadSvgToBitmap(Preview);
+        public Bitmap? TerminalIcon => LoadSvgToBitmap(Terminal);
+
+        public bool HasOpen => OpenIcon != null;
+        public bool HasExplorer => ExplorerIcon != null;
+        public bool HasSearch => SearchIcon != null;
+        public bool HasFlags => FlagsIcon != null;
+        public bool HasCommands => CommandsIcon != null;
+        public bool HasTheme => ThemeIcon != null;
+        public bool HasPreview => PreviewIcon != null;
+        public bool HasTerminal => TerminalIcon != null;
+
+        public ThemeIconsVM()
+        {
+            FindIconsDirectory();
+        }
+
+        private void FindIconsDirectory()
+        {
+            string current = AppDomain.CurrentDomain.BaseDirectory;
+            for (int i = 0; i < 5; i++)
+            {
+                string candidate = Path.Combine(current, "Icons");
+                if (Directory.Exists(candidate))
+                {
+                    _basePath = candidate;
+                    return;
+                }
+                var parent = Directory.GetParent(current);
+                if (parent == null) break;
+                current = parent.FullName;
+            }
+            _basePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Icons");
+        }
+
+        private Bitmap? LoadSvgToBitmap(string filename)
+        {
+            if (string.IsNullOrWhiteSpace(filename)) return null;
+            if (string.IsNullOrEmpty(_basePath)) FindIconsDirectory();
+
+            string path = Path.IsPathRooted(filename) ? filename : Path.Combine(_basePath, filename);
+
+            if (!File.Exists(path)) return null;
+
+            try
+            {
+                var svgSource = SvgSource.Load(path, null);
+                if (svgSource?.Picture == null) return null;
+
+                int width = 24;
+                int height = 24;
+
+                using (var bitmap = new SKBitmap(width, height))
+                using (var canvas = new SKCanvas(bitmap))
+                {
+                    canvas.Clear(SKColors.Transparent);
+
+                    var bounds = svgSource.Picture.CullRect;
+                    float scaleX = width / bounds.Width;
+                    float scaleY = height / bounds.Height;
+                    var matrix = SKMatrix.CreateScale(scaleX, scaleY);
+
+                    canvas.DrawPicture(svgSource.Picture, ref matrix);
+                    canvas.Flush();
+
+                    using (var imageStream = new MemoryStream())
+                    {
+                        using (var wStream = new SKManagedWStream(imageStream))
+                        {
+                            bitmap.Encode(wStream, SKEncodedImageFormat.Png, 100);
+                        }
+                        imageStream.Seek(0, SeekOrigin.Begin);
+                        return new Bitmap(imageStream);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"SVG Rasterize Error: {ex.Message}");
+            }
+            return null;
+        }
+
+        private void UpdateIcon(string propName)
+        {
+            NotifyChange(propName);
+            NotifyChange("Has" + propName.Replace("Icon", ""));
+        }
+
+        public void Load(ThemeIcons i)
+        {
+            if (i == null) i = new ThemeIcons();
+
+            if (!string.IsNullOrEmpty(i.Open)) Open = i.Open;
+            if (!string.IsNullOrEmpty(i.Explorer)) Explorer = i.Explorer;
+            if (!string.IsNullOrEmpty(i.Search)) Search = i.Search;
+            if (!string.IsNullOrEmpty(i.Flags)) Flags = i.Flags;
+            if (!string.IsNullOrEmpty(i.Commands)) Commands = i.Commands;
+            if (!string.IsNullOrEmpty(i.Theme)) Theme = i.Theme;
+            if (!string.IsNullOrEmpty(i.Preview)) Preview = i.Preview;
+            if (!string.IsNullOrEmpty(i.Terminal)) Terminal = i.Terminal;
+        }
+
+        public ThemeIcons ToModel()
+        {
+            return new ThemeIcons
+            {
+                Open = Open,
+                Explorer = Explorer,
+                Search = Search,
+                Flags = Flags,
+                Commands = Commands,
+                Theme = Theme,
+                Preview = Preview,
+                Terminal = Terminal
+            };
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        private void NotifyChange(string p) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(p));
     }
 
     public class ThemeColorsVM : INotifyPropertyChanged
@@ -177,11 +348,9 @@ namespace RelumiScript.ViewModels
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
-        // Used by MainWindow to detect color picker changes
         protected void OnChanged([CallerMemberName] string name = "") => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
-    // ... [SyntaxThemeVM and TokenStyleVM remain unchanged] ...
     public class SyntaxThemeVM
     {
         public TokenStyleVM ScriptLabel { get; set; } = new TokenStyleVM();

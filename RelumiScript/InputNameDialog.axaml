@@ -1,0 +1,24 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="RelumiScript.InputNameDialog"
+        Title="New Theme"
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        SystemDecorations="None"
+        WindowStartupLocation="CenterOwner"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent">
+
+	<Border Background="#252526" BorderBrush="#007ACC" BorderThickness="1" Padding="20" CornerRadius="4" Width="350">
+		<StackPanel Spacing="15">
+			<TextBlock Text="Enter Name for New Theme:" FontSize="16" Foreground="#FFFFFF" FontWeight="Bold"/>
+			
+			<TextBox x:Name="InputBox" Watermark="Theme Name" Background="#3C3C3C" Foreground="White" BorderThickness="1" BorderBrush="#555"/>
+			
+			<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+				<Button Content="Cancel" Click="BtnCancel_Click" Background="#3C3C3C" Foreground="White"/>
+				<Button Content="Create" Click="BtnOk_Click" Background="#007ACC" Foreground="White"/>
+			</StackPanel>
+		</StackPanel>
+	</Border>
+</Window>

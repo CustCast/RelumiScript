@@ -27,6 +27,7 @@ namespace RelumiScript
     {
         private AssetBundleService _service;
         private MessageRenderer? _messageRenderer;
+        private AppConfig _config = new AppConfig();
 
         private bool _isEditorReady = false;
         private bool _isNavigating = false;
@@ -57,7 +58,13 @@ namespace RelumiScript
         public MainWindow()
         {
             InitializeComponent();
+
+            // REQUIRED: Fixes bindings in XAML
+            DataContext = this;
+
             _service = new AssetBundleService();
+
+            LoadConfig();
 
             // Setup Theme Listeners for Live Preview
             _themeVm.Colors.PropertyChanged += (s, e) => UpdateDynamicResources();
@@ -75,7 +82,7 @@ namespace RelumiScript
         }
 
         // -----------------------------------------------------------------------------
-        // THEME MANAGEMENT (UPDATED)
+        // THEME MANAGEMENT
         // -----------------------------------------------------------------------------
 
         private void UpdateDynamicResources()
@@ -115,8 +122,18 @@ namespace RelumiScript
                 SaveThemeByName("Default");
             }
 
-            if (_themeVm.AvailableThemes.Contains("Default")) _themeVm.CurrentThemeName = "Default";
-            else _themeVm.CurrentThemeName = _themeVm.AvailableThemes.First();
+            if (!string.IsNullOrEmpty(_config.LastLoadedTheme) && _themeVm.AvailableThemes.Contains(_config.LastLoadedTheme))
+            {
+                _themeVm.CurrentThemeName = _config.LastLoadedTheme;
+            }
+            else if (_themeVm.AvailableThemes.Contains("Default"))
+            {
+                _themeVm.CurrentThemeName = "Default";
+            }
+            else
+            {
+                _themeVm.CurrentThemeName = _themeVm.AvailableThemes.First();
+            }
 
             LoadThemeByName(_themeVm.CurrentThemeName);
         }
@@ -151,19 +168,36 @@ namespace RelumiScript
 
         public void ThemeComboBox_SelectionChanged(object? sender, SelectionChangedEventArgs e)
         {
-            if (_themeVm.CurrentThemeName != null) LoadThemeByName(_themeVm.CurrentThemeName);
+            if (_themeVm.CurrentThemeName != null)
+            {
+                LoadThemeByName(_themeVm.CurrentThemeName);
+                if (_config.LastLoadedTheme != _themeVm.CurrentThemeName)
+                {
+                    _config.LastLoadedTheme = _themeVm.CurrentThemeName;
+                    SaveConfig();
+                }
+            }
         }
 
-        public void BtnNewTheme_Click(object? sender, RoutedEventArgs e)
+        public async void BtnNewTheme_Click(object? sender, RoutedEventArgs e)
         {
-            int i = 1;
-            string baseName = "New Theme";
-            while (_themeVm.AvailableThemes.Contains($"{baseName} {i}")) i++;
+            var dialog = new InputNameDialog();
+            string? result = await dialog.ShowDialog<string?>(this);
 
-            string newName = $"{baseName} {i}";
-            _themeVm.AvailableThemes.Add(newName);
-            _themeVm.CurrentThemeName = newName;
-            SaveThemeByName(newName);
+            if (string.IsNullOrWhiteSpace(result)) return;
+
+            string safeName = string.Join("_", result.Split(Path.GetInvalidFileNameChars()));
+            if (string.IsNullOrWhiteSpace(safeName)) safeName = "New_Theme";
+
+            if (_themeVm.AvailableThemes.Contains(safeName))
+            {
+                StatusText.Text = $"Theme '{safeName}' already exists.";
+                return;
+            }
+
+            _themeVm.AvailableThemes.Add(safeName);
+            _themeVm.CurrentThemeName = safeName;
+            SaveThemeByName(safeName);
         }
 
         public async void SaveTheme_Click(object? sender, RoutedEventArgs e)
@@ -495,6 +529,30 @@ namespace RelumiScript
         private void TryInitMessageRenderer() { if (_messageRenderer == null && !string.IsNullOrEmpty(FindJsonFolder())) _messageRenderer = new MessageRenderer(Path.GetFullPath(Path.Combine(FindJsonFolder()!, "..", "Assets"))); }
         private async Task GenerateAndInjectSyntax() { string? jd = FindJsonFolder(); if (string.IsNullOrEmpty(jd)) return; await Task.Run(() => { string cmds = File.Exists(Path.Combine(jd, "commands.json")) ? File.ReadAllText(Path.Combine(jd, "commands.json")) : "[]"; string js = $"window.RELUMI_DATA = {{ commands: {cmds}, flags: [], sysflags: [], works: [], pokes: {JsonConvert.SerializeObject(_service.PokemonMap)}, items: {JsonConvert.SerializeObject(_service.ItemMap)} }}; window.RELUMI_DATA_LOADED = true;"; File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Monaco", "syntax_data.js"), js, Encoding.UTF8); }); if (_isEditorReady) await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={DateTime.Now.Ticks}');"); }
         private string? FindJsonFolder() { string b = AppDomain.CurrentDomain.BaseDirectory; if (Directory.Exists(Path.Combine(b, "JSON"))) return Path.Combine(b, "JSON"); if (Directory.Exists(Path.Combine(b, "..", "..", "..", "JSON"))) return Path.GetFullPath(Path.Combine(b, "..", "..", "..", "JSON")); return null; }
+
+        private void LoadConfig()
+        {
+            try
+            {
+                string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
+                if (File.Exists(path))
+                {
+                    var cfg = JsonConvert.DeserializeObject<AppConfig>(File.ReadAllText(path));
+                    if (cfg != null) _config = cfg;
+                }
+            }
+            catch (Exception ex) { Debug.WriteLine($"Error loading config: {ex.Message}"); }
+        }
+
+        private void SaveConfig()
+        {
+            try
+            {
+                string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
+                File.WriteAllText(path, JsonConvert.SerializeObject(_config, Formatting.Indented));
+            }
+            catch (Exception ex) { Debug.WriteLine($"Error saving config: {ex.Message}"); }
+        }
 
         public void SearchResult_PointerWheelChanged(object? sender, PointerWheelEventArgs e)
         {
