@@ -1,0 +1,89 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:RelumiScript"
+        mc:Ignorable="d" d:DesignWidth="400" d:DesignHeight="500"
+        x:Class="RelumiScript.EditDataDialog"
+        Title="Edit Definition"
+        Width="500" Height="600"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource ThemeWindowBackground}"
+        Foreground="{DynamicResource ThemeTextColor}">
+
+	<Window.Styles>
+		<Style Selector="TextBox">
+			<Setter Property="Background" Value="{DynamicResource ThemeInputBackground}"/>
+			<Setter Property="Foreground" Value="{DynamicResource ThemeInputForeground}"/>
+			<Setter Property="BorderThickness" Value="1"/>
+			<Setter Property="BorderBrush" Value="#444"/>
+			<Setter Property="CornerRadius" Value="3"/>
+			<Setter Property="Padding" Value="6"/>
+			<Setter Property="Margin" Value="0,0,0,5"/>
+		</Style>
+		<Style Selector="TextBlock">
+			<Setter Property="Foreground" Value="{DynamicResource ThemeTextColor}"/>
+			<Setter Property="Margin" Value="0,0,0,2"/>
+			<Setter Property="FontSize" Value="12"/>
+			<Setter Property="Opacity" Value="0.8"/>
+		</Style>
+	</Window.Styles>
+
+	<Grid RowDefinitions="Auto, *, Auto" Margin="20">
+		<StackPanel Grid.Row="0" Margin="0,0,0,20">
+			<TextBlock x:Name="HeaderTitle" Text="Edit Definition" FontSize="18" FontWeight="Bold" Opacity="1"/>
+			<TextBlock x:Name="HeaderSubtitle" Text="Modifying command data" FontSize="12" Opacity="0.6"/>
+		</StackPanel>
+
+		<ScrollViewer Grid.Row="1">
+			<StackPanel>
+				<TextBlock Text="Name"/>
+				<TextBox x:Name="InputName" Watermark="e.g. FLAG_EVENT_START" />
+
+				<StackPanel x:Name="DescriptionPanel">
+					<TextBlock Text="Description"/>
+					<TextBox x:Name="InputDescription" Height="60" AcceptsReturn="True" TextWrapping="Wrap" />
+				</StackPanel>
+
+				<StackPanel x:Name="ParametersPanel" IsVisible="False">
+					<Grid ColumnDefinitions="*, Auto" Margin="0,15,0,5">
+						<TextBlock Text="Parameters" VerticalAlignment="Center" FontWeight="Bold"/>
+						<Button Grid.Column="1" Content="+" Width="30" Click="BtnAddParam_Click" Background="#444" Foreground="White"/>
+					</Grid>
+					<ItemsControl x:Name="ParamsList">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate DataType="local:CommandArgViewModel">
+								<Border BorderBrush="#444" BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,0,0,8" Background="{DynamicResource ThemePanelBackground}">
+									<StackPanel Spacing="5">
+										<Grid ColumnDefinitions="Auto, *, 10, Auto, *, 10, Auto">
+											<TextBlock Text="Name:" VerticalAlignment="Center"/>
+											<TextBox Grid.Column="1" Text="{Binding Name}" Margin="5,0,0,0"/>
+
+											<TextBlock Grid.Column="3" Text="Type:" VerticalAlignment="Center"/>
+											<TextBox Grid.Column="4" Text="{Binding Types}" Margin="5,0,0,0" Watermark="Work, Number..."/>
+
+											<CheckBox Grid.Column="6" IsChecked="{Binding IsOptional}" Content="Optional"/>
+										</Grid>
+
+										<Grid ColumnDefinitions="Auto, *">
+											<TextBlock Text="Desc:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+											<TextBox Grid.Column="1" Text="{Binding Description}"/>
+										</Grid>
+
+										<Button Content="Remove" FontSize="10" Background="#8B0000" Foreground="White" HorizontalAlignment="Right" Click="BtnRemoveParam_Click" Tag="{Binding}" Padding="8,2"/>
+									</StackPanel>
+								</Border>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</StackPanel>
+			</StackPanel>
+		</ScrollViewer>
+
+		<StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,20,0,0">
+			<TextBlock x:Name="ErrorText" Text="" Foreground="#FF5555" VerticalAlignment="Center" Margin="0,0,10,0" IsVisible="False"/>
+			<Button Content="Cancel" Click="BtnCancel_Click" Background="Transparent" Foreground="{DynamicResource ThemeTextColor}"/>
+			<Button Content="Save Changes" Click="BtnSave_Click" Background="{DynamicResource ThemeAccentColor}" Foreground="White" Padding="20,8"/>
+		</StackPanel>
+	</Grid>
+</Window>
