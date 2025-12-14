@@ -1,6 +1,4 @@
-﻿// RelumiScript/Monaco/editor_init.js
-
-// 1. Define Default Theme (Fallback)
+﻿// 1. Define Default Theme (Fallback)
 monaco.editor.defineTheme("bdsp-dark", {
     base: "vs-dark",
     inherit: true,
@@ -31,6 +29,11 @@ var editor = monaco.editor.create(document.getElementById("container"), {
     theme: "bdsp-dark",
     minimap: {
         enabled: false
+    },
+    // Fix: Disable Unicode Highlighting to prevent warnings on smart quotes (’)
+    unicodeHighlight: {
+        ambiguousCharacters: false,
+        invisibleCharacters: false,
     }
 });
 

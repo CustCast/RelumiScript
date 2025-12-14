@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions; // Added for Regex
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -42,6 +43,7 @@ namespace RelumiScript
         private DispatcherTimer _autoSaveTimer;
 
         // Trackers
+        private List<FileNode> _allFiles = new List<FileNode>();
         private List<FileNode> _loadedMessages = new List<FileNode>();
         private List<string> _currentMessagePages = new List<string>();
         private int _currentPageIndex = 0;
@@ -301,6 +303,7 @@ namespace RelumiScript
             if (viewName == "Search") Dispatcher.UIThread.Post(() => { SearchBox.Focus(); if (!string.IsNullOrWhiteSpace(SearchBox.Text)) PerformSearch(SearchBox.Text); });
             else if (viewName == "Flags") { if (_allFlagUsages.Count == 0) RefreshAllTrackers(); }
             else if (viewName == "Commands") { if (_allWorkUsages.Count == 0) RefreshAllTrackers(); }
+            else if (viewName == "Explorer") Dispatcher.UIThread.Post(() => ExplorerSearchBox.Focus());
         }
         private void SetButtonActive(string? activeTag) { UpdateBtnStyle(BtnNavFile, activeTag); UpdateBtnStyle(BtnNavExplorer, activeTag); UpdateBtnStyle(BtnNavSearch, activeTag); UpdateBtnStyle(BtnNavFlags, activeTag); UpdateBtnStyle(BtnNavCommands, activeTag); UpdateBtnStyle(BtnNavTheme, activeTag); }
         private void UpdateBtnStyle(Button btn, string? activeTag) { if (btn.Tag?.ToString() == activeTag) { if (!btn.Classes.Contains("Active")) btn.Classes.Add("Active"); } else btn.Classes.Remove("Active"); }
@@ -321,7 +324,10 @@ namespace RelumiScript
             var top = TopLevel.GetTopLevel(this); var folders = await top!.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions { AllowMultiple = false, Title = "Select Project Root Folder" }); if (folders.Count == 0) return; var root = folders[0].Path.LocalPath; _workingDirectory = root; StatusText.Text = "Scanning...";
             try
             {
-                string? jsonDir = FindJsonFolder(); if (_service.InitSummary.Contains("Cmds: 0") && !string.IsNullOrEmpty(jsonDir)) _service.Initialize(jsonDir); StatusText.Text = "Loading Game Data..."; await Task.Run(() => _service.LoadGameData(root)); StatusText.Text = "Loading Scripts..."; var scripts = await Task.Run(() => _service.LoadAndDecompile(root)); StatusText.Text = "Loading Messages..."; _loadedMessages = await Task.Run(() => _service.LoadMessageFiles(root)); await GenerateAndInjectSyntax(); ScriptTree.ItemsSource = scripts.OrderBy(x => x.Name).ToList(); StatusText.Text = $"Loaded {scripts.Count} scripts."; RefreshAllTrackers(); SwitchSideView("Explorer");
+                string? jsonDir = FindJsonFolder(); if (_service.InitSummary.Contains("Cmds: 0") && !string.IsNullOrEmpty(jsonDir)) _service.Initialize(jsonDir); StatusText.Text = "Loading Game Data..."; await Task.Run(() => _service.LoadGameData(root)); StatusText.Text = "Loading Scripts...";
+                var scripts = await Task.Run(() => _service.LoadAndDecompile(root));
+                _allFiles = scripts;
+                StatusText.Text = "Loading Messages..."; _loadedMessages = await Task.Run(() => _service.LoadMessageFiles(root)); await GenerateAndInjectSyntax(); ScriptTree.ItemsSource = scripts.OrderBy(x => x.Name).ToList(); StatusText.Text = $"Loaded {scripts.Count} scripts."; RefreshAllTrackers(); SwitchSideView("Explorer");
                 // Auto-nav terminal
                 if (_terminalSession != null && _terminalSession.IsRunning)
                 {
@@ -388,6 +394,19 @@ namespace RelumiScript
                     if (!fileName.EndsWith(".ev", StringComparison.OrdinalIgnoreCase)) fileName += ".ev";
                     await File.WriteAllTextAsync(Path.Combine(saveDir, Path.GetFileName(fileName)), content);
                     savedCount++;
+
+                    // --- NEW FIX: Re-parse content to update in-memory ScriptNodes ---
+                    var newScripts = ParseScriptsFromContent(content);
+
+                    // 1. Update the 'file' reference (which may be a transient node from FilterExplorer)
+                    file.Scripts = new List<ScriptNode>(newScripts);
+
+                    // 2. Update the master record in _allFiles so future filters/views use the new data
+                    var masterNode = _allFiles.FirstOrDefault(f => f.FileName == file.FileName);
+                    if (masterNode != null && masterNode != file)
+                    {
+                        masterNode.Scripts = new List<ScriptNode>(newScripts);
+                    }
                 }
 
                 foreach (var doc in dirtyDocs)
@@ -397,12 +416,56 @@ namespace RelumiScript
                 }
 
                 if (!isAutoSave && savedCount > 0)
+                {
                     StatusText.Text = $"Saved {savedCount} files to {saveDir}";
+                    // Refresh Explorer to reflect changes (e.g. if user renamed a label)
+                    Dispatcher.UIThread.Post(() => FilterExplorer(ExplorerSearchBox.Text));
+                }
             }
             catch (Exception ex)
             {
                 StatusText.Text = $"Save Error: {ex.Message}";
             }
+        }
+
+        // Helper to re-parse the full file content back into ScriptNodes
+        private List<ScriptNode> ParseScriptsFromContent(string content)
+        {
+            var list = new List<ScriptNode>();
+            var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            ScriptNode? currentScript = null;
+            StringBuilder currentContent = new StringBuilder();
+            var labelRegex = new Regex(@"^(?:\\s*)?([a-zA-Z0-9_]+):$");
+
+            foreach (var line in lines)
+            {
+                var match = labelRegex.Match(line.Trim());
+                if (match.Success)
+                {
+                    if (currentScript != null)
+                    {
+                        currentScript.Content = currentContent.ToString();
+                        list.Add(currentScript);
+                    }
+                    currentScript = new ScriptNode { Label = match.Groups[1].Value };
+                    currentContent.Clear();
+                    currentContent.AppendLine(line);
+                }
+                else
+                {
+                    if (currentScript == null && !string.IsNullOrWhiteSpace(line))
+                        currentScript = new ScriptNode { Label = "Header" };
+
+                    if (currentScript != null)
+                        currentContent.AppendLine(line);
+                }
+            }
+            if (currentScript != null)
+            {
+                currentScript.Content = currentContent.ToString();
+                list.Add(currentScript);
+            }
+            return list;
         }
 
         public void CloseApp_Click(object? sender, RoutedEventArgs e) => Close();
@@ -522,26 +585,31 @@ namespace RelumiScript
             // Local Echo immediately so user sees typing
             // This is 'Cooked Mode' simulation
             
-            if (e === '\r') { // Enter
-                term.write('\r\n');
-                if (window.chrome && window.chrome.webview) {
-                    window.chrome.webview.postMessage('TERM_INPUT:' + currentLine);
-                }
-                currentLine = """";
-            } else if (e === '\u007F') { // Backspace
-                if (currentLine.length > 0) {
-                    term.write('\b \b');
-                    currentLine = currentLine.substring(0, currentLine.length - 1);
-                }
-            } else if (e === '\u0003') { // Ctrl+C
-                 term.write('^C\r\n');
-                 currentLine = """";
-                 // Ideally send signal to backend here
-            } else {
-                // Printable characters
-                if (e.length === 1 && e.charCodeAt(0) >= 32) {
-                    currentLine += e;
-                    term.write(e);
+            // Loop through characters to support paste
+            for (let i = 0; i < e.length; i++) {
+                let char = e[i];
+
+                if (char === '\r') { // Enter
+                    term.write('\r\n');
+                    if (window.chrome && window.chrome.webview) {
+                        window.chrome.webview.postMessage('TERM_INPUT:' + currentLine);
+                    }
+                    currentLine = """";
+                } else if (char === '\u007F') { // Backspace
+                    if (currentLine.length > 0) {
+                        term.write('\b \b');
+                        currentLine = currentLine.substring(0, currentLine.length - 1);
+                    }
+                } else if (char === '\u0003') { // Ctrl+C
+                     term.write('^C\r\n');
+                     currentLine = """";
+                     // Ideally send signal to backend here
+                } else {
+                    // Printable characters
+                    if (char.charCodeAt(0) >= 32) {
+                        currentLine += char;
+                        term.write(char);
+                    }
                 }
             }
         });
@@ -614,6 +682,55 @@ namespace RelumiScript
         public void SearchBox_TextChanged(object? sender, TextChangedEventArgs e) => PerformSearch(SearchBox.Text);
         public void FlagSearchBox_TextChanged(object? sender, TextChangedEventArgs e) => FilterFlags(FlagSearchBox.Text ?? "");
         public void ScriptSearchBox_TextChanged(object? sender, TextChangedEventArgs e) => FilterWorks(ScriptSearchBox.Text ?? "");
+
+        public void ExplorerSearchBox_TextChanged(object? sender, TextChangedEventArgs e) => FilterExplorer(ExplorerSearchBox.Text);
+
+        private void FilterExplorer(string? query)
+        {
+            if (_allFiles == null || _allFiles.Count == 0) return;
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                ScriptTree.ItemsSource = _allFiles.OrderBy(x => x.Name).ToList();
+                return;
+            }
+
+            query = query.Trim();
+            var filtered = new List<FileNode>();
+
+            foreach (var file in _allFiles)
+            {
+                bool nameMatch = file.Name.Contains(query, StringComparison.OrdinalIgnoreCase);
+                var matchingScripts = file.Scripts.Where(s => s.Label.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+
+                if (nameMatch || matchingScripts.Count > 0)
+                {
+                    // Create transient node for view
+                    var newNode = new FileNode
+                    {
+                        Name = file.Name,
+                        FileName = file.FileName,
+                        // FIX: Set IsMessage instead of assigning to read-only Icon. Icon will update automatically.
+                        IsMessage = file.IsMessage
+                    };
+
+                    if (nameMatch)
+                    {
+                        // Match file name -> show all
+                        // FIX: Use List instead of ObservableCollection to match FileNode.Scripts type
+                        newNode.Scripts = new List<ScriptNode>(file.Scripts);
+                    }
+                    else
+                    {
+                        // Match only specific scripts
+                        // FIX: matchingScripts is already a List<ScriptNode>, so direct assignment works
+                        newNode.Scripts = matchingScripts;
+                    }
+                    filtered.Add(newNode);
+                }
+            }
+            ScriptTree.ItemsSource = filtered.OrderBy(x => x.Name).ToList();
+        }
+
         private void FilterFlags(string query) { var unused = _allFlagUsages.Where(x => x.Locations.Count == 0 && !x.FlagName.StartsWith("$")); if (string.IsNullOrWhiteSpace(query)) { FlagList.ItemsSource = unused.ToList(); return; } FlagList.ItemsSource = unused.Where(f => f.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList(); }
         private void FilterWorks(string query) { var unused = _allWorkUsages.Where(x => x.Locations.Count == 0); if (string.IsNullOrWhiteSpace(query)) { ScriptList.ItemsSource = unused.ToList(); return; } ScriptList.ItemsSource = unused.Where(c => c.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList(); }
         private void PerformSearch(string? query)
@@ -628,10 +745,32 @@ namespace RelumiScript
             var itmMatches = _service.ItemMap.Where(k => k.Value.Contains(query, StringComparison.OrdinalIgnoreCase) && k.Key != searchId);
             var itmExact = itmMatches.Where(k => k.Value.Equals(query, StringComparison.OrdinalIgnoreCase)).ToList();
             foreach (var kvp in (itmExact.Any() ? itmExact : itmMatches.Take(20))) results.Add(new SearchResult { Type = "ITM", Color = "#CE9178", Id = kvp.Key, Name = kvp.Value });
-            if (isIdSearch && _workIdMap.TryGetValue(searchId, out string? wName)) { var usage = _allWorkUsages.FirstOrDefault(u => u.FlagName.Equals("@" + wName, StringComparison.OrdinalIgnoreCase)); results.Add(new SearchResult { Type = "WRK", Color = "#FFD700", Id = searchId, Name = wName, Locations = usage != null ? new ObservableCollection<FlagLocation>(usage.Locations) : new() }); }
+
+            // Works by ID
+            if (isIdSearch && _workIdMap.TryGetValue(searchId, out string? wName))
+            {
+                var usage = _allWorkUsages.FirstOrDefault(u => u.FlagName.Equals("@" + wName, StringComparison.OrdinalIgnoreCase));
+                results.Add(new SearchResult { Type = "WRK", Color = "#FFD700", Id = searchId, Name = wName, Locations = usage != null ? new ObservableCollection<FlagLocation>(usage.Locations) : new() });
+            }
+
             var wrkMatches = _allWorkUsages.Where(x => x.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase));
             var wrkExact = wrkMatches.Where(x => x.FlagName.Equals(query, StringComparison.OrdinalIgnoreCase) || x.FlagName.Equals("@" + query, StringComparison.OrdinalIgnoreCase)).ToList();
             foreach (var w in (wrkExact.Any() ? wrkExact : wrkMatches.Take(20))) results.Add(new SearchResult { Type = "WRK", Color = "#FFD700", Name = w.FlagName, Locations = new ObservableCollection<FlagLocation>(w.Locations) });
+
+            // Flags by ID (Regular)
+            if (isIdSearch && _service.FlagMap.TryGetValue(searchId, out string? fName))
+            {
+                var usage = _allFlagUsages.FirstOrDefault(u => u.FlagName.Equals("#" + fName, StringComparison.OrdinalIgnoreCase));
+                results.Add(new SearchResult { Type = "FLG", Color = "#50FA7B", Id = searchId, Name = fName, Locations = usage != null ? new ObservableCollection<FlagLocation>(usage.Locations) : new() });
+            }
+
+            // Flags by ID (System)
+            if (isIdSearch && _service.SysFlagMap.TryGetValue(searchId, out string? sName))
+            {
+                var usage = _allFlagUsages.FirstOrDefault(u => u.FlagName.Equals("$" + sName, StringComparison.OrdinalIgnoreCase));
+                results.Add(new SearchResult { Type = "FLG", Color = "#50FA7B", Id = searchId, Name = sName, Locations = usage != null ? new ObservableCollection<FlagLocation>(usage.Locations) : new() });
+            }
+
             var flgMatches = _allFlagUsages.Where(x => x.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase));
             var flgExact = flgMatches.Where(x => x.FlagName.Equals(query, StringComparison.OrdinalIgnoreCase) || x.FlagName.Equals("#" + query, StringComparison.OrdinalIgnoreCase) || x.FlagName.Equals("$" + query, StringComparison.OrdinalIgnoreCase)).ToList();
             foreach (var f in (flgExact.Any() ? flgExact : flgMatches.Take(20))) results.Add(new SearchResult { Type = "FLG", Color = "#50FA7B", Name = f.FlagName, Locations = new ObservableCollection<FlagLocation>(f.Locations) });

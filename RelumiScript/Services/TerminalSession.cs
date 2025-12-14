@@ -23,7 +23,8 @@ namespace RelumiScript.Services
                 FileName = "powershell.exe",
                 // -NoExit: Keep session alive
                 // -ExecutionPolicy Bypass: Allow scripts
-                Arguments = "-NoLogo -NoExit -ExecutionPolicy Bypass",
+                // -Command: Forces the console to use UTF-8 immediately to prevent special chars (like >) turning into ?
+                Arguments = "-NoLogo -NoExit -ExecutionPolicy Bypass -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\"",
 
                 UseShellExecute = false,
                 RedirectStandardInput = true,

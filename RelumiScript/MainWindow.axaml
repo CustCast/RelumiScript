@@ -168,9 +168,14 @@
 
 		<Style Selector="ScrollBar">
 			<Setter Property="Background" Value="Transparent"/>
+		</Style>
+		<Style Selector="ScrollBar:vertical">
 			<Setter Property="Width" Value="10"/>
+		</Style>
+		<Style Selector="ScrollBar:horizontal">
 			<Setter Property="Height" Value="10"/>
 		</Style>
+
 		<Style Selector="ScrollBar /template/ Thumb">
 			<Setter Property="Background" Value="#424242"/>
 		</Style>
@@ -302,11 +307,14 @@
 						</StackPanel>
 					</Grid>
 
-					<Grid x:Name="PanelExplorer" RowDefinitions="35, *">
+					<Grid x:Name="PanelExplorer" RowDefinitions="35, 35, *">
 						<Border Grid.Row="0" Padding="10,0" Background="{DynamicResource ThemeSidebarBackground}">
 							<TextBlock Text="EXPLORER" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
 						</Border>
-						<TreeView Grid.Row="1" x:Name="ScriptTree" Background="{DynamicResource ThemeSidebarBackground}" BorderThickness="0" SelectionChanged="ScriptTree_SelectionChanged">
+						<Border Grid.Row="1" Margin="10,0,10,5" Background="{DynamicResource ThemeInputBackground}" CornerRadius="2">
+							<TextBox x:Name="ExplorerSearchBox" Watermark="Search files..." Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeInputForeground}" TextChanged="ExplorerSearchBox_TextChanged" Padding="6,4"/>
+						</Border>
+						<TreeView Grid.Row="2" x:Name="ScriptTree" Background="{DynamicResource ThemeSidebarBackground}" BorderThickness="0" SelectionChanged="ScriptTree_SelectionChanged" ScrollViewer.VerticalScrollBarVisibility="Auto">
 							<TreeView.DataTemplates>
 								<TreeDataTemplate DataType="models:FileNode" ItemsSource="{Binding Scripts}">
 									<Grid ColumnDefinitions="Auto, *" Background="Transparent" DoubleTapped="OnExplorerItem_DoubleTapped">
@@ -334,7 +342,7 @@
 						<Border Grid.Row="1" Margin="10,0,10,5" Background="{DynamicResource ThemeInputBackground}" CornerRadius="2">
 							<TextBox x:Name="SearchBox" Watermark="Global search..." Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeInputForeground}" TextChanged="SearchBox_TextChanged" Padding="6,4"/>
 						</Border>
-						<ListBox Grid.Row="2" x:Name="SearchResultsList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+						<ListBox Grid.Row="2" x:Name="SearchResultsList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
 							<ListBox.ItemsPanel>
 								<ItemsPanelTemplate>
 									<StackPanel/>
@@ -412,7 +420,7 @@
 						<Border Grid.Row="1" Margin="10,0,10,5" Background="{DynamicResource ThemeInputBackground}" CornerRadius="2">
 							<TextBox x:Name="FlagSearchBox" Watermark="Filter flags..." Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeInputForeground}" TextChanged="FlagSearchBox_TextChanged" Padding="6,4"/>
 						</Border>
-						<ListBox Grid.Row="2" x:Name="FlagList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+						<ListBox Grid.Row="2" x:Name="FlagList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
 							<ListBox.ItemTemplate>
 								<DataTemplate>
 									<Grid ColumnDefinitions="Auto, *">
@@ -432,7 +440,7 @@
 						<Border Grid.Row="1" Margin="10,0,10,5" Background="{DynamicResource ThemeInputBackground}" CornerRadius="2">
 							<TextBox x:Name="ScriptSearchBox" Watermark="Filter works..." Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeInputForeground}" TextChanged="ScriptSearchBox_TextChanged" Padding="6,4"/>
 						</Border>
-						<ListBox Grid.Row="2" x:Name="ScriptList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+						<ListBox Grid.Row="2" x:Name="ScriptList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
 							<ListBox.ItemTemplate>
 								<DataTemplate>
 									<Grid ColumnDefinitions="Auto, *">
