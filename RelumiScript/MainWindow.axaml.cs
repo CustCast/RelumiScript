@@ -636,7 +636,8 @@ namespace RelumiScript
             }
 
             TerminalWebView.WebMessageReceived += OnTerminalMessageReceived;
-            TerminalWebView.NavigationCompleted += (s, e) => {
+            TerminalWebView.NavigationCompleted += (s, e) =>
+            {
                 if (e.IsSuccess)
                 {
                     _isTerminalReady = true;
@@ -785,8 +786,61 @@ namespace RelumiScript
         }
         private void BtnPrevPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex > 0) { _currentPageIndex--; RenderCurrentPage(); } }
         private void BtnNextPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex < _currentMessagePages.Count - 1) { _currentPageIndex++; RenderCurrentPage(); } }
-        private void ShowMessagePreview(string file, string label) { TryInitMessageRenderer(); if (_messageRenderer == null) return; var target = _loadedMessages.FirstOrDefault(f => f.Name.Equals(file, StringComparison.OrdinalIgnoreCase))?.Scripts.FirstOrDefault(s => s.Label.Equals(label, StringComparison.OrdinalIgnoreCase)); if (target != null) { _currentMessagePages = _messageRenderer.SplitIntoPages(target.Content); _currentPageIndex = 0; RenderCurrentPage(); } }
-        private void RenderCurrentPage() { if (_messageRenderer == null || _currentMessagePages.Count == 0) return; _currentPageIndex = Math.Clamp(_currentPageIndex, 0, _currentMessagePages.Count - 1); MessagePreviewContent.Content = _messageRenderer.RenderPage(_currentMessagePages[_currentPageIndex], _currentPageIndex + 1, _currentMessagePages.Count); PageIndicator.Text = $"{_currentPageIndex + 1} / {_currentMessagePages.Count}"; BtnPrevPage.IsVisible = BtnNextPage.IsVisible = PageIndicator.IsVisible = _currentMessagePages.Count > 1; }
+        private void ShowMessagePreview(string file, string label)
+        {
+            TryInitMessageRenderer();
+
+            if (_messageRenderer == null)
+            {
+                return;
+            }
+
+            var target =
+                _loadedMessages
+                    .FirstOrDefault(f =>
+                        f.Name.Equals(file, StringComparison.OrdinalIgnoreCase))
+                    ?.Scripts
+                    .FirstOrDefault(s =>
+                        s.Label.Equals(label, StringComparison.OrdinalIgnoreCase));
+
+            if (target != null)
+            {
+                _currentMessagePages =
+                    _messageRenderer.SplitIntoPages(target.Content);
+
+                _currentPageIndex = 0;
+
+                RenderCurrentPage();
+            }
+        }
+        private void RenderCurrentPage()
+        {
+            if (_messageRenderer == null || _currentMessagePages.Count == 0)
+            {
+                return;
+            }
+
+            _currentPageIndex = Math.Clamp(
+                _currentPageIndex,
+                0,
+                _currentMessagePages.Count - 1
+            );
+
+            MessagePreviewContent.Content = _messageRenderer.RenderPage(
+                _currentMessagePages[_currentPageIndex],
+                _currentPageIndex + 1,
+                _currentMessagePages.Count
+            );
+
+            PageIndicator.Text =
+                $"{_currentPageIndex + 1} / {_currentMessagePages.Count}";
+
+            bool showPaginationControls = _currentMessagePages.Count > 1;
+
+            BtnPrevPage.IsVisible = showPaginationControls;
+            BtnNextPage.IsVisible = showPaginationControls;
+            PageIndicator.IsVisible = showPaginationControls;
+        }
         private void TryInitMessageRenderer() { if (_messageRenderer == null && !string.IsNullOrEmpty(FindJsonFolder())) _messageRenderer = new MessageRenderer(Path.GetFullPath(Path.Combine(FindJsonFolder()!, "..", "Assets"))); }
         private async Task GenerateAndInjectSyntax() { string? jd = FindJsonFolder(); if (string.IsNullOrEmpty(jd)) return; await Task.Run(() => { string cmds = File.Exists(Path.Combine(jd, "commands.json")) ? File.ReadAllText(Path.Combine(jd, "commands.json")) : "[]"; string js = $"window.RELUMI_DATA = {{ commands: {cmds}, flags: [], sysflags: [], works: [], pokes: {JsonConvert.SerializeObject(_service.PokemonMap)}, items: {JsonConvert.SerializeObject(_service.ItemMap)} }}; window.RELUMI_DATA_LOADED = true;"; File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Monaco", "syntax_data.js"), js, Encoding.UTF8); }); if (_isEditorReady) await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={DateTime.Now.Ticks}');"); }
         private string? FindJsonFolder() { string b = AppDomain.CurrentDomain.BaseDirectory; if (Directory.Exists(Path.Combine(b, "JSON"))) return Path.Combine(b, "JSON"); if (Directory.Exists(Path.Combine(b, "..", "..", "..", "JSON"))) return Path.GetFullPath(Path.Combine(b, "..", "..", "..", "JSON")); return null; }

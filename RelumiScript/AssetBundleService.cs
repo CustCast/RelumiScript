@@ -304,6 +304,22 @@ namespace RelumiScript.Services
             }
         }
 
+        private static string GetJoinStringForEvent(int eventID)
+        {
+            return eventID switch
+            {
+                0 => "",
+                1 => "{n}", // New Line
+                2 => "",
+                3 => "{r}", // Scroll Page
+                4 => "{f}", // Scroll Line
+                5 => "",
+                6 => "",
+                7 => "",
+                _ => "{n}" // default behavior
+            };
+        }
+
         public List<FileNode> LoadMessageFiles(string rootPath)
         {
             var output = new List<FileNode>();
@@ -341,9 +357,46 @@ namespace RelumiScript.Services
                                         if (entry.Children.TryGetValue("labelName", out var labelNode)) label = labelNode.ToString();
                                         if (entry.Children.TryGetValue("wordDataArray", out var wordsNode) && wordsNode is YamlSequenceNode words)
                                         {
-                                            var lines = new List<string>();
-                                            foreach (YamlMappingNode word in words) if (word.Children.TryGetValue("str", out var s)) lines.Add(s.ToString());
-                                            node.Scripts.Add(new ScriptNode { Label = label, Content = string.Join("{n}", lines) });
+                                            var sb = new StringBuilder();
+
+                                            int wordCount = words.Children.Count;
+                                            int index = 0;
+
+                                            foreach (YamlMappingNode word in words)
+                                            {
+                                                if (!word.Children.TryGetValue("str", out var s))
+                                                {
+                                                    continue;
+                                                }
+
+                                                string text = s.ToString();
+                                                sb.Append(text);
+
+                                                index++;
+
+                                                // Don't add a join string after the last word
+                                                if (index >= wordCount)
+                                                {
+                                                    break;
+                                                }
+
+                                                // Read eventID from the same node
+                                                if (word.Children.TryGetValue("eventID", out var e) &&
+                                                    int.TryParse(e.ToString(), out var eventID))
+                                                {
+                                                    sb.Append(GetJoinStringForEvent(eventID));
+                                                }
+                                                else
+                                                {
+                                                    sb.Append("{n}"); // default join
+                                                }
+                                            }
+
+                                            node.Scripts.Add(new ScriptNode
+                                            {
+                                                Label = label,
+                                                Content = sb.ToString()
+                                            });
                                         }
                                     }
                                 }
