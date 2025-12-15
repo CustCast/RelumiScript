@@ -38,7 +38,7 @@ namespace RelumiScript
         private bool _isNavigating = false;
         private TerminalSession? _terminalSession;
 
-        // Autosave Timer (Restored)
+        // Autosave Timer
         private DispatcherTimer _autoSaveTimer;
 
         private string _currentView = "Explorer";
@@ -69,7 +69,7 @@ namespace RelumiScript
             InitializeEditor();
             InitializeTerminal();
             TryInitMessageRenderer();
-            SetupAutosave(); // <--- RESTORED: Start the autosave timer
+            SetupAutosave();
 
             // Theme Binding
             _viewModel.ThemeVm.Colors.PropertyChanged += (s, e) => UpdateDynamicResources();
@@ -95,18 +95,14 @@ namespace RelumiScript
 
         private async void AutoSaveTimer_Tick(object? sender, EventArgs e)
         {
-            // The ViewModel command handles the "IsDirty" and "HasProject" checks safely.
-            // If nothing is dirty, it returns immediately.
             await _viewModel.SaveAllCommand();
         }
-        // ----------------------
 
         private async void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(MainViewModel.Files))
+            if (e.PropertyName == nameof(MainViewModel.Explorer)) // Changed from 'Files' to 'Explorer'
             {
-                // Files loaded -> Refresh Explorer and switch view
-                FilterExplorer(ExplorerSearchBox.Text);
+                // Handled by binding now
                 SwitchSideView("Explorer");
 
                 if (_terminalSession != null && _terminalSession.IsRunning && !string.IsNullOrEmpty(_viewModel.Project.WorkingDirectory))
@@ -116,7 +112,8 @@ namespace RelumiScript
             }
             else if (e.PropertyName == nameof(MainViewModel.AnalysisRevision))
             {
-                RefreshAllTrackers();
+                _viewModel.Analysis.RefreshAll();
+                _viewModel.Search.Refresh();
             }
             else if (e.PropertyName == nameof(MainViewModel.SyntaxRevision))
             {
@@ -143,9 +140,9 @@ namespace RelumiScript
         // --- Helper: Restore Scrolling Logic ---
         private (FileNode? file, int startLine) GetParentFileAndLine(ScriptNode sNode)
         {
-            if (_viewModel.Files == null) return (null, 0);
+            if (_viewModel.Project.AllFiles == null) return (null, 0);
 
-            var parent = _viewModel.Files.FirstOrDefault(f => f.Scripts.Contains(sNode));
+            var parent = _viewModel.Project.AllFiles.FirstOrDefault(f => f.Scripts.Contains(sNode));
             if (parent != null)
             {
                 int line = 1;
@@ -204,60 +201,35 @@ namespace RelumiScript
 
         private void SwitchSideView(string viewName, bool forceOpen = false)
         {
-            if (!forceOpen && viewName == _currentView && SidePanelContainer.IsVisible) { _lastSidebarWidth = SidebarGrid.ColumnDefinitions[1].Width; SidebarGrid.ColumnDefinitions[1].Width = new GridLength(0); SidebarGrid.ColumnDefinitions[2].Width = new GridLength(0); SidePanelContainer.IsVisible = false; SetButtonActive(null); return; }
+            if (!forceOpen && viewName == _currentView && SidePanelContainer.IsVisible)
+            {
+                _lastSidebarWidth = SidebarGrid.ColumnDefinitions[1].Width;
+                SidebarGrid.ColumnDefinitions[1].Width = new GridLength(0);
+                SidebarGrid.ColumnDefinitions[2].Width = new GridLength(0);
+                SidePanelContainer.IsVisible = false;
+                SetButtonActive(null);
+                return;
+            }
             if (!SidePanelContainer.IsVisible) { SidebarGrid.ColumnDefinitions[1].Width = _lastSidebarWidth; SidebarGrid.ColumnDefinitions[2].Width = new GridLength(4); }
+
             SidePanelContainer.IsVisible = true;
             _currentView = viewName;
-            PanelFile.IsVisible = viewName == "File"; PanelExplorer.IsVisible = viewName == "Explorer"; PanelSearch.IsVisible = viewName == "Search"; PanelFlags.IsVisible = viewName == "Flags"; PanelCommands.IsVisible = viewName == "Commands"; PanelTheme.IsVisible = viewName == "Theme";
+
+            PanelFile.IsVisible = viewName == "File";
+            PanelExplorer.IsVisible = viewName == "Explorer";
+            PanelSearch.IsVisible = viewName == "Search";
+            PanelFlags.IsVisible = viewName == "Flags";
+            PanelCommands.IsVisible = viewName == "Commands";
+            PanelTheme.IsVisible = viewName == "Theme";
+
             SetButtonActive(viewName);
 
-            if (viewName == "Search") Dispatcher.UIThread.Post(() => { SearchBox.Focus(); if (!string.IsNullOrWhiteSpace(SearchBox.Text)) PerformSearch(SearchBox.Text); });
-            else if (viewName == "Flags")
-            {
-                if (_viewModel.Project.AllFlagUsages.Count > 0 && FlagList.ItemsSource == null) FilterFlags("");
-            }
-            else if (viewName == "Commands")
-            {
-                if (_viewModel.Project.AllWorkUsages.Count > 0 && ScriptList.ItemsSource == null) FilterWorks("");
-            }
+            if (viewName == "Search") Dispatcher.UIThread.Post(() => { SearchBox.Focus(); });
             else if (viewName == "Explorer") Dispatcher.UIThread.Post(() => ExplorerSearchBox.Focus());
         }
+
         private void SetButtonActive(string? activeTag) { UpdateBtnStyle(BtnNavFile, activeTag); UpdateBtnStyle(BtnNavExplorer, activeTag); UpdateBtnStyle(BtnNavSearch, activeTag); UpdateBtnStyle(BtnNavFlags, activeTag); UpdateBtnStyle(BtnNavCommands, activeTag); UpdateBtnStyle(BtnNavTheme, activeTag); }
         private void UpdateBtnStyle(Button btn, string? activeTag) { if (btn.Tag?.ToString() == activeTag) { if (!btn.Classes.Contains("Active")) btn.Classes.Add("Active"); } else btn.Classes.Remove("Active"); }
-
-        // --- Search Logic ---
-        private void PerformSearch(string? query)
-        {
-            if (string.IsNullOrWhiteSpace(query)) { SearchResultsList.ItemsSource = null; return; }
-            var results = new List<SearchResult>(); query = query.Trim(); bool isIdSearch = int.TryParse(query, out int searchId);
-            var service = _viewModel.Project.AssetService;
-            var workMap = _viewModel.Project.WorkIdMap;
-
-            if (isIdSearch && service.PokemonMap.TryGetValue(searchId, out string? pName)) results.Add(new SearchResult { Type = "PKM", Color = "#569CD6", Id = searchId, Name = pName });
-            var pkmMatches = service.PokemonMap.Where(k => k.Value.Contains(query, StringComparison.OrdinalIgnoreCase) && k.Key != searchId);
-            foreach (var kvp in pkmMatches.Take(20)) results.Add(new SearchResult { Type = "PKM", Color = "#569CD6", Id = kvp.Key, Name = kvp.Value });
-            if (isIdSearch && service.ItemMap.TryGetValue(searchId, out string? iName)) results.Add(new SearchResult { Type = "ITM", Color = "#CE9178", Id = searchId, Name = iName });
-            var itmMatches = service.ItemMap.Where(k => k.Value.Contains(query, StringComparison.OrdinalIgnoreCase) && k.Key != searchId);
-            foreach (var kvp in itmMatches.Take(20)) results.Add(new SearchResult { Type = "ITM", Color = "#CE9178", Id = kvp.Key, Name = kvp.Value });
-
-            if (isIdSearch && workMap.TryGetValue(searchId, out string? wName)) { var usage = _viewModel.Project.AllWorkUsages.FirstOrDefault(u => u.FlagName.Equals("@" + wName, StringComparison.OrdinalIgnoreCase)); results.Add(new SearchResult { Type = "WRK", Color = "#FFD700", Id = searchId, Name = wName, Locations = usage != null ? new ObservableCollection<FlagLocation>(usage.Locations) : new() }); }
-            var wrkMatches = _viewModel.Project.AllWorkUsages.Where(x => x.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase));
-            foreach (var w in wrkMatches.Take(20)) results.Add(new SearchResult { Type = "WRK", Color = "#FFD700", Name = w.FlagName, Locations = new ObservableCollection<FlagLocation>(w.Locations) });
-
-            if (isIdSearch && service.FlagMap.TryGetValue(searchId, out string? fName)) { var usage = _viewModel.Project.AllFlagUsages.FirstOrDefault(u => u.FlagName.Equals("#" + fName, StringComparison.OrdinalIgnoreCase)); results.Add(new SearchResult { Type = "FLG", Color = "#50FA7B", Id = searchId, Name = fName, Locations = usage != null ? new ObservableCollection<FlagLocation>(usage.Locations) : new() }); }
-            if (isIdSearch && service.SysFlagMap.TryGetValue(searchId, out string? sName)) { var usage = _viewModel.Project.AllFlagUsages.FirstOrDefault(u => u.FlagName.Equals("$" + sName, StringComparison.OrdinalIgnoreCase)); results.Add(new SearchResult { Type = "FLG", Color = "#50FA7B", Id = searchId, Name = sName, Locations = usage != null ? new ObservableCollection<FlagLocation>(usage.Locations) : new() }); }
-            var flgMatches = _viewModel.Project.AllFlagUsages.Where(x => x.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase));
-            foreach (var f in flgMatches.Take(20)) results.Add(new SearchResult { Type = "FLG", Color = "#50FA7B", Name = f.FlagName, Locations = new ObservableCollection<FlagLocation>(f.Locations) });
-
-            var cmdMatches = _viewModel.Project.AllCommandUsages.Where(x => x.CommandName.Contains(query, StringComparison.OrdinalIgnoreCase));
-            foreach (var c in cmdMatches.Take(20)) results.Add(new SearchResult { Type = "CMD", Color = "#BD93F9", Name = c.CommandName, Locations = new ObservableCollection<FlagLocation>(c.Locations) });
-            var evtMatches = _viewModel.Project.AllEventUsages.Where(x => x.EventName.Contains(query, StringComparison.OrdinalIgnoreCase));
-            foreach (var e in evtMatches.Take(20)) { var sortedLocs = new ObservableCollection<FlagLocation>(e.Locations.OrderByDescending(l => l.IsDeclaration).ThenBy(l => l.FileName)); results.Add(new SearchResult { Type = "EVT", Color = "#FF79C6", Name = e.EventName, Locations = sortedLocs }); }
-
-            SearchResultsList.ItemsSource = results;
-
-            if (results.Count == 1) results[0].IsExpanded = true;
-        }
 
         // --- Core UI & Editor ---
 
@@ -344,7 +316,16 @@ namespace RelumiScript
             if (e.Message == "HIDE_PREVIEW") return;
             if (e.Message == "SAVE_REQUEST") { await _viewModel.SaveAllCommand(); return; }
             if (e.Message.StartsWith("PREVIEW:")) { var p = e.Message.Substring(8).Split('%'); if (p.Length == 2) ShowMessagePreview(p[0].Trim(), p[1].Trim()); return; }
-            if (e.Message.StartsWith("GLOBAL_SEARCH:")) { SwitchSideView("Search", forceOpen: true); SearchBox.Text = e.Message.Substring(e.Message.IndexOf(':') + 1).Trim(); return; }
+
+            // --- UPDATED: Global Search Integration ---
+            if (e.Message.StartsWith("GLOBAL_SEARCH:"))
+            {
+                SwitchSideView("Search", forceOpen: true);
+                // Update ViewModel Property directly
+                _viewModel.Search.SearchQuery = e.Message.Substring(e.Message.IndexOf(':') + 1).Trim();
+                return;
+            }
+
             if (e.Message.StartsWith("CONTENT_UPDATE:"))
             {
                 string newContent = e.Message.Substring(15);
@@ -461,36 +442,16 @@ namespace RelumiScript
         private void OnTerminalMessageReceived(object? sender, WebViewMessageReceivedEventArgs e) { if (e.Message == "TERM_READY") { _isTerminalReady = true; return; } if (e.Message.StartsWith("TERM_INPUT:")) { string input = e.Message.Substring(11); _terminalSession?.SendCommand(input); } }
         private void OnTerminalOutput(string text) { Dispatcher.UIThread.Post(() => { if (_isTerminalReady) { string safe = JsonConvert.ToString(text); TerminalWebView.ExecuteScriptAsync($"window.writeOutput({safe});"); } }); }
 
-        private void RefreshAllTrackers() { if (_viewModel.Project.AllFiles.Count > 0) FilterExplorer(ExplorerSearchBox.Text); FilterFlags(FlagSearchBox.Text ?? ""); FilterWorks(ScriptSearchBox.Text ?? ""); }
-        public void RefreshFlags_Click(object? sender, RoutedEventArgs e) { _viewModel.Project.RefreshTrackersAsync(msg => _viewModel.StatusMessage = msg).ContinueWith(t => _viewModel.AnalysisRevision++); }
-        public void RefreshScripts_Click(object? sender, RoutedEventArgs e) { _viewModel.Project.RefreshTrackersAsync(msg => _viewModel.StatusMessage = msg).ContinueWith(t => _viewModel.AnalysisRevision++); }
-        public void SearchBox_TextChanged(object? sender, TextChangedEventArgs e) => PerformSearch(SearchBox.Text);
-        public void FlagSearchBox_TextChanged(object? sender, TextChangedEventArgs e) => FilterFlags(FlagSearchBox.Text ?? "");
-        public void ScriptSearchBox_TextChanged(object? sender, TextChangedEventArgs e) => FilterWorks(ScriptSearchBox.Text ?? "");
-        public void ExplorerSearchBox_TextChanged(object? sender, TextChangedEventArgs e) => FilterExplorer(ExplorerSearchBox.Text);
-
-        private void FilterExplorer(string? query)
+        // --- UPDATED: Delegating Refresh to ViewModel ---
+        public void RefreshFlags_Click(object? sender, RoutedEventArgs e)
         {
-            if (_viewModel.Files == null || !_viewModel.Files.Any()) return;
-            if (string.IsNullOrWhiteSpace(query)) { ScriptTree.ItemsSource = _viewModel.Files.OrderBy(x => x.Name).ToList(); return; }
-            query = query.Trim();
-            var filtered = new List<FileNode>();
-            foreach (var file in _viewModel.Files)
-            {
-                bool nameMatch = file.Name.Contains(query, StringComparison.OrdinalIgnoreCase);
-                var matchingScripts = file.Scripts.Where(s => s.Label.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
-                if (nameMatch || matchingScripts.Count > 0)
-                {
-                    var newNode = new FileNode { Name = file.Name, FileName = file.FileName, IsMessage = file.IsMessage };
-                    if (nameMatch) newNode.Scripts = new List<ScriptNode>(file.Scripts); else newNode.Scripts = matchingScripts;
-                    filtered.Add(newNode);
-                }
-            }
-            ScriptTree.ItemsSource = filtered.OrderBy(x => x.Name).ToList();
+            // This async call updates the ProjectService, which triggers AnalysisRevision, which updates AnalysisViewModel
+            _viewModel.Project.RefreshTrackersAsync(msg => _viewModel.StatusMessage = msg).ContinueWith(t => _viewModel.AnalysisRevision++);
         }
-
-        private void FilterFlags(string query) { var unused = _viewModel.Project.AllFlagUsages.Where(x => x.Locations.Count == 0 && !x.FlagName.StartsWith("$")); if (string.IsNullOrWhiteSpace(query)) { FlagList.ItemsSource = unused.ToList(); return; } FlagList.ItemsSource = unused.Where(f => f.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList(); }
-        private void FilterWorks(string query) { var unused = _viewModel.Project.AllWorkUsages.Where(x => x.Locations.Count == 0); if (string.IsNullOrWhiteSpace(query)) { ScriptList.ItemsSource = unused.ToList(); return; } ScriptList.ItemsSource = unused.Where(c => c.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList(); }
+        public void RefreshScripts_Click(object? sender, RoutedEventArgs e)
+        {
+            _viewModel.Project.RefreshTrackersAsync(msg => _viewModel.StatusMessage = msg).ContinueWith(t => _viewModel.AnalysisRevision++);
+        }
 
         private void BtnPrevPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex > 0) { _currentPageIndex--; RenderCurrentPage(); } }
         private void BtnNextPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex < _currentMessagePages.Count - 1) { _currentPageIndex++; RenderCurrentPage(); } }

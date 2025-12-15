@@ -11,33 +11,37 @@ using RelumiScript.Services.Interfaces;
 
 namespace RelumiScript.ViewModels
 {
-    public class MainViewModel : INotifyPropertyChanged
+    public class MainViewModel : ViewModelBase // Inherit from new Base
     {
         private readonly ProjectService _projectService;
         private readonly IDialogService _dialogService;
 
+        // Sub-ViewModels
+        public ExplorerViewModel Explorer { get; }
+        public SearchViewModel Search { get; }
+        public AnalysisViewModel Analysis { get; }
+        public ThemeEditorViewModel ThemeVm { get; } = new ThemeEditorViewModel();
+
         // State
         private string _statusMessage = "Ready";
         private EditorDocument? _activeDocument;
-        private ThemeEditorViewModel _themeVm = new ThemeEditorViewModel();
         private bool _isBusy;
 
         // Signals
-        // We use these counters to signal the View to perform actions
         private int _syntaxRevision = 0;
         private int _analysisRevision = 0;
 
-        // Collections
         public ObservableCollection<EditorDocument> Documents { get; } = new ObservableCollection<EditorDocument>();
-
-        // Exposed Service Data
-        public IEnumerable<FileNode> Files => _projectService.AllFiles;
-        public ThemeEditorViewModel ThemeVm => _themeVm;
 
         public MainViewModel(ProjectService projectService, IDialogService dialogService)
         {
             _projectService = projectService;
             _dialogService = dialogService;
+
+            // Initialize Sub-ViewModels
+            Explorer = new ExplorerViewModel(projectService);
+            Search = new SearchViewModel(projectService);
+            Analysis = new AnalysisViewModel(projectService);
         }
 
         public string StatusMessage
@@ -52,14 +56,12 @@ namespace RelumiScript.ViewModels
             set { _isBusy = value; OnPropertyChanged(); }
         }
 
-        // View listens to this to know when to execute 'loadSyntaxFromFile' in Monaco
         public int SyntaxRevision
         {
             get => _syntaxRevision;
             set { _syntaxRevision = value; OnPropertyChanged(); }
         }
 
-        // View listens to this to know when to re-run 'FilterFlags', 'FilterWorks', etc.
         public int AnalysisRevision
         {
             get => _analysisRevision;
@@ -82,16 +84,15 @@ namespace RelumiScript.ViewModels
             IsBusy = true;
             try
             {
-                // 1. Load Files
                 await _projectService.LoadProjectAsync(folder, msg => StatusMessage = msg);
-                OnPropertyChanged(nameof(Files)); // Updates Explorer
 
-                // 2. Refresh Analysis (Flags, Works, etc)
+                // Refresh Sub-ViewModels
+                Explorer.Refresh();
+
                 await _projectService.RefreshTrackersAsync(msg => StatusMessage = msg);
-                AnalysisRevision++; // Signals View to refresh Side Panels & Search
+                Analysis.RefreshAll();
 
-                // 3. Generate Syntax
-                // (Already done in LoadProjectAsync, but we increment revision to trigger Monaco update)
+                AnalysisRevision++;
                 SyntaxRevision++;
             }
             catch (Exception ex)
@@ -107,14 +108,12 @@ namespace RelumiScript.ViewModels
         public async Task SaveAllCommand()
         {
             if (_projectService.AllFiles.Count == 0) return;
-
             var dirty = Documents.Where(d => d.IsDirty).ToList();
             if (dirty.Count == 0) return;
 
             try
             {
                 await _projectService.SaveDocumentsAsync(dirty);
-
                 foreach (var doc in dirty)
                 {
                     doc.OriginalContent = doc.Content;
@@ -122,7 +121,8 @@ namespace RelumiScript.ViewModels
                 }
                 StatusMessage = $"Saved {dirty.Count} files.";
 
-                // Refresh Explorer logic if needed
+                // Re-scan scripts if structure changed (optional, but good practice)
+                Explorer.Refresh();
             }
             catch (Exception ex)
             {
@@ -130,7 +130,6 @@ namespace RelumiScript.ViewModels
             }
         }
 
-        // Document Management Logic
         public void OpenDocument(object node, bool isPeek)
         {
             if (node == null) return;
@@ -209,12 +208,6 @@ namespace RelumiScript.ViewModels
             {
                 ActiveDocument = Documents.FirstOrDefault();
             }
-        }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 }
