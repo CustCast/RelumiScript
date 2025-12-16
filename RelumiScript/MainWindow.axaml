@@ -24,9 +24,12 @@
 	<Window.Styles>
 		<Style Selector="ToolTip">
 			<Setter Property="MaxWidth" Value="1200"/>
-			<Setter Property="Padding" Value="0"/>
-			<Setter Property="Background" Value="Transparent"/>
-			<Setter Property="BorderThickness" Value="0"/>
+			<Setter Property="Padding" Value="6,4"/>
+			<Setter Property="Background" Value="{DynamicResource ThemeInputBackground}"/>
+			<Setter Property="Foreground" Value="{DynamicResource ThemeInputForeground}"/>
+			<Setter Property="BorderBrush" Value="{DynamicResource ThemeAccentColor}"/>
+			<Setter Property="BorderThickness" Value="1"/>
+			<Setter Property="CornerRadius" Value="3"/>
 		</Style>
 
 		<Style Selector="Button.ActivityButton">
@@ -367,7 +370,7 @@
 												<DataTemplate>
 													<Button Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="25,2,5,2" Click="JumpToLocation_Click" PointerWheelChanged="SearchResult_PointerWheelChanged" Tag="{Binding}" ToolTip.Placement="Right">
 														<ToolTip.Tip>
-															<Border Background="{DynamicResource ThemeWindowBackground}" BorderBrush="White" BorderThickness="1" Padding="10" MaxWidth="1200" MaxHeight="700">
+															<Border Padding="0" MaxWidth="1200" MaxHeight="700">
 																<ScrollViewer>
 																	<ItemsControl>
 																		<ItemsControl.ItemsSource>
