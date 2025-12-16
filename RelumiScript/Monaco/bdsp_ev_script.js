@@ -19,14 +19,15 @@ monaco.languages.setLanguageConfiguration("bdsp", {
     ],
 });
 
-// Note: Tokenizer is set dynamically in applySyntaxData() after JSON data loads
-// This allows the tokenizer to include command names for proper highlighting
-
 // --- GLOBAL STATE ---
 var loadedData = { commands: [], flags: [], sysflags: [], works: [] };
 var commandLookup = {};
-var pokeMap = {}; // ID -> Name
-var pokeReverseMap = {}; // Name -> ID
+var pokeMap = {};
+var pokeReverseMap = {};
+var itemMap = {};
+
+// The active hint configuration (populated from JSON)
+var hintConfigs = [];
 
 // --- INTELLISENSE HELPERS ---
 
@@ -67,7 +68,6 @@ function getActiveContext(model, position) {
         endColumn: position.column,
     });
 
-    // Match "COMMAND (" looking backwards
     const match = textUntilPosition.match(/([a-zA-Z0-9_]+)\s*\(/g);
     if (!match) return null;
 
@@ -88,7 +88,6 @@ function getActiveContext(model, position) {
 
 // --- PROVIDERS REGISTRATION ---
 
-// 4. Completion Item Provider
 monaco.languages.registerCompletionItemProvider("bdsp", {
     triggerCharacters: ["(", ","],
     provideCompletionItems: function (model, position) {
@@ -102,14 +101,10 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
 
         const ctx = getActiveContext(model, position);
 
-        // A. POKEMON SUGGESTIONS
+        // A. POKEMON SUGGESTIONS (Legacy Hardcoded Fallback)
         if (ctx) {
-            const activeArg =
-                ctx.cmd.Args && ctx.cmd.Args[ctx.argIndex]
-                    ? ctx.cmd.Args[ctx.argIndex]
-                    : null;
+            const activeArg = ctx.cmd.Args && ctx.cmd.Args[ctx.argIndex] ? ctx.cmd.Args[ctx.argIndex] : null;
 
-            // SPECIAL LOGIC: Suggest Pokemon for _ADD_POKEMON_UI_EXTRA (Arg 0), _POKEMON_NAME_FORM (Arg 1 via Monsno check), or explicit types
             if (
                 activeArg &&
                 ((ctx.cmd.Name === "_ADD_POKEMON_UI_EXTRA" && ctx.argIndex === 0) ||
@@ -123,7 +118,7 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
                         kind: monaco.languages.CompletionItemKind.EnumMember,
                         detail: `ID: ${id}`,
                         documentation: `Insert ID for ${name}`,
-                        insertText: id.toString(), // Always insert ID to keep script valid
+                        insertText: id.toString(),
                         range: range,
                     };
                 });
@@ -145,8 +140,7 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
                 kind: monaco.languages.CompletionItemKind.Function,
                 documentation: { value: cmd.Description },
                 insertText: `${cmd.Name}(${snippetArgs})`,
-                insertTextRules:
-                    monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
                 detail: sigData.signature,
                 range: range,
             };
@@ -156,17 +150,14 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
     },
 });
 
-// 5. Hover Provider
 monaco.languages.registerHoverProvider("bdsp", {
     provideHover: function (model, position) {
         const word = model.getWordAtPosition(position);
         if (!word) return;
 
-        // Command Hover
         const cmd = commandLookup[word.word];
         if (cmd) {
             const data = getSignatureData(cmd);
-
             const contents = [];
             contents.push({ value: "```bdsp\n" + data.signature + "\n```" });
 
@@ -186,34 +177,9 @@ monaco.languages.registerHoverProvider("bdsp", {
 
             return { contents: contents };
         }
-
-        // Pokemon ID Hover
-        if (/^\d+$/.test(word.word)) {
-            const id = parseInt(word.word);
-            const ctx = getActiveContext(model, position);
-            if (ctx && pokeMap[id]) {
-                const activeArg =
-                    ctx.cmd.Args && ctx.cmd.Args[ctx.argIndex]
-                        ? ctx.cmd.Args[ctx.argIndex]
-                        : null;
-                if (
-                    activeArg &&
-                    (activeArg.TentativeName === "Monsno" ||
-                        activeArg.TentativeName === "Species")
-                ) {
-                    return {
-                        contents: [
-                            { value: `**Pokémon**: ${pokeMap[id]}` },
-                            { value: `ID: ${id}` },
-                        ],
-                    };
-                }
-            }
-        }
     },
 });
 
-// 6. Signature Help Provider
 monaco.languages.registerSignatureHelpProvider("bdsp", {
     signatureHelpTriggerCharacters: ["(", ","],
     provideSignatureHelp: function (model, position, token, context) {
@@ -222,19 +188,6 @@ monaco.languages.registerSignatureHelpProvider("bdsp", {
 
         const data = getSignatureData(ctx.cmd);
         let activeIdx = Math.min(ctx.argIndex, data.parameters.length - 1);
-        if (activeIdx >= 0) {
-            let p = data.parameters[activeIdx];
-            let argDef = ctx.cmd.Args[activeIdx];
-
-            if (
-                argDef &&
-                (argDef.TentativeName === "Monsno" ||
-                    argDef.TentativeName === "Species")
-            ) {
-                p.documentation.value +=
-                    "\n\n💡 **Hint**: Type a Pokémon name to autocomplete.";
-            }
-        }
 
         return {
             value: {
@@ -253,47 +206,46 @@ monaco.languages.registerSignatureHelpProvider("bdsp", {
     },
 });
 
-// 7. Inlay Hints Provider
+// 7. Dynamic Inlay Hints Provider
 monaco.languages.registerInlayHintsProvider("bdsp", {
     provideInlayHints: function (model, range, token) {
         let hints = [];
 
-        // Helper to add hint
-        const addHint = (idStr, endColumn, lineNum) => {
+        const addHint = (idStr, endColumn, lineNum, map, labelType) => {
+            if (!/^\d+$/.test(idStr)) return;
             const id = parseInt(idStr);
-            const name = pokeMap[id];
+            const name = map ? map[id] : null;
+
             if (name) {
                 hints.push({
                     kind: monaco.languages.InlayHintKind.Type,
                     position: { lineNumber: lineNum, column: endColumn },
                     label: `: ${name}`,
                     paddingLeft: true,
-                    tooltip: `ID ${id} is ${name}`,
+                    tooltip: `${labelType} ID ${id}: ${name}`,
                 });
             }
         };
 
+        // If no configs loaded yet, skip
+        if (!hintConfigs || hintConfigs.length === 0) return { hints: [] };
+
         for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
             const lineContent = model.getLineContent(i);
 
-            // 1. _ADD_POKEMON_UI_EXTRA( ID )
-            // Capture Group 1: ID
-            const regexAdd = /_ADD_POKEMON_UI_EXTRA\s*\(\s*(\d+)/g;
-            let match;
-            while ((match = regexAdd.exec(lineContent)) !== null) {
-                // Position after the ID
-                const endCol = match.index + match[0].length + 1;
-                addHint(match[1], endCol, i);
-            }
+            // Iterate through the GLOBAL hintConfigs populated by applySyntaxData
+            hintConfigs.forEach(config => {
+                if (!config.Map) return; // Skip if map resolution failed
 
-            // 2. _POKEMON_NAME_FORM( Tag, ID )
-            // Skips first arg (non-comma chars), captures second arg (digits)
-            const regexName = /_POKEMON_NAME_FORM\s*\(\s*[^,]+,\s*(\d+)/g;
-            while ((match = regexName.exec(lineContent)) !== null) {
-                // Position after the ID
-                const endCol = match.index + match[0].length + 1;
-                addHint(match[1], endCol, i);
-            }
+                const pattern = `${config.Cmd}\\s*\\(\\s*(?:[^,)]*,\\s*){${config.ArgIndex}}(\\d+)`;
+                const regex = new RegExp(pattern, "g");
+
+                let match;
+                while ((match = regex.exec(lineContent)) !== null) {
+                    const endCol = match.index + match[0].length + 1;
+                    addHint(match[1], endCol, i, config.Map, config.Label);
+                }
+            });
         }
         return { hints: hints };
     },
@@ -316,91 +268,99 @@ function loadSyntaxFromFile(filename) {
 
     script.onload = function () {
         if (window.RELUMI_DATA) {
-            try {
-                applySyntaxData(window.RELUMI_DATA);
-            } catch (e) {
-                console.error("[bdsp_ev_script] Failed to apply syntax data:", e);
-            }
+            applySyntaxData(window.RELUMI_DATA);
         }
     };
-
-    script.onerror = function () {
-        console.error("[bdsp_ev_script] Failed to load syntax file:", filename);
-    };
-
+    script.onerror = function () { console.error("Syntax load error"); };
     document.head.appendChild(script);
 }
 
 function applySyntaxData(data) {
+    // 1. Load Core Data
+    loadedData.commands = safeMap(data.commands);
+    loadedData.flags = safeMap(data.flags);
+    loadedData.sysflags = safeMap(data.sysflags);
+    loadedData.works = safeMap(data.works);
+
+    if (data.commands && Array.isArray(data.commands)) {
+        data.commands.forEach((cmd) => {
+            if (cmd && cmd.Name) commandLookup[cmd.Name] = cmd;
+        });
+    }
+
+    // 2. Load Maps and Hints (Fail-safe)
     try {
-        if (!data) {
-            console.warn("[bdsp_ev_script] No data provided to applySyntaxData");
-            return;
+        pokeMap = data.pokes || {};
+        itemMap = data.items || {};
+
+        pokeReverseMap = {};
+        for (let id in pokeMap) {
+            if (pokeMap.hasOwnProperty(id)) pokeReverseMap[pokeMap[id]] = parseInt(id);
         }
 
-        loadedData.commands = safeMap(data.commands);
-        loadedData.flags = safeMap(data.flags);
-        loadedData.sysflags = safeMap(data.sysflags);
-        loadedData.works = safeMap(data.works);
+        // Process Hints Configuration from JSON
+        hintConfigs = [];
+        if (data.hints && Array.isArray(data.hints)) {
+            data.hints.forEach(h => {
+                let mapRef = null;
+                // Resolve string "Type" to actual map object
+                if (h.Type === "Pokemon") mapRef = pokeMap;
+                else if (h.Type === "Item") mapRef = itemMap;
 
-        if (data.commands && Array.isArray(data.commands)) {
-            data.commands.forEach((cmd) => {
-                if (cmd && cmd.Name) {
-                    commandLookup[cmd.Name] = cmd;
+                if (mapRef) {
+                    hintConfigs.push({
+                        Cmd: h.Cmd,
+                        ArgIndex: h.ArgIndex,
+                        Label: h.Label,
+                        Map: mapRef
+                    });
                 }
             });
         }
-
-        pokeMap = data.pokes || {};
-        pokeReverseMap = {};
-        for (let id in pokeMap) {
-            if (pokeMap.hasOwnProperty(id)) {
-                pokeReverseMap[pokeMap[id]] = parseInt(id);
-            }
-        }
-
-        // Register the BDSP tokenizer with syntax highlighting rules
-        // This is the authoritative tokenizer definition that includes loaded command names
-        // Theme colors are defined in editor_init.js (bdsp-dark theme)
-        monaco.languages.setMonarchTokensProvider("bdsp", {
-            commands: loadedData.commands,
-            tokenizer: {
-                root: [
-                    [/^[a-zA-Z0-9_]+:/, "bdsp-scriptlabel"], // Script labels: ev_label: → Blue (bold)
-                    [
-                        /[A-Z_][\w\-\.]*(?=\()/,
-                        {
-                            cases: {
-                                "@commands": "bdsp-command", // _COMMAND(...) → Purple (bold)
-                                "@default": "identifier",
-                            },
-                        },
-                    ],
-                    [/@[a-zA-Z0-9_\-]+/, "bdsp-workvar"], // @Work variables → Gold
-                    [/#[a-zA-Z0-9_\-]+/, "bdsp-flag"], // #Flag → Green
-                    [/\$[a-zA-Z0-9_\-]+/, "bdsp-sysflag"], // $SysFlag → Cyan (italic)
-                    { include: "@whitespace" },
-                    [/\d*\.\d+([eE][\-+]?\d+)?/, "bdsp-number"], // Numbers → Orange
-                    [/\d+/, "bdsp-number"],
-                    [/'[^']*'/, "bdsp-string"], // Strings → Yellow (Updated to Single Quotes)
-                    [/[,()]/, "delimiter"],
-                ],
-                whitespace: [
-                    [/[ \t\r\n]+/, "white"],
-                    [/[;].*$/, "bdsp-comment"],
-                    [/\/\/.*$/, "bdsp-comment"],
-                ],
-            },
-        });
-
-        // Refresh model to trigger inlay hints
-        if (window.editor) {
-            var m = window.editor.getModel();
-            monaco.editor.setModelLanguage(m, "plaintext");
-            setTimeout(() => monaco.editor.setModelLanguage(m, "bdsp"), 10);
-        }
     } catch (e) {
-        console.error(e);
+        console.error("Map loading error:", e);
+    }
+
+    // 3. Register Tokenizer (Must run even if maps fail)
+    // We default to an empty array if commands are missing to prevent tokenizer crash
+    const commandList = loadedData.commands || [];
+
+    monaco.languages.setMonarchTokensProvider("bdsp", {
+        commands: commandList,
+        tokenizer: {
+            root: [
+                [/^[a-zA-Z0-9_]+:/, "bdsp-scriptlabel"],
+                [
+                    /[A-Z_][\w\-\.]*(?=\()/,
+                    {
+                        cases: {
+                            "@commands": "bdsp-command",
+                            "@default": "identifier",
+                        },
+                    },
+                ],
+                [/@[a-zA-Z0-9_\-]+/, "bdsp-workvar"],
+                [/#[a-zA-Z0-9_\-]+/, "bdsp-flag"],
+                [/\$[a-zA-Z0-9_\-]+/, "bdsp-sysflag"],
+                { include: "@whitespace" },
+                [/\d*\.\d+([eE][\-+]?\d+)?/, "bdsp-number"],
+                [/\d+/, "bdsp-number"],
+                [/'[^']*'/, "bdsp-string"],
+                [/[,()]/, "delimiter"],
+            ],
+            whitespace: [
+                [/[ \t\r\n]+/, "white"],
+                [/[;].*$/, "bdsp-comment"],
+                [/\/\/.*$/, "bdsp-comment"],
+            ],
+        },
+    });
+
+    // Refresh model
+    if (window.editor) {
+        var m = window.editor.getModel();
+        monaco.editor.setModelLanguage(m, "plaintext");
+        setTimeout(() => monaco.editor.setModelLanguage(m, "bdsp"), 10);
     }
 }
 
@@ -456,7 +416,6 @@ window.formatLegacyScript = function (text) {
                     if (types.includes("Label")) return "'" + unquoted + "'";
                     return arg;
                 }
-                // Check if already prefixed before adding
                 if (
                     types.includes("Flag") ||
                     types.includes("System") ||

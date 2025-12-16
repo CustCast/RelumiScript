@@ -11,37 +11,30 @@ using RelumiScript.Services.Interfaces;
 
 namespace RelumiScript.ViewModels
 {
-    public class MainViewModel : ViewModelBase // Inherit from new Base
+    public class MainViewModel : INotifyPropertyChanged
     {
         private readonly ProjectService _projectService;
         private readonly IDialogService _dialogService;
 
-        // Sub-ViewModels
-        public ExplorerViewModel Explorer { get; }
-        public SearchViewModel Search { get; }
-        public AnalysisViewModel Analysis { get; }
-        public ThemeEditorViewModel ThemeVm { get; } = new ThemeEditorViewModel();
-
-        // State
         private string _statusMessage = "Ready";
         private EditorDocument? _activeDocument;
+        private ThemeEditorViewModel _themeVm = new ThemeEditorViewModel();
         private bool _isBusy;
 
-        // Signals
         private int _syntaxRevision = 0;
         private int _analysisRevision = 0;
 
         public ObservableCollection<EditorDocument> Documents { get; } = new ObservableCollection<EditorDocument>();
 
+        // EXPOSED PROPERTY FOR UI BINDING
+        public IEnumerable<FileNode> Files => _projectService.AllFiles;
+
+        public ThemeEditorViewModel ThemeVm => _themeVm;
+
         public MainViewModel(ProjectService projectService, IDialogService dialogService)
         {
             _projectService = projectService;
             _dialogService = dialogService;
-
-            // Initialize Sub-ViewModels
-            Explorer = new ExplorerViewModel(projectService);
-            Search = new SearchViewModel(projectService);
-            Analysis = new AnalysisViewModel(projectService);
         }
 
         public string StatusMessage
@@ -85,14 +78,11 @@ namespace RelumiScript.ViewModels
             try
             {
                 await _projectService.LoadProjectAsync(folder, msg => StatusMessage = msg);
-
-                // Refresh Sub-ViewModels
-                Explorer.Refresh();
+                OnPropertyChanged(nameof(Files)); // Update Explorer UI
 
                 await _projectService.RefreshTrackersAsync(msg => StatusMessage = msg);
-                Analysis.RefreshAll();
-
                 AnalysisRevision++;
+
                 SyntaxRevision++;
             }
             catch (Exception ex)
@@ -108,21 +98,20 @@ namespace RelumiScript.ViewModels
         public async Task SaveAllCommand()
         {
             if (_projectService.AllFiles.Count == 0) return;
+
             var dirty = Documents.Where(d => d.IsDirty).ToList();
             if (dirty.Count == 0) return;
 
             try
             {
                 await _projectService.SaveDocumentsAsync(dirty);
+
                 foreach (var doc in dirty)
                 {
                     doc.OriginalContent = doc.Content;
                     doc.IsDirty = false;
                 }
                 StatusMessage = $"Saved {dirty.Count} files.";
-
-                // Re-scan scripts if structure changed (optional, but good practice)
-                Explorer.Refresh();
             }
             catch (Exception ex)
             {
@@ -208,6 +197,12 @@ namespace RelumiScript.ViewModels
             {
                 ActiveDocument = Documents.FirstOrDefault();
             }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 }

@@ -5,6 +5,7 @@ using Avalonia.Markup.Xaml;
 using Avalonia.Media;
 using RelumiScript.Services;
 using RelumiScript.ViewModels;
+using RelumiScript.Models;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -12,12 +13,11 @@ using System.Linq;
 
 namespace RelumiScript
 {
-    // ViewModel for binding in the dialog
     public class CommandArgViewModel
     {
         public string Name { get; set; } = "";
         public string Description { get; set; } = "";
-        public string Types { get; set; } = ""; // Comma separated for UI
+        public string Types { get; set; } = "";
         public bool IsOptional { get; set; }
     }
 
@@ -28,25 +28,23 @@ namespace RelumiScript
         private AssetBundleService _service;
         private Dictionary<int, string> _workMap;
 
-        // Manual Control References
         private TextBlock? _headerTitle;
         private TextBlock? _headerSubtitle;
-        // private TextBox? _inputId; // Removed
         private TextBox? _inputName;
         private TextBox? _inputDescription;
         private StackPanel? _descriptionPanel;
         private StackPanel? _parametersPanel;
+        private StackPanel? _optionsPanel;
+        private CheckBox? _checkDummy;
+        private CheckBox? _checkAnimation;
         private ItemsControl? _paramsList;
         private TextBlock? _errorText;
 
         public ObservableCollection<CommandArgViewModel> Parameters { get; set; } = new ObservableCollection<CommandArgViewModel>();
 
-        public EditDataDialog()
-        {
-            InitializeComponent();
-        }
+        public EditDataDialog() { InitializeComponent(); }
 
-        public EditDataDialog(string type, int id, string name, string desc, List<CommandArg> paramsList, AssetBundleService service, Dictionary<int, string> workMap, ThemeEditorViewModel themeVm)
+        public EditDataDialog(string type, int id, object dataObj, AssetBundleService service, Dictionary<int, string> workMap, ThemeEditorViewModel themeVm)
         {
             InitializeComponent();
             _type = type;
@@ -54,7 +52,6 @@ namespace RelumiScript
             _service = service;
             _workMap = workMap;
 
-            // Apply theme resources
             if (themeVm != null)
             {
                 var colors = themeVm.Colors;
@@ -66,32 +63,34 @@ namespace RelumiScript
                 this.Resources["ThemePanelBackground"] = new SolidColorBrush(colors.PanelBackground);
             }
 
-            // Wire up controls manually
             _headerTitle = this.FindControl<TextBlock>("HeaderTitle");
             _headerSubtitle = this.FindControl<TextBlock>("HeaderSubtitle");
-            // _inputId = this.FindControl<TextBox>("InputId"); // Removed
             _inputName = this.FindControl<TextBox>("InputName");
             _inputDescription = this.FindControl<TextBox>("InputDescription");
             _descriptionPanel = this.FindControl<StackPanel>("DescriptionPanel");
             _parametersPanel = this.FindControl<StackPanel>("ParametersPanel");
+            _optionsPanel = this.FindControl<StackPanel>("OptionsPanel");
+            _checkDummy = this.FindControl<CheckBox>("CheckDummy");
+            _checkAnimation = this.FindControl<CheckBox>("CheckAnimation");
             _paramsList = this.FindControl<ItemsControl>("ParamsList");
             _errorText = this.FindControl<TextBlock>("ErrorText");
 
-            // Set Initial Values
-            // if (_inputId != null) _inputId.Text = id.ToString(); // Removed
-            if (_inputName != null) _inputName.Text = name;
-            if (_inputDescription != null) _inputDescription.Text = desc;
-
-            // Setup UI based on type
-            if (type == "CMD")
+            if (type == "CMD" && dataObj is CommandDefinition cmd)
             {
                 if (_headerTitle != null) _headerTitle.Text = "Edit Command";
                 if (_headerSubtitle != null) _headerSubtitle.Text = $"Editing Command ID {id}";
 
+                if (_inputName != null) _inputName.Text = cmd.Name;
+                if (_inputDescription != null) _inputDescription.Text = cmd.Description;
+
                 if (_descriptionPanel != null) _descriptionPanel.IsVisible = true;
                 if (_parametersPanel != null) _parametersPanel.IsVisible = true;
+                if (_optionsPanel != null) _optionsPanel.IsVisible = true;
 
-                foreach (var p in paramsList)
+                if (_checkDummy != null) _checkDummy.IsChecked = cmd.Dummy;
+                if (_checkAnimation != null) _checkAnimation.IsChecked = cmd.Animation;
+
+                foreach (var p in cmd.Args)
                 {
                     Parameters.Add(new CommandArgViewModel
                     {
@@ -105,8 +104,12 @@ namespace RelumiScript
             }
             else
             {
+                string currentName = dataObj is NameDef nd ? nd.Name ?? "" : dataObj.ToString() ?? "";
+                if (_inputName != null) _inputName.Text = currentName;
+
                 if (_descriptionPanel != null) _descriptionPanel.IsVisible = false;
                 if (_parametersPanel != null) _parametersPanel.IsVisible = false;
+                if (_optionsPanel != null) _optionsPanel.IsVisible = false;
 
                 string typeName = type == "FLG" ? "Flag" : (type == "SYS" ? "System Flag" : "Work Variable");
                 if (_headerTitle != null) _headerTitle.Text = $"Edit {typeName}";
@@ -114,45 +117,26 @@ namespace RelumiScript
             }
         }
 
-        private void InitializeComponent()
-        {
-            AvaloniaXamlLoader.Load(this);
-        }
+        private void InitializeComponent() { AvaloniaXamlLoader.Load(this); }
 
         public void BtnAddParam_Click(object? sender, RoutedEventArgs e)
         {
-            Parameters.Add(new CommandArgViewModel
-            {
-                Name = "New Parameter",
-                Types = "Work, Number"
-            });
+            Parameters.Add(new CommandArgViewModel { Name = "New Parameter", Types = "Work, Number" });
         }
 
         public void BtnRemoveParam_Click(object? sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.Tag is CommandArgViewModel wrapper)
-            {
-                Parameters.Remove(wrapper);
-            }
+            if (sender is Button btn && btn.Tag is CommandArgViewModel wrapper) Parameters.Remove(wrapper);
         }
 
-        public void BtnCancel_Click(object? sender, RoutedEventArgs e)
-        {
-            Close(false);
-        }
+        public void BtnCancel_Click(object? sender, RoutedEventArgs e) { Close(false); }
 
         public void BtnSave_Click(object? sender, RoutedEventArgs e)
         {
             if (_inputName == null) return;
-
-            // ID is no longer editable, so we use _originalId
             int newId = _originalId;
 
-            if (string.IsNullOrWhiteSpace(_inputName.Text))
-            {
-                ShowError("Name cannot be empty.");
-                return;
-            }
+            if (string.IsNullOrWhiteSpace(_inputName.Text)) { ShowError("Name cannot be empty."); return; }
 
             bool success = false;
             string newName = _inputName.Text.Trim();
@@ -160,13 +144,11 @@ namespace RelumiScript
 
             if (_type == "CMD")
             {
+                // Create a completely new list to avoid reference issues
                 var newArgs = new List<CommandArg>();
                 foreach (var vm in Parameters)
                 {
-                    var typesList = vm.Types.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                                            .Select(t => t.Trim())
-                                            .ToList();
-
+                    var typesList = vm.Types.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToList();
                     newArgs.Add(new CommandArg
                     {
                         TentativeName = vm.Name,
@@ -176,45 +158,31 @@ namespace RelumiScript
                     });
                 }
 
+                bool isDummy = _checkDummy?.IsChecked ?? false;
+                bool isAnimation = _checkAnimation?.IsChecked ?? false;
+
                 var def = new CommandDefinition
                 {
                     Id = newId,
                     Name = newName,
                     Description = newDesc,
+                    Dummy = isDummy,
+                    Animation = isAnimation,
                     Args = newArgs
                 };
                 success = _service.UpdateCommand(_originalId, def);
             }
-            else if (_type == "FLG")
-            {
-                success = _service.UpdateFlag(_originalId, newId, newName);
-            }
-            else if (_type == "SYS")
-            {
-                success = _service.UpdateSysFlag(_originalId, newId, newName);
-            }
-            else if (_type == "WRK")
-            {
-                success = _service.UpdateWork(_originalId, newId, newName, _workMap);
-            }
+            else if (_type == "FLG") success = _service.UpdateFlag(_originalId, newId, newName);
+            else if (_type == "SYS") success = _service.UpdateSysFlag(_originalId, newId, newName);
+            else if (_type == "WRK") success = _service.UpdateWork(_originalId, newId, newName, _workMap);
 
-            if (success)
-            {
-                Close(true);
-            }
-            else
-            {
-                ShowError("Error saving changes. Ensure the name is valid.");
-            }
+            if (success) Close(true);
+            else ShowError("Error saving changes.");
         }
 
         private void ShowError(string msg)
         {
-            if (_errorText != null)
-            {
-                _errorText.Text = msg;
-                _errorText.IsVisible = true;
-            }
+            if (_errorText != null) { _errorText.Text = msg; _errorText.IsVisible = true; }
         }
     }
 }

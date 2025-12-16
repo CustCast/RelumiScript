@@ -1,0 +1,26 @@
+[
+  {
+    "Cmd": "_ADD_POKEMON_UI_EXTRA",
+    "ArgIndex": 0,
+    "Type": "Pokemon",
+    "Label": "Pokémon"
+  },
+  {
+    "Cmd": "_POKEMON_NAME_FORM",
+    "ArgIndex": 1,
+    "Type": "Pokemon",
+    "Label": "Pokémon"
+  },
+  {
+    "Cmd": "_SP_WILD_BTL_SET",
+    "ArgIndex": 0,
+    "Type": "Pokemon",
+    "Label": "Pokémon"
+  },
+  {
+    "Cmd": "_VOICE_PLAY",
+    "ArgIndex": 0,
+    "Type": "Pokemon",
+    "Label": "Pokémon"
+  }
+]

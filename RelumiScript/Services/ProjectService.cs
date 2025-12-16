@@ -157,11 +157,14 @@ namespace RelumiScript.Services
             var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
             ScriptNode? currentScript = null;
             StringBuilder currentContent = new StringBuilder();
-            var labelRegex = new Regex(@"^(?:\\s*)?([a-zA-Z0-9_]+):$");
+
+            // FIXED REGEX: Matches "Label:" allowing for indentation and trailing whitespace.
+            // Does NOT allow comments on the same line (to be safe/compatible).
+            var labelRegex = new Regex(@"^(?:\s*)?([a-zA-Z0-9_]+):(?=\s*$)");
 
             foreach (var line in lines)
             {
-                var match = labelRegex.Match(line.Trim());
+                var match = labelRegex.Match(line);
                 if (match.Success)
                 {
                     if (currentScript != null)
@@ -196,10 +199,47 @@ namespace RelumiScript.Services
             if (string.IsNullOrEmpty(jd)) return;
 
             await Task.Run(() => {
-                string cmds = File.Exists(Path.Combine(jd, "commands.json")) ? File.ReadAllText(Path.Combine(jd, "commands.json")) : "[]";
-                string js = $"window.RELUMI_DATA = {{ commands: {cmds}, flags: [], sysflags: [], works: [], pokes: {JsonConvert.SerializeObject(_assetService.PokemonMap)}, items: {JsonConvert.SerializeObject(_assetService.ItemMap)} }}; window.RELUMI_DATA_LOADED = true;";
+                // 1. Load Commands
+                string cmds = File.Exists(Path.Combine(jd, "commands.json"))
+                    ? File.ReadAllText(Path.Combine(jd, "commands.json"))
+                    : "[]";
 
-                // Note: We write this to the Monaco folder so the WebView can pick it up
+                // 2. Load or Create Hints Configuration
+                string hintsJson = "[]";
+                string hintsPath = Path.Combine(jd, "hints.json");
+
+                if (File.Exists(hintsPath))
+                {
+                    hintsJson = File.ReadAllText(hintsPath);
+                }
+                else
+                {
+                    // Fallback default hints if file is missing
+                    var defaults = new[]
+                    {
+                        new { Cmd = "_ADD_POKEMON_UI_EXTRA", ArgIndex = 0, Type = "Pokemon", Label = "Pokémon" },
+                        new { Cmd = "_POKEMON_NAME_FORM",    ArgIndex = 1, Type = "Pokemon", Label = "Pokémon" },
+                        new { Cmd = "ADD_ITEM",              ArgIndex = 0, Type = "Item",    Label = "Item" },
+                        new { Cmd = "_ADD_ITEM",             ArgIndex = 0, Type = "Item",    Label = "Item" },
+                        new { Cmd = "GET_ITEM",              ArgIndex = 0, Type = "Item",    Label = "Item" }
+                    };
+                    hintsJson = JsonConvert.SerializeObject(defaults);
+                }
+
+                // 3. Construct the Master Data Object
+                var dataObj = new
+                {
+                    commands = JArray.Parse(cmds),
+                    flags = new string[0],
+                    sysflags = new string[0],
+                    works = new string[0],
+                    pokes = _assetService.PokemonMap,
+                    items = _assetService.ItemMap,
+                    hints = JArray.Parse(hintsJson)
+                };
+
+                string js = $"window.RELUMI_DATA = {JsonConvert.SerializeObject(dataObj)}; window.RELUMI_DATA_LOADED = true;";
+
                 File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Monaco", "syntax_data.js"), js, Encoding.UTF8);
             });
         }

@@ -14,23 +14,41 @@ namespace RelumiScript.Services
     // Model for individual arguments in commands.json
     public class CommandArg
     {
+        // ENFORCED ORDER: Type must be first (Order 1)
+        [JsonProperty(Order = 1)]
         public string TentativeName { get; set; } = "";
+
+        [JsonProperty(Order = 2)]
         public string Description { get; set; } = "";
+
+        [JsonProperty(Order = 3)]
         public List<string> Type { get; set; } = new List<string>();
+
+        [JsonProperty(Order = 4)]
         public bool Optional { get; set; }
     }
 
     // Model for the command definition
     public class CommandDefinition
     {
+        [JsonProperty(Order = 1)]
         public int Id { get; set; }
+
+        [JsonProperty(Order = 2)]
         public string Name { get; set; } = "";
+
+        [JsonProperty(Order = 3)]
         public string Description { get; set; } = "";
 
-        // Matches "Args" in commands.json
+        [JsonProperty(Order = 4)]
+        public bool Dummy { get; set; }
+
+        [JsonProperty(Order = 5)]
+        public bool Animation { get; set; }
+
+        [JsonProperty(Order = 6)]
         public List<CommandArg> Args { get; set; } = new List<CommandArg>();
 
-        // Legacy properties to prevent serialization errors if json has extra fields
         [JsonIgnore]
         public string[] Parameters { get; set; } = Array.Empty<string>();
     }
@@ -201,7 +219,6 @@ namespace RelumiScript.Services
 
             try
             {
-                // Formatting.Indented creates cleaner JSON
                 var settings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore };
                 File.WriteAllText(Path.Combine(_loadedJsonDir, "commands.json"), JsonConvert.SerializeObject(Commands, Formatting.Indented, settings));
                 return true;
@@ -219,7 +236,6 @@ namespace RelumiScript.Services
             catch (Exception ex) { Debug.WriteLine($"Error saving map {path}: {ex.Message}"); }
         }
 
-        // --- GAME DATA LOADING LOGIC (Preserved) ---
         private string CleanUnityYaml(string content)
         {
             var sb = new StringBuilder();
@@ -374,13 +390,11 @@ namespace RelumiScript.Services
 
                                                 index++;
 
-                                                // Don't add a join string after the last word
                                                 if (index >= wordCount)
                                                 {
                                                     break;
                                                 }
 
-                                                // Read eventID from the same node
                                                 if (word.Children.TryGetValue("eventID", out var e) &&
                                                     int.TryParse(e.ToString(), out var eventID))
                                                 {
@@ -388,7 +402,7 @@ namespace RelumiScript.Services
                                                 }
                                                 else
                                                 {
-                                                    sb.Append("{n}"); // default join
+                                                    sb.Append("{n}");
                                                 }
                                             }
 

@@ -27,6 +27,10 @@
 			<Setter Property="FontSize" Value="12"/>
 			<Setter Property="Opacity" Value="0.8"/>
 		</Style>
+		<Style Selector="CheckBox">
+			<Setter Property="Foreground" Value="{DynamicResource ThemeTextColor}"/>
+			<Setter Property="Margin" Value="0,5,10,5"/>
+		</Style>
 	</Window.Styles>
 
 	<Grid RowDefinitions="Auto, *, Auto" Margin="20">
@@ -39,6 +43,11 @@
 			<StackPanel>
 				<TextBlock Text="Name"/>
 				<TextBox x:Name="InputName" Watermark="e.g. FLAG_EVENT_START" />
+
+				<StackPanel x:Name="OptionsPanel" Orientation="Horizontal" IsVisible="False" Margin="0,0,0,5">
+					<CheckBox x:Name="CheckDummy" Content="Dummy"/>
+					<CheckBox x:Name="CheckAnimation" Content="Animation"/>
+				</StackPanel>
 
 				<StackPanel x:Name="DescriptionPanel">
 					<TextBlock Text="Description"/>
