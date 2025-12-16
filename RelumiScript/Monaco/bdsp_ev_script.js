@@ -118,16 +118,21 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
         const ctx = getActiveContext(model, position);
         if (!ctx) return { suggestions: [] };
 
-        const activeHint = hintConfigs.find(h => h.Cmd === ctx.cmd.Name && h.ArgIndex === ctx.argIndex);
+        // Find any hint config for this command (we only need to know if we should show specific lists)
+        const activeConfig = hintConfigs.find(h => h.Cmd === ctx.cmd.Name);
 
         let showPokemon = false;
         let showItems = false;
         let showForms = false;
+        let activeParam = null;
 
-        if (activeHint) {
-            if (activeHint.Type === "Pokemon") showPokemon = true;
-            if (activeHint.Type === "Item") showItems = true;
-            if (activeHint.Type === "Form") showForms = true;
+        if (activeConfig && activeConfig.Params) {
+            activeParam = activeConfig.Params.find(p => p.Index === ctx.argIndex);
+            if (activeParam) {
+                if (activeParam.Type === "Pokemon") showPokemon = true;
+                if (activeParam.Type === "Item") showItems = true;
+                if (activeParam.Type === "Form") showForms = true;
+            }
         }
 
         // --- GENERATE SUGGESTIONS ---
@@ -163,9 +168,9 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
             return { suggestions: suggestions };
         }
 
-        if (showForms && activeHint.PokemonArgIndex !== undefined) {
+        if (showForms && activeParam && activeParam.DependsOn !== undefined) {
             const args = getSiblingArgs(model, position.lineNumber, ctx.cmd.Name);
-            const pokeIdStr = args[activeHint.PokemonArgIndex];
+            const pokeIdStr = args[activeParam.DependsOn];
 
             if (pokeIdStr && /^\d+$/.test(pokeIdStr)) {
                 const pokeId = parseInt(pokeIdStr);
@@ -326,27 +331,17 @@ monaco.languages.registerSignatureHelpProvider("bdsp", {
 });
 
 // 7. Dynamic Inlay Hints Provider
+// Updated to generate sentence-style comments at the end of the line
 monaco.languages.registerInlayHintsProvider("bdsp", {
     provideInlayHints: function (model, range, token) {
         let hints = [];
-
-        const addHint = (text, endColumn, lineNum, tooltip) => {
-            hints.push({
-                kind: monaco.languages.InlayHintKind.Type,
-                position: { lineNumber: lineNum, column: endColumn },
-                // Clean label without ": " prefix (visual separation handled by paddingLeft)
-                label: `${text}`,
-                paddingLeft: true,
-                tooltip: tooltip,
-            });
-        };
 
         if (!hintConfigs || hintConfigs.length === 0) return { hints: [] };
 
         for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
             const lineContent = model.getLineContent(i);
 
-            // Iterate through the GLOBAL hintConfigs populated by applySyntaxData
+            // Iterate through the GLOBAL hintConfigs
             hintConfigs.forEach(config => {
                 // Regex to match the command and capture ALL args inside parens
                 const pattern = `\\b${config.Cmd}\\s*\\(([^)]*)`;
@@ -354,67 +349,110 @@ monaco.languages.registerInlayHintsProvider("bdsp", {
 
                 let match;
                 while ((match = regex.exec(lineContent)) !== null) {
-                    // match[1] is the content inside parens: "21, 1, 5"
                     const argsStr = match[1];
-                    // Split args to calculate precise offsets
                     const rawArgs = argsStr.split(',');
                     const args = rawArgs.map(s => s.trim());
 
-                    // Find start index of arguments relative to the line
-                    // match.index is start of Cmd. match[0].indexOf('(') gets us to the paren.
-                    let currentOffset = match.index + match[0].indexOf('(') + 1;
+                    // Store resolved values for variable interpolation
+                    let resolvedVars = {};
+                    let resolvedRaw = {}; // Store raw values to support "ShowZero" toggle
+                    let hasResolved = false;
 
-                    // Iterate through arguments to find position of OUR target arg
-                    for (let k = 0; k < rawArgs.length; k++) {
-                        const rawArg = rawArgs[k];
-                        const trimmedVal = rawArg.trim();
+                    if (config.Params) {
+                        config.Params.forEach(param => {
+                            if (param.Index < args.length) {
+                                let val = args[param.Index];
 
-                        // Calculate where the value strictly ends
-                        // Pre-space is distance to first non-space char
-                        const preSpace = rawArg.indexOf(trimmedVal);
-
-                        // Valid index check
-                        if (k === config.ArgIndex && trimmedVal.length > 0) {
-                            // Column = Start + PreSpace + Length + 1 (Monaco is 1-based)
-                            const endCol = currentOffset + preSpace + trimmedVal.length + 1;
-
-                            if (config.Type === "Pokemon" && pokeMap[trimmedVal]) {
-                                addHint(pokeMap[trimmedVal], endCol, i, `Pokemon ID ${trimmedVal}`);
-                            }
-                            else if (config.Type === "Item" && itemMap[trimmedVal]) {
-                                addHint(itemMap[trimmedVal], endCol, i, `Item ID ${trimmedVal}`);
-                            }
-                            else if (config.Type === "Form" && config.PokemonArgIndex !== undefined) {
-                                // Safe check for dependency argument
-                                if (args.length > config.PokemonArgIndex) {
-                                    const pokeVal = args[config.PokemonArgIndex];
-                                    const formKey = `${pokeVal}_${trimmedVal}`;
-                                    if (formMap[formKey]) {
-                                        let displayText = formMap[formKey];
-
-                                        // Attempt to trim the base Pokemon name from the Form name for cleaner UI
-                                        // Example: "Hisuian Voltorb" -> "Hisuian" if base is "Voltorb"
-                                        if (pokeMap[pokeVal]) {
-                                            const baseName = pokeMap[pokeVal];
-                                            if (displayText.includes(baseName)) {
-                                                displayText = displayText.replace(baseName, "").trim();
-                                            }
-                                        }
-
-                                        addHint(displayText, endCol, i, `Form: ${formMap[formKey]}`);
+                                // Resolve based on Type
+                                if (param.Type === "Pokemon" && pokeMap[val]) {
+                                    resolvedVars[param.Ref] = pokeMap[val];
+                                    resolvedRaw[param.Ref] = val;
+                                    hasResolved = true;
+                                }
+                                else if (param.Type === "Item" && itemMap[val]) {
+                                    resolvedVars[param.Ref] = itemMap[val];
+                                    resolvedRaw[param.Ref] = val;
+                                    hasResolved = true;
+                                }
+                                else if (param.Type === "Ball" && ballMap[val]) {
+                                    const itemId = ballMap[val];
+                                    if (itemMap[itemId]) {
+                                        resolvedVars[param.Ref] = itemMap[itemId];
+                                        resolvedRaw[param.Ref] = val;
+                                        hasResolved = true;
                                     }
                                 }
-                            }
-                            else if (config.Type === "Ball" && ballMap[trimmedVal]) {
-                                const itemId = ballMap[trimmedVal];
-                                if (itemMap[itemId]) {
-                                    addHint(itemMap[itemId], endCol, i, `Ball ID ${trimmedVal} -> Item ID ${itemId}`);
+                                else if (param.Type === "Form" && param.DependsOn !== undefined) {
+                                    if (param.DependsOn < args.length) {
+                                        const pokeVal = args[param.DependsOn];
+                                        const formKey = `${pokeVal}_${val}`;
+                                        if (formMap[formKey]) {
+                                            let displayText = formMap[formKey];
+                                            // Trim base name if present
+                                            if (pokeMap[pokeVal]) {
+                                                const baseName = pokeMap[pokeVal];
+                                                if (displayText.includes(baseName)) {
+                                                    displayText = displayText.replace(baseName, "").trim();
+                                                }
+                                            }
+                                            resolvedVars[param.Ref] = displayText;
+                                            resolvedRaw[param.Ref] = val;
+                                            hasResolved = true;
+                                        }
+                                    }
+                                }
+                                else if (param.Type === "Value") {
+                                    resolvedVars[param.Ref] = val;
+                                    resolvedRaw[param.Ref] = val;
+                                    hasResolved = true;
                                 }
                             }
-                        }
+                        });
+                    }
 
-                        // Advance offset: Length of raw arg + 1 for comma
-                        currentOffset += rawArg.length + 1;
+                    // Build the sentence
+                    if (hasResolved && config.Sentence) {
+                        let finalString = ";";
+                        let validSentence = false;
+
+                        config.Sentence.forEach(part => {
+                            // Check condition
+                            if (part.Check) {
+                                let val = resolvedVars[part.Check];
+
+                                // Strict check for undefined/null
+                                if (val === undefined || val === null) return;
+
+                                // Check for "0" or 0
+                                // If val is 0, we only proceed if ShowZero is explicitly true
+                                const raw = resolvedRaw[part.Check];
+                                if ((raw === "0" || raw === 0) && part.ShowZero !== true) {
+                                    return;
+                                }
+                            }
+
+                            let text = part.Text;
+                            // Interpolate variables {var}
+                            text = text.replace(/\{(\w+)\}/g, (m, key) => {
+                                if (resolvedVars[key] !== undefined && resolvedVars[key] !== null) {
+                                    return resolvedVars[key];
+                                }
+                                return m;
+                            });
+
+                            finalString += text;
+                            validSentence = true;
+                        });
+
+                        if (validSentence) {
+                            hints.push({
+                                kind: monaco.languages.InlayHintKind.Type,
+                                position: { lineNumber: i, column: model.getLineMaxColumn(i) },
+                                label: finalString,
+                                paddingLeft: true,
+                                tooltip: "Auto-generated comment",
+                            });
+                        }
                     }
                 }
             });
@@ -478,17 +516,10 @@ function applySyntaxData(data) {
         }
 
         // Process Hints Configuration from JSON
+        // We now expect the JSON to match the new schema directly
         hintConfigs = [];
         if (data.hints && Array.isArray(data.hints)) {
-            data.hints.forEach(h => {
-                hintConfigs.push({
-                    Cmd: h.Cmd,
-                    ArgIndex: h.ArgIndex,
-                    Label: h.Label,
-                    Type: h.Type,
-                    PokemonArgIndex: h.PokemonArgIndex
-                });
-            });
+            hintConfigs = data.hints;
         }
 
     } catch (e) {

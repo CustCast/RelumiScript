@@ -1,59 +1,67 @@
 [
   {
     "Cmd": "_ADD_POKEMON_UI_EXTRA",
-    "ArgIndex": 0,
-    "Type": "Pokemon",
-    "Label": "Pokémon"
+    "Params": [
+      { "Index": 0, "Type": "Pokemon", "Ref": "mons" },
+      { "Index": 1, "Type": "Form", "Ref": "form", "DependsOn": 0 },
+      { "Index": 2, "Type": "Value", "Ref": "level" },
+      { "Index": 3, "Type": "Item", "Ref": "item" },
+      { "Index": 4, "Type": "Value", "Ref": "ivs" },
+      { "Index": 5, "Type": "Ball", "Ref": "ball" }
+    ],
+    "Sentence": [
+      { "Text": "gives a level {level} {mons}" },
+      { "Check": "form", "Text": " {form}" },
+      { "Check": "ivs", "Text": ", with {ivs} guaranteed max IVs" },
+      { "Check": "item", "Text": ", holding a {item}", "ShowZero": false },
+      { "Check": "ball", "Text": ", in a {ball}" }
+    ]
   },
   {
     "Cmd": "_POKEMON_NAME_FORM",
-    "ArgIndex": 1,
-    "Type": "Pokemon",
-    "Label": "Pokémon"
+    "Params": [
+      { "Index": 0, "Type": "Value", "Ref": "buf" },
+      { "Index": 1, "Type": "Pokemon", "Ref": "mons" },
+      { "Index": 2, "Type": "Form", "Ref": "form", "DependsOn": 1 }
+    ],
+    "Sentence": [
+      { "Text": "stores name of {mons}" },
+      { "Check": "form", "Text": " {form}" },
+      { "Text": " into buffer {buf}" }
+    ]
   },
   {
     "Cmd": "_SP_WILD_BTL_SET",
-    "ArgIndex": 0,
-    "Type": "Pokemon",
-    "Label": "Pokémon"
+    "Params": [
+      { "Index": 0, "Type": "Pokemon", "Ref": "mons" },
+      { "Index": 1, "Type": "Value", "Ref": "level" },
+      { "Index": 3, "Type": "Form", "Ref": "form", "DependsOn": 0 }
+    ],
+    "Sentence": [
+      { "Text": "wild battle against level {level} {mons}" },
+      { "Check": "form", "Text": " {form}" }
+    ]
   },
   {
     "Cmd": "_VOICE_PLAY",
-    "ArgIndex": 0,
-    "Type": "Pokemon",
-    "Label": "Pokémon"
+    "Params": [
+      { "Index": 0, "Type": "Pokemon", "Ref": "mons" },
+      { "Index": 1, "Type": "Form", "Ref": "form", "DependsOn": 0 }
+    ],
+    "Sentence": [
+      { "Text": "plays cry of {mons}" },
+      { "Check": "form", "Text": " {form}" }
+    ]
   },
   {
     "Cmd": "_ADD_ITEM",
-    "ArgIndex": 0,
-    "Type": "Item",
-    "Label": "Item"
-  },
-  {
-    "Cmd": "_ADD_POKEMON_UI_EXTRA",
-    "ArgIndex": 1,
-    "Type": "Form",
-    "Label": "Form",
-    "PokemonArgIndex": 0
-  },
-  {
-    "Cmd": "_ADD_POKEMON_UI_EXTRA",
-    "ArgIndex": 5,
-    "Type": "Ball",
-    "Label": "Ball"
-  },
-  {
-    "Cmd": "_VOICE_PLAY",
-    "ArgIndex": 1,
-    "Type": "Form",
-    "Label": "Form",
-    "PokemonArgIndex": 0
-  },
-  {
-    "Cmd": "_POKEMON_NAME_FORM",
-    "ArgIndex": 2,
-    "Type": "Form",
-    "Label": "Form",
-    "PokemonArgIndex": 1
+    "Params": [
+      { "Index": 0, "Type": "Item", "Ref": "item" },
+      { "Index": 1, "Type": "Value", "Ref": "amount" }
+    ],
+    "Sentence": [
+      { "Text": "gives {item}" },
+      { "Check": "amount", "Text": " x{amount}" }
+    ]
   }
 ]
