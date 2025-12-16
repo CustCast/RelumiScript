@@ -35,11 +35,15 @@ namespace RelumiScript
         private bool _isTerminalReady = false;
         private bool _isNavigating = false;
         private TerminalSession? _terminalSession;
+        private Queue<string> _terminalOutputQueue = new Queue<string>();
         private DispatcherTimer _autoSaveTimer;
 
         private string _currentView = "Explorer";
         private string _currentBottomView = "";
         private GridLength _lastSidebarWidth = new GridLength(300);
+
+        // Track the height of the bottom panel so we can restore it when toggling back on
+        private double _lastBottomRowHeight = 250;
 
         private List<string> _currentMessagePages = new List<string>();
         private int _currentPageIndex = 0;
@@ -406,8 +410,25 @@ namespace RelumiScript
 
         private void SwitchBottomView(string viewName)
         {
-            if (BottomPanelContainer.IsVisible && _currentBottomView == viewName) { BottomPanelContainer.IsVisible = false; SetBottomButtonActive(null); return; }
+            var bottomRow = MainContentGrid.RowDefinitions[3];
+
+            if (BottomPanelContainer.IsVisible && _currentBottomView == viewName)
+            {
+                if (bottomRow.Height.Value > 0) _lastBottomRowHeight = bottomRow.Height.Value;
+                bottomRow.Height = new GridLength(0);
+
+                BottomPanelContainer.IsVisible = false;
+                SetBottomButtonActive(null);
+                return;
+            }
+
             BottomPanelContainer.IsVisible = true;
+
+            if (bottomRow.Height.Value == 0)
+            {
+                bottomRow.Height = new GridLength(_lastBottomRowHeight > 50 ? _lastBottomRowHeight : 250);
+            }
+
             _currentBottomView = viewName;
             TerminalPanel.IsVisible = viewName == "Terminal";
             PreviewPanel.IsVisible = viewName == "Preview";
@@ -418,31 +439,112 @@ namespace RelumiScript
 
         private void InitializeTerminal()
         {
-            string html = @"<!DOCTYPE html><html><head><link rel=""stylesheet"" href=""https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css"" /><script src=""https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js""></script><script src=""https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js""></script><style>body { margin: 0; padding: 0; background-color: #0C0C0C; overflow: hidden; } #terminal { width: 100vw; height: 100vh; }</style></head><body><div id=""terminal""></div><script>var term = new Terminal({ cursorBlink: true, theme: { background: '#0C0C0C', foreground: '#CCCCCC' }, fontFamily: 'Consolas, monospace', fontSize: 14, convertEol: true, rendererType: 'dom' }); var fitAddon = new FitAddon.FitAddon(); term.loadAddon(fitAddon); term.open(document.getElementById('terminal')); fitAddon.fit(); window.onresize = function() { fitAddon.fit(); }; window.addEventListener('click', function() { term.focus(); }); term.focus(); if (!window.chrome || !window.chrome.webview) { term.write('\x1b[31mError: WebView Bridge not found. \r\n\x1b[0m\r\n'); } else { window.chrome.webview.postMessage('TERM_READY'); } var currentLine = """"; term.onData(e => { for (let i = 0; i < e.length; i++) { let char = e[i]; if (char === '\r') { term.write('\r\n'); if (window.chrome && window.chrome.webview) { window.chrome.webview.postMessage('TERM_INPUT:' + currentLine); } currentLine = """"; } else if (char === '\u007F') { if (currentLine.length > 0) { term.write('\b \b'); currentLine = currentLine.substring(0, currentLine.length - 1); } } else if (char === '\u0003') { term.write('^C\r\n'); currentLine = """"; } else { if (char.charCodeAt(0) >= 32) { currentLine += char; term.write(char); } } } }); window.writeOutput = function(data) { term.write(data); };</script></body></html>";
+            // IMPROVED: Added ::-webkit-scrollbar CSS styles to the HTML header.
+            // This forces the WebView to use a dark, flat scrollbar matching the app theme
+            // instead of the default Windows scrollbar.
+            string html = @"<!DOCTYPE html><html><head><link rel=""stylesheet"" href=""https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css"" /><script src=""https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js""></script><script src=""https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js""></script>
+            <style>
+                body { margin: 0; padding: 0; background-color: #0C0C0C; overflow: hidden; } 
+                #terminal { width: 100vw; height: 100vh; }
+                
+                /* CUSTOM SCROLLBAR FOR TERMINAL */
+                ::-webkit-scrollbar { width: 10px; height: 10px; }
+                ::-webkit-scrollbar-track { background: transparent; }
+                ::-webkit-scrollbar-thumb { background: #424242; border-radius: 0px; }
+                ::-webkit-scrollbar-thumb:hover { background: #4F4F4F; }
+                ::-webkit-scrollbar-corner { background: transparent; }
+            </style>
+            </head><body><div id=""terminal""></div><script>var term = new Terminal({ cursorBlink: true, theme: { background: '#0C0C0C', foreground: '#CCCCCC' }, fontFamily: 'Consolas, monospace', fontSize: 14, convertEol: true, rendererType: 'dom' }); var fitAddon = new FitAddon.FitAddon(); term.loadAddon(fitAddon); term.open(document.getElementById('terminal')); fitAddon.fit(); window.onresize = function() { fitAddon.fit(); }; window.addEventListener('click', function() { term.focus(); }); term.focus(); 
+            
+            term.attachCustomKeyEventHandler(e => {
+                if (e.type !== 'keydown') return true;
+                if (e.ctrlKey && e.key === 'c') {
+                    if (term.hasSelection()) {
+                        var text = term.getSelection();
+                        if (navigator.clipboard) {
+                            navigator.clipboard.writeText(text);
+                        } else {
+                            var textarea = document.createElement('textarea');
+                            textarea.value = text;
+                            document.body.appendChild(textarea);
+                            textarea.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(textarea);
+                        }
+                        return false; 
+                    }
+                }
+                if (e.ctrlKey && e.key === 'v') {
+                     if (navigator.clipboard) {
+                         navigator.clipboard.readText().then(text => {
+                             window.chrome.webview.postMessage('TERM_INPUT:' + text);
+                         });
+                     }
+                     return false;
+                }
+                return true;
+            });
+
+            window.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                if (navigator.clipboard) {
+                    navigator.clipboard.readText().then(text => {
+                        window.chrome.webview.postMessage('TERM_INPUT:' + text);
+                    });
+                }
+            });
+
+            if (!window.chrome || !window.chrome.webview) { term.write('\x1b[31mError: WebView Bridge not found. \r\n\x1b[0m\r\n'); } else { window.chrome.webview.postMessage('TERM_READY'); } var currentLine = """"; term.onData(e => { for (let i = 0; i < e.length; i++) { let char = e[i]; if (char === '\r') { term.write('\r\n'); if (window.chrome && window.chrome.webview) { window.chrome.webview.postMessage('TERM_INPUT:' + currentLine); } currentLine = """"; } else if (char === '\u007F') { if (currentLine.length > 0) { term.write('\b \b'); currentLine = currentLine.substring(0, currentLine.length - 1); } } else if (char === '\u0003') { term.write('^C\r\n'); currentLine = """"; } else { if (char.charCodeAt(0) >= 32) { currentLine += char; term.write(char); } } } }); window.writeOutput = function(data) { term.write(data); };</script></body></html>";
             try { string tempPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "terminal.html"); File.WriteAllText(tempPath, html); TerminalWebView.Url = new Uri($"file:///{tempPath.Replace("\\", "/")}"); } catch (Exception ex) { Debug.WriteLine("Terminal Init Error: " + ex.Message); }
             TerminalWebView.WebMessageReceived += OnTerminalMessageReceived;
-            TerminalWebView.NavigationCompleted += (s, e) => { if (e.IsSuccess) { _isTerminalReady = true; TerminalWebView.Focus(); } };
+            TerminalWebView.NavigationCompleted += (s, e) => { if (e.IsSuccess) { /* _isTerminalReady set in OnTerminalMessageReceived */ TerminalWebView.Focus(); } };
         }
-        private void OnTerminalMessageReceived(object? sender, WebViewMessageReceivedEventArgs e) { if (e.Message == "TERM_READY") { _isTerminalReady = true; return; } if (e.Message.StartsWith("TERM_INPUT:")) { string input = e.Message.Substring(11); _terminalSession?.SendCommand(input); } }
-        private void OnTerminalOutput(string text) { Dispatcher.UIThread.Post(() => { if (_isTerminalReady) { string safe = JsonConvert.ToString(text); TerminalWebView.ExecuteScriptAsync($"window.writeOutput({safe});"); } }); }
 
-        // UPDATED: Now calls _viewModel.Explorer.Refresh() instead of FilterExplorer()
+        private void OnTerminalMessageReceived(object? sender, WebViewMessageReceivedEventArgs e)
+        {
+            if (e.Message == "TERM_READY")
+            {
+                _isTerminalReady = true;
+                while (_terminalOutputQueue.Count > 0)
+                {
+                    OnTerminalOutput(_terminalOutputQueue.Dequeue());
+                }
+                return;
+            }
+            if (e.Message.StartsWith("TERM_INPUT:"))
+            {
+                string input = e.Message.Substring(11);
+                _terminalSession?.SendCommand(input);
+            }
+        }
+
+        private void OnTerminalOutput(string text)
+        {
+            Dispatcher.UIThread.Post(() => {
+                if (_isTerminalReady)
+                {
+                    string safe = JsonConvert.ToString(text);
+                    TerminalWebView.ExecuteScriptAsync($"window.writeOutput({safe});");
+                }
+                else
+                {
+                    _terminalOutputQueue.Enqueue(text);
+                }
+            });
+        }
+
         private void RefreshAllTrackers() { if (_viewModel.Project.AllFiles.Count > 0) _viewModel.Explorer.Refresh(); FilterFlags(FlagSearchBox.Text ?? ""); FilterWorks(ScriptSearchBox.Text ?? ""); }
         public void RefreshFlags_Click(object? sender, RoutedEventArgs e) { _viewModel.Project.RefreshTrackersAsync(msg => _viewModel.StatusMessage = msg).ContinueWith(t => _viewModel.AnalysisRevision++); }
         public void RefreshScripts_Click(object? sender, RoutedEventArgs e) { _viewModel.Project.RefreshTrackersAsync(msg => _viewModel.StatusMessage = msg).ContinueWith(t => _viewModel.AnalysisRevision++); }
         public void SearchBox_TextChanged(object? sender, TextChangedEventArgs e) => PerformSearch(SearchBox.Text);
         public void FlagSearchBox_TextChanged(object? sender, TextChangedEventArgs e) => FilterFlags(FlagSearchBox.Text ?? "");
         public void ScriptSearchBox_TextChanged(object? sender, TextChangedEventArgs e) => FilterWorks(ScriptSearchBox.Text ?? "");
-        // REMOVED: ExplorerSearchBox_TextChanged
-
-        // REMOVED: FilterExplorer method (Logic now resides in ExplorerViewModel)
-
         private void FilterFlags(string query) { var unused = _viewModel.Project.AllFlagUsages.Where(x => x.Locations.Count == 0 && !x.FlagName.StartsWith("$")); if (string.IsNullOrWhiteSpace(query)) { FlagList.ItemsSource = unused.ToList(); return; } FlagList.ItemsSource = unused.Where(f => f.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList(); }
         private void FilterWorks(string query) { var unused = _viewModel.Project.AllWorkUsages.Where(x => x.Locations.Count == 0); if (string.IsNullOrWhiteSpace(query)) { ScriptList.ItemsSource = unused.ToList(); return; } ScriptList.ItemsSource = unused.Where(c => c.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList(); }
 
         private void BtnPrevPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex > 0) { _currentPageIndex--; RenderCurrentPage(); } }
         private void BtnNextPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex < _currentMessagePages.Count - 1) { _currentPageIndex++; RenderCurrentPage(); } }
-        private void ShowMessagePreview(string file, string label, string? message=null)
+        private void ShowMessagePreview(string file, string label, string? message = null)
         {
             TryInitMessageRenderer();
 

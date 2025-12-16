@@ -182,6 +182,10 @@
 		<Style Selector="ScrollBar /template/ Thumb:pointerover">
 			<Setter Property="Background" Value="#4F4F4F"/>
 		</Style>
+
+		<Style Selector="ScrollBar /template/ RepeatButton">
+			<Setter Property="IsVisible" Value="False"/>
+		</Style>
 	</Window.Styles>
 
 	<Grid RowDefinitions="30, *, 25">
@@ -612,7 +616,13 @@
 
 			<GridSplitter Grid.Column="2" Background="{DynamicResource ThemeSidebarBackground}" ResizeDirection="Columns"/>
 
-			<Grid x:Name="MainContentGrid" Grid.Column="3" Background="{DynamicResource ThemeWindowBackground}" RowDefinitions="30, *, 4, Auto">
+			<Grid x:Name="MainContentGrid" Grid.Column="3" Background="{DynamicResource ThemeWindowBackground}">
+				<Grid.RowDefinitions>
+					<RowDefinition Height="30"/>
+					<RowDefinition Height="*"/>
+					<RowDefinition Height="4"/>
+					<RowDefinition Height="0"/>
+				</Grid.RowDefinitions>
 
 				<ListBox Grid.Row="0" x:Name="TabStrip" Classes="TabStrip" SelectionChanged="TabStrip_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Auto" ScrollViewer.VerticalScrollBarVisibility="Disabled">
 					<ListBox.ItemsPanel>
@@ -642,7 +652,7 @@
 
 				<GridSplitter Grid.Row="2" Background="{DynamicResource ThemePanelBackground}" ResizeDirection="Rows" IsVisible="{Binding #BottomPanelContainer.IsVisible}"/>
 
-				<Grid Grid.Row="3" x:Name="BottomPanelContainer" IsVisible="False" Height="250" Background="{DynamicResource ThemePanelBackground}">
+				<Grid Grid.Row="3" x:Name="BottomPanelContainer" IsVisible="False" MinHeight="150" Background="{DynamicResource ThemePanelBackground}">
 
 					<Border x:Name="PreviewPanel" IsVisible="False" Background="{DynamicResource ThemePanelBackground}" BorderBrush="#333" BorderThickness="0,1,0,0">
 						<Grid RowDefinitions="Auto, *">
@@ -658,9 +668,9 @@
 								</Grid>
 							</Border>
 							<Border Grid.Row="1" Padding="10" Background="{DynamicResource ThemeWindowBackground}">
-								<Viewbox Stretch="Uniform">
+								<ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
 									<ContentControl x:Name="MessagePreviewContent"/>
-								</Viewbox>
+								</ScrollViewer>
 							</Border>
 						</Grid>
 					</Border>

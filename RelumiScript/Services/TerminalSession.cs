@@ -23,8 +23,7 @@ namespace RelumiScript.Services
                 FileName = "powershell.exe",
                 // -NoExit: Keep session alive
                 // -ExecutionPolicy Bypass: Allow scripts
-                // -Command: Forces the console to use UTF-8 immediately to prevent special chars (like >) turning into ?
-                Arguments = "-NoLogo -NoExit -ExecutionPolicy Bypass -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8\"",
+                Arguments = "-NoLogo -NoExit -ExecutionPolicy Bypass",
 
                 UseShellExecute = false,
                 RedirectStandardInput = true,
@@ -33,7 +32,11 @@ namespace RelumiScript.Services
                 CreateNoWindow = true,
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8,
-                StandardInputEncoding = Encoding.UTF8
+
+                // CRITICAL FIX: Use UTF8Encoding(false) to prevent emitting a Byte Order Mark (BOM).
+                // A BOM at the start of the stream is read by PowerShell as part of the first command,
+                // causing "Command not recognized" errors for otherwise valid commands.
+                StandardInputEncoding = new UTF8Encoding(false)
             };
 
             // Fix for Git paging issues
@@ -53,6 +56,12 @@ namespace RelumiScript.Services
 
                 // CRITICAL: AutoFlush ensures commands are sent immediately
                 _process.StandardInput.AutoFlush = true;
+
+                // FIX: Initialization command sequence.
+                // 1. chcp 65001: Sets the native console code page to UTF-8. piped to $null to hide output.
+                // 2. Set .NET Console encoding to match.
+                // 3. Clear-Host to provide a clean prompt.
+                _process.StandardInput.WriteLine("chcp 65001 > $null; [System.Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Clear-Host");
 
                 // Start background threads to read output continuously
                 Task.Run(() => ReadStream(_process.StandardOutput));
