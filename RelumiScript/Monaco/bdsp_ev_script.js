@@ -264,6 +264,41 @@ monaco.languages.registerHoverProvider("bdsp", {
     },
 });
 
+// New: Go to Definition Provider
+monaco.languages.registerDefinitionProvider("bdsp", {
+    provideDefinition: function (model, position) {
+        const word = model.getWordAtPosition(position);
+        if (!word) return;
+
+        // 1. Check for local definition (in current file)
+        // We use regex to find "LabelName:" at the start of the line.
+        const matches = model.findMatches(`^${word.word}:`, true, true, false, null, true);
+        if (matches && matches.length > 0) {
+            return {
+                uri: model.uri,
+                range: matches[0].range
+            };
+        }
+
+        // 2. Check Global Lookup (external files)
+        const evt = eventLookup[word.word];
+        if (evt) {
+            // We return a URI constructed from the file path. 
+            // The editor_init.js service override will intercept this URI 
+            // and send a message to C# to load the file.
+            return {
+                uri: monaco.Uri.file(evt.File),
+                range: {
+                    startLineNumber: evt.Line,
+                    startColumn: 1,
+                    endLineNumber: evt.Line,
+                    endColumn: 1
+                }
+            };
+        }
+    }
+});
+
 monaco.languages.registerSignatureHelpProvider("bdsp", {
     signatureHelpTriggerCharacters: ["(", ","],
     provideSignatureHelp: function (model, position, token, context) {

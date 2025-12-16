@@ -44,6 +44,41 @@ window.addEventListener("resize", function () {
     editor.layout();
 });
 
+// --- NEW: Intercept Go-To-Definition for External Files ---
+// This hooks into Monaco's internal service to handle requests to open files 
+// that don't exist in the webview (because they are managed by C#).
+if (editor._codeEditorService) {
+    const editorService = editor._codeEditorService;
+    const originalOpenEditor = editorService.openCodeEditor.bind(editorService);
+
+    editorService.openCodeEditor = async (input, source) => {
+        // Try the default behavior (e.g. same file)
+        const result = await originalOpenEditor(input, source);
+
+        // If result is null, Monaco couldn't find the model in memory.
+        // OR if the input resource is different from our current model.
+        if (!result) {
+            // We have a request to open an external file.
+            // Send the request to C# to handle the file loading.
+            if (window.chrome && window.chrome.webview) {
+                // Strip the "file:///" prefix if present for cleaner paths
+                let path = input.resource.path;
+                if (path.startsWith('/')) path = path.substring(1); // Remove leading slash from URL path
+
+                // Format the message for C# deserialization
+                window.chrome.webview.postMessage('LOAD_FILE:' + JSON.stringify({
+                    path: path,
+                    line: input.options ? input.options.selection.startLineNumber : 1
+                }));
+            } else {
+                console.warn("External file navigation requested, but WebView bridge is missing.", input);
+            }
+        }
+        return result;
+    };
+}
+
+
 // Helper: Convert Avalonia Hex (#AARRGGBB) to CSS Hex (#RRGGBBAA)
 function fixColor(hex) {
     if (!hex || typeof hex !== 'string') return hex;

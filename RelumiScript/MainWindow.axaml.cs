@@ -324,6 +324,38 @@ namespace RelumiScript
                 if (parts.Length < 3) return;
                 await HandleEditDefinition(parts[1], parts[2]);
             }
+
+            // --- NEW: Handle Load File Message from Ctrl+Click (Go To Def) ---
+            if (e.Message.StartsWith("LOAD_FILE:"))
+            {
+                try
+                {
+                    var json = e.Message.Substring(10);
+                    var data = JObject.Parse(json);
+                    string path = data["path"]?.ToString() ?? "";
+                    int line = data["line"]?.Value<int>() ?? 1;
+
+                    if (!string.IsNullOrEmpty(path))
+                    {
+                        // Look for the file in the project
+                        var targetFile = _viewModel.Files.FirstOrDefault(f =>
+                            f.FileName.Equals(path, StringComparison.OrdinalIgnoreCase) ||
+                            f.Name.Equals(path, StringComparison.OrdinalIgnoreCase) ||
+                            f.FileName.EndsWith(path, StringComparison.OrdinalIgnoreCase));
+
+                        if (targetFile != null)
+                        {
+                            _viewModel.OpenDocument(targetFile, isPeek: true); // Open file
+                            await ScrollToLine(line); // Jump to line
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Load File Error: " + ex.Message);
+                }
+                return;
+            }
         }
 
         private async Task HandleEditDefinition(string type, string name)
