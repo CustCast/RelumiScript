@@ -71,6 +71,8 @@ namespace RelumiScript.Services
         public Dictionary<int, string> ItemMap { get; private set; } = new Dictionary<int, string>();
         // Key format: "{PokemonID}_{FormID}" (e.g., "95_1")
         public Dictionary<string, string> FormMap { get; private set; } = new Dictionary<string, string>();
+        // Maps BallID (used in scripts) to ItemID (used in ItemMap)
+        public Dictionary<int, int> BallMap { get; private set; } = new Dictionary<int, int>();
 
         public Dictionary<int, string> FlagMap => _flagMap;
         public Dictionary<int, string> SysFlagMap => _sysFlagMap;
@@ -87,7 +89,7 @@ namespace RelumiScript.Services
             _loadedJsonDir = jsonDir;
             _commandMap.Clear(); _flagMap.Clear(); _sysFlagMap.Clear(); _workMap.Clear(); _fileNameMap.Clear();
             _revCommandMap.Clear(); _revFlagMap.Clear(); _revSysFlagMap.Clear(); _revWorkMap.Clear();
-            PokemonMap.Clear(); ItemMap.Clear(); FormMap.Clear();
+            PokemonMap.Clear(); ItemMap.Clear(); FormMap.Clear(); BallMap.Clear();
             Commands.Clear();
 
             try
@@ -257,44 +259,67 @@ namespace RelumiScript.Services
 
         public void LoadGameData(string rootPath)
         {
-            PokemonMap.Clear(); ItemMap.Clear(); FormMap.Clear();
+            PokemonMap.Clear(); ItemMap.Clear(); FormMap.Clear(); BallMap.Clear();
             if (!Directory.Exists(rootPath)) return;
+
+            // 1. Text Data Search Path (Specific to avoid noise, usually deep in english folder)
             string enPath = Path.Combine(rootPath, "Assets", "format_msbt", "en", "english");
-            string searchPath = Directory.Exists(enPath) ? enPath : Path.Combine(rootPath, "Assets");
-            if (!Directory.Exists(searchPath)) searchPath = rootPath;
+            string textSearchPath = Directory.Exists(enPath) ? enPath : Path.Combine(rootPath, "Assets");
 
             try
             {
-                var files = Directory.GetFiles(searchPath, "*.asset", SearchOption.AllDirectories);
-                foreach (var file in files)
+                // Load Text Files
+                if (Directory.Exists(textSearchPath))
                 {
-                    string name = Path.GetFileNameWithoutExtension(file);
-
-                    // Strict matching to avoid loading plural/declension files
-                    bool isPokemon = name.Equals("english_ss_monsname", StringComparison.OrdinalIgnoreCase);
-                    bool isItem = name.Equals("english_ss_itemname", StringComparison.OrdinalIgnoreCase);
-                    bool isForm = name.Equals("english_ss_zkn_form", StringComparison.OrdinalIgnoreCase);
-
-                    if (isPokemon || isItem || isForm)
+                    var files = Directory.GetFiles(textSearchPath, "*.asset", SearchOption.AllDirectories);
+                    foreach (var file in files)
                     {
-                        Debug.WriteLine($"Loading Game Data from: {name}");
-                        string content = File.ReadAllText(file);
+                        string name = Path.GetFileNameWithoutExtension(file);
+                        bool isPokemon = name.Equals("english_ss_monsname", StringComparison.OrdinalIgnoreCase);
+                        bool isItem = name.Equals("english_ss_itemname", StringComparison.OrdinalIgnoreCase);
+                        bool isForm = name.Equals("english_ss_zkn_form", StringComparison.OrdinalIgnoreCase);
 
-                        if (isForm)
+                        if (isPokemon || isItem || isForm)
                         {
-                            ParseFormAsset(content, FormMap);
-                            Debug.WriteLine($"Loaded {FormMap.Count} Forms.");
-                        }
-                        else
-                        {
-                            ParseMessageAssetForGameData(content, isPokemon ? PokemonMap : ItemMap);
-                            if (isItem) Debug.WriteLine($"Loaded {ItemMap.Count} Items.");
-                            if (isPokemon) Debug.WriteLine($"Loaded {PokemonMap.Count} Pokemon.");
+                            Debug.WriteLine($"Loading Game Data from: {name}");
+                            string content = File.ReadAllText(file);
+                            if (isForm) ParseFormAsset(content, FormMap);
+                            else ParseMessageAssetForGameData(content, isPokemon ? PokemonMap : ItemMap);
                         }
                     }
                 }
+
+                // 2. Load Metadata (UIDatabase)
+                // We check the standard path first to avoid a massive search
+                string uiDbFile = Path.Combine(rootPath, "Assets", "masterdatas", "UIDatabase.asset");
+
+                if (!File.Exists(uiDbFile))
+                {
+                    // Fallback: Search in the broader Assets folder if not found in the standard location
+                    if (Directory.Exists(Path.Combine(rootPath, "Assets")))
+                    {
+                        var potential = Directory.GetFiles(Path.Combine(rootPath, "Assets"), "UIDatabase.asset", SearchOption.AllDirectories);
+                        if (potential.Length > 0) uiDbFile = potential[0];
+                    }
+                }
+
+                if (File.Exists(uiDbFile))
+                {
+                    Debug.WriteLine($"Loading Game Data from: {Path.GetFileName(uiDbFile)}");
+                    string content = File.ReadAllText(uiDbFile);
+                    ParseUIDatabase(content, BallMap);
+                    Debug.WriteLine($"Loaded {BallMap.Count} Balls.");
+                }
+                else
+                {
+                    Debug.WriteLine("UIDatabase.asset not found in search paths.");
+                }
             }
             catch (Exception ex) { Debug.WriteLine($"GameData Load Error: {ex.Message}"); }
+
+            if (ItemMap.Count > 0) Debug.WriteLine($"Loaded {ItemMap.Count} Items.");
+            if (PokemonMap.Count > 0) Debug.WriteLine($"Loaded {PokemonMap.Count} Pokemon.");
+            if (FormMap.Count > 0) Debug.WriteLine($"Loaded {FormMap.Count} Forms.");
         }
 
         private void ParseMessageAssetForGameData(string content, Dictionary<int, string> targetMap)
@@ -400,6 +425,46 @@ namespace RelumiScript.Services
             catch (Exception ex) { Debug.WriteLine($"Failed to parse form data: {ex.Message}"); }
         }
 
+        private void ParseUIDatabase(string content, Dictionary<int, int> targetMap)
+        {
+            try
+            {
+                string cleanYaml = CleanUnityYaml(content);
+                var yaml = new YamlStream();
+                using (var reader = new StringReader(cleanYaml)) yaml.Load(reader);
+
+                foreach (var doc in yaml.Documents)
+                {
+                    if (doc.RootNode is YamlMappingNode rootMap)
+                    {
+                        if (rootMap.Children.TryGetValue("MonoBehaviour", out var monoNode) && monoNode is YamlMappingNode mono)
+                        {
+                            if (mono.Children.TryGetValue("MonsterBall", out var ballNode) && ballNode is YamlSequenceNode ballList)
+                            {
+                                foreach (YamlMappingNode entry in ballList)
+                                {
+                                    int ballId = -1;
+                                    int itemNo = -1;
+
+                                    if (entry.Children.TryGetValue("BallId", out var bVal) && bVal is YamlScalarNode bScalar)
+                                        int.TryParse(bScalar.Value, out ballId);
+
+                                    if (entry.Children.TryGetValue("ItemNo", out var iVal) && iVal is YamlScalarNode iScalar)
+                                        int.TryParse(iScalar.Value, out itemNo);
+
+                                    if (ballId != -1 && itemNo != -1)
+                                    {
+                                        targetMap[ballId] = itemNo;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) { Debug.WriteLine($"Failed to parse UIDatabase: {ex.Message}"); }
+        }
+
         private static string GetJoinStringForEvent(int eventID)
         {
             return eventID switch
@@ -434,7 +499,8 @@ namespace RelumiScript.Services
                     // Skip these data files so they don't appear as editable scripts
                     if (fileName.Contains("monsname", StringComparison.OrdinalIgnoreCase) ||
                         fileName.Contains("itemname", StringComparison.OrdinalIgnoreCase) ||
-                        fileName.Contains("zkn_form", StringComparison.OrdinalIgnoreCase)) continue;
+                        fileName.Contains("zkn_form", StringComparison.OrdinalIgnoreCase) ||
+                        fileName.Contains("UIDatabase", StringComparison.OrdinalIgnoreCase)) continue;
 
                     string content = File.ReadAllText(file);
                     if (!content.Contains("labelDataArray")) continue;
@@ -560,7 +626,7 @@ namespace RelumiScript.Services
             catch (Exception ex) { output.Add(new FileNode { Name = "ERROR", Scripts = { new ScriptNode { Label = "Log", Content = ex.ToString() } } }); }
             return output;
         }
-
+        
         public void Pack(List<FileNode> nodes, string rootPath) { }
     }
 }

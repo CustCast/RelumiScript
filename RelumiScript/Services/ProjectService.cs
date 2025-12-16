@@ -214,7 +214,6 @@ namespace RelumiScript.Services
                 }
 
                 // 3. Construct the Master Data Object
-                // ADDED: forms export
                 var dataObj = new
                 {
                     commands = JArray.Parse(cmds),
@@ -224,6 +223,7 @@ namespace RelumiScript.Services
                     pokes = _assetService.PokemonMap,
                     items = _assetService.ItemMap,
                     forms = _assetService.FormMap,
+                    balls = _assetService.BallMap,
                     hints = JArray.Parse(hintsJson)
                 };
 

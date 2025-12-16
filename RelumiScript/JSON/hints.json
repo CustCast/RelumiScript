@@ -22,5 +22,31 @@
     "ArgIndex": 0,
     "Type": "Pokemon",
     "Label": "Pokémon"
+  },
+  {
+    "Cmd": "_ADD_ITEM",
+    "ArgIndex": 0,
+    "Type": "Item",
+    "Label": "Item"
+  },
+  {
+    "Cmd": "_ADD_POKEMON_UI_EXTRA",
+    "ArgIndex": 1,
+    "Type": "Form",
+    "Label": "Form",
+    "PokemonArgIndex": 0
+  },
+  {
+    "Cmd": "_ADD_POKEMON_UI_EXTRA",
+    "ArgIndex": 5,
+    "Type": "Ball",
+    "Label": "Ball"
+  },
+  {
+    "Cmd": "_VOICE_PLAY",
+    "ArgIndex": 1,
+    "Type": "Form",
+    "Label": "Form",
+    "PokemonArgIndex": 0
   }
 ]

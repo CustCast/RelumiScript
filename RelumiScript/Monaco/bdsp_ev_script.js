@@ -26,6 +26,7 @@ var pokeMap = {};
 var pokeReverseMap = {};
 var itemMap = {};
 var formMap = {};
+var ballMap = {};
 
 // The active hint configuration (populated from JSON)
 var hintConfigs = [];
@@ -335,6 +336,12 @@ monaco.languages.registerInlayHintsProvider("bdsp", {
                                     }
                                 }
                             }
+                            else if (config.Type === "Ball" && ballMap[trimmedVal]) {
+                                const itemId = ballMap[trimmedVal];
+                                if (itemMap[itemId]) {
+                                    addHint(itemMap[itemId], endCol, i, `Ball ID ${trimmedVal} -> Item ID ${itemId}`);
+                                }
+                            }
                         }
 
                         // Advance offset: Length of raw arg + 1 for comma
@@ -389,8 +396,9 @@ function applySyntaxData(data) {
         pokeMap = data.pokes || {};
         itemMap = data.items || {};
         formMap = data.forms || {};
+        ballMap = data.balls || {};
 
-        console.log("Syntax Loaded. Pokemon:", Object.keys(pokeMap).length, "Items:", Object.keys(itemMap).length, "Forms:", Object.keys(formMap).length);
+        console.log("Syntax Loaded. Pokemon:", Object.keys(pokeMap).length, "Items:", Object.keys(itemMap).length, "Forms:", Object.keys(formMap).length, "Balls:", Object.keys(ballMap).length);
 
         pokeReverseMap = {};
         for (let id in pokeMap) {
@@ -410,8 +418,6 @@ function applySyntaxData(data) {
                 });
             });
         }
-
-        // 3. Defaults Injection REMOVED as requested.
 
     } catch (e) {
         console.error("Map loading error:", e);
