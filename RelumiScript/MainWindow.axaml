@@ -312,7 +312,7 @@
 							<TextBlock Text="EXPLORER" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
 						</Border>
 						<Border Grid.Row="1" Margin="10,0,10,5" Background="{DynamicResource ThemeInputBackground}" CornerRadius="2">
-							<TextBox x:Name="ExplorerSearchBox" Text="{Binding Explorer.SearchText, Mode=TwoWay}" Watermark="Search files..." Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeInputForeground}" Padding="6,4"/>
+							<TextBox x:Name="ExplorerSearchBox" Text="{Binding Explorer.SearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Watermark="Search files..." Background="Transparent" BorderThickness="0" Foreground="{DynamicResource ThemeInputForeground}" Padding="6,4"/>
 						</Border>
 						<TreeView Grid.Row="2" x:Name="ScriptTree" ItemsSource="{Binding Explorer.FilteredFiles}" Background="{DynamicResource ThemeSidebarBackground}" BorderThickness="0" SelectionChanged="ScriptTree_SelectionChanged" ScrollViewer.VerticalScrollBarVisibility="Auto">
 							<TreeView.DataTemplates>

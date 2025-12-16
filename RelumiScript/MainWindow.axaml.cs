@@ -83,7 +83,9 @@ namespace RelumiScript
         {
             if (e.PropertyName == nameof(MainViewModel.Files))
             {
-                FilterExplorer(ExplorerSearchBox.Text);
+                // DELEGATE TO VIEWMODEL INSTEAD OF OVERWRITING ITEMSSOURCE
+                _viewModel.Explorer.Refresh();
+
                 SwitchSideView("Explorer");
                 if (_terminalSession != null && _terminalSession.IsRunning && !string.IsNullOrEmpty(_viewModel.Project.WorkingDirectory))
                 {
@@ -412,33 +414,16 @@ namespace RelumiScript
         private void OnTerminalMessageReceived(object? sender, WebViewMessageReceivedEventArgs e) { if (e.Message == "TERM_READY") { _isTerminalReady = true; return; } if (e.Message.StartsWith("TERM_INPUT:")) { string input = e.Message.Substring(11); _terminalSession?.SendCommand(input); } }
         private void OnTerminalOutput(string text) { Dispatcher.UIThread.Post(() => { if (_isTerminalReady) { string safe = JsonConvert.ToString(text); TerminalWebView.ExecuteScriptAsync($"window.writeOutput({safe});"); } }); }
 
-        private void RefreshAllTrackers() { if (_viewModel.Project.AllFiles.Count > 0) FilterExplorer(ExplorerSearchBox.Text); FilterFlags(FlagSearchBox.Text ?? ""); FilterWorks(ScriptSearchBox.Text ?? ""); }
+        // UPDATED: Now calls _viewModel.Explorer.Refresh() instead of FilterExplorer()
+        private void RefreshAllTrackers() { if (_viewModel.Project.AllFiles.Count > 0) _viewModel.Explorer.Refresh(); FilterFlags(FlagSearchBox.Text ?? ""); FilterWorks(ScriptSearchBox.Text ?? ""); }
         public void RefreshFlags_Click(object? sender, RoutedEventArgs e) { _viewModel.Project.RefreshTrackersAsync(msg => _viewModel.StatusMessage = msg).ContinueWith(t => _viewModel.AnalysisRevision++); }
         public void RefreshScripts_Click(object? sender, RoutedEventArgs e) { _viewModel.Project.RefreshTrackersAsync(msg => _viewModel.StatusMessage = msg).ContinueWith(t => _viewModel.AnalysisRevision++); }
         public void SearchBox_TextChanged(object? sender, TextChangedEventArgs e) => PerformSearch(SearchBox.Text);
         public void FlagSearchBox_TextChanged(object? sender, TextChangedEventArgs e) => FilterFlags(FlagSearchBox.Text ?? "");
         public void ScriptSearchBox_TextChanged(object? sender, TextChangedEventArgs e) => FilterWorks(ScriptSearchBox.Text ?? "");
-        public void ExplorerSearchBox_TextChanged(object? sender, TextChangedEventArgs e) => FilterExplorer(ExplorerSearchBox.Text);
+        // REMOVED: ExplorerSearchBox_TextChanged
 
-        private void FilterExplorer(string? query)
-        {
-            if (_viewModel.Files == null || !_viewModel.Files.Any()) return;
-            if (string.IsNullOrWhiteSpace(query)) { ScriptTree.ItemsSource = _viewModel.Files.OrderBy(x => x.Name).ToList(); return; }
-            query = query.Trim();
-            var filtered = new List<FileNode>();
-            foreach (var file in _viewModel.Files)
-            {
-                bool nameMatch = file.Name.Contains(query, StringComparison.OrdinalIgnoreCase);
-                var matchingScripts = file.Scripts.Where(s => s.Label.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
-                if (nameMatch || matchingScripts.Count > 0)
-                {
-                    var newNode = new FileNode { Name = file.Name, FileName = file.FileName, IsMessage = file.IsMessage };
-                    if (nameMatch) newNode.Scripts = new List<ScriptNode>(file.Scripts); else newNode.Scripts = matchingScripts;
-                    filtered.Add(newNode);
-                }
-            }
-            ScriptTree.ItemsSource = filtered.OrderBy(x => x.Name).ToList();
-        }
+        // REMOVED: FilterExplorer method (Logic now resides in ExplorerViewModel)
 
         private void FilterFlags(string query) { var unused = _viewModel.Project.AllFlagUsages.Where(x => x.Locations.Count == 0 && !x.FlagName.StartsWith("$")); if (string.IsNullOrWhiteSpace(query)) { FlagList.ItemsSource = unused.ToList(); return; } FlagList.ItemsSource = unused.Where(f => f.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList(); }
         private void FilterWorks(string query) { var unused = _viewModel.Project.AllWorkUsages.Where(x => x.Locations.Count == 0); if (string.IsNullOrWhiteSpace(query)) { ScriptList.ItemsSource = unused.ToList(); return; } ScriptList.ItemsSource = unused.Where(c => c.FlagName.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList(); }

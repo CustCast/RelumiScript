@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using RelumiScript.Models;
 using RelumiScript.Services;
@@ -10,7 +11,7 @@ namespace RelumiScript.ViewModels
     {
         private readonly ProjectService _projectService;
         private string _searchText = "";
-        private List<FileNode> _filteredFiles = new List<FileNode>();
+        private ObservableCollection<FileNode> _filteredFiles = new ObservableCollection<FileNode>();
 
         public ExplorerViewModel(ProjectService projectService)
         {
@@ -31,7 +32,7 @@ namespace RelumiScript.ViewModels
             }
         }
 
-        public List<FileNode> FilteredFiles
+        public ObservableCollection<FileNode> FilteredFiles
         {
             get => _filteredFiles;
             private set { _filteredFiles = value; OnPropertyChanged(); }
@@ -47,13 +48,13 @@ namespace RelumiScript.ViewModels
             var allFiles = _projectService.AllFiles;
             if (allFiles == null || !allFiles.Any())
             {
-                FilteredFiles = new List<FileNode>();
+                FilteredFiles = new ObservableCollection<FileNode>();
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(_searchText))
             {
-                FilteredFiles = allFiles.OrderBy(x => x.Name).ToList();
+                FilteredFiles = new ObservableCollection<FileNode>(allFiles.OrderBy(x => x.Name));
                 return;
             }
 
@@ -75,7 +76,7 @@ namespace RelumiScript.ViewModels
                     filtered.Add(newNode);
                 }
             }
-            FilteredFiles = filtered.OrderBy(x => x.Name).ToList();
+            FilteredFiles = new ObservableCollection<FileNode>(filtered.OrderBy(x => x.Name));
         }
     }
 }

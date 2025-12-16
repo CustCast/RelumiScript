@@ -18,7 +18,13 @@ namespace RelumiScript.ViewModels
 
         private string _statusMessage = "Ready";
         private EditorDocument? _activeDocument;
+
+        // Child ViewModels
         private ThemeEditorViewModel _themeVm = new ThemeEditorViewModel();
+        private ExplorerViewModel _explorerVm;
+        private SearchViewModel _searchVm;
+        private AnalysisViewModel _analysisVm;
+
         private bool _isBusy;
 
         private int _syntaxRevision = 0;
@@ -30,11 +36,19 @@ namespace RelumiScript.ViewModels
         public IEnumerable<FileNode> Files => _projectService.AllFiles;
 
         public ThemeEditorViewModel ThemeVm => _themeVm;
+        public ExplorerViewModel Explorer => _explorerVm;
+        public SearchViewModel Search => _searchVm;
+        public AnalysisViewModel Analysis => _analysisVm;
 
         public MainViewModel(ProjectService projectService, IDialogService dialogService)
         {
             _projectService = projectService;
             _dialogService = dialogService;
+
+            // Initialize Child ViewModels
+            _explorerVm = new ExplorerViewModel(_projectService);
+            _searchVm = new SearchViewModel(_projectService);
+            _analysisVm = new AnalysisViewModel(_projectService);
         }
 
         public string StatusMessage
@@ -78,7 +92,10 @@ namespace RelumiScript.ViewModels
             try
             {
                 await _projectService.LoadProjectAsync(folder, msg => StatusMessage = msg);
-                OnPropertyChanged(nameof(Files)); // Update Explorer UI
+                OnPropertyChanged(nameof(Files)); // Update UI that binds to Files
+
+                // Refresh the Explorer specifically since it wraps the files
+                _explorerVm.Refresh();
 
                 await _projectService.RefreshTrackersAsync(msg => StatusMessage = msg);
                 AnalysisRevision++;
