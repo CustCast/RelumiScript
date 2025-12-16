@@ -25,6 +25,7 @@ var commandLookup = {};
 var pokeMap = {};
 var pokeReverseMap = {};
 var itemMap = {};
+var formMap = {};
 
 // The active hint configuration (populated from JSON)
 var hintConfigs = [];
@@ -79,12 +80,23 @@ function getActiveContext(model, position) {
     if (textAfterOpenParen.includes(")")) return null;
 
     const cmd = commandLookup[cmdName];
-    // Create a dummy command object if not found to ensure context is valid
     const effectiveCmd = cmd || { Name: cmdName, Args: [] };
 
     const commas = (textAfterOpenParen.match(/,/g) || []).length;
 
     return { cmd: effectiveCmd, argIndex: commas };
+}
+
+// Helper to extract all argument values from the current line's command
+function getSiblingArgs(model, lineNumber, cmdName) {
+    const lineContent = model.getLineContent(lineNumber);
+    const regex = new RegExp(`\\b${cmdName}\\s*\\(([^)]*)`);
+    const match = lineContent.match(regex);
+
+    if (match && match[1]) {
+        return match[1].split(',').map(s => s.trim());
+    }
+    return [];
 }
 
 // --- PROVIDERS REGISTRATION ---
@@ -103,19 +115,19 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
         const ctx = getActiveContext(model, position);
         if (!ctx) return { suggestions: [] };
 
-        // --- 1. DETERMINE SUGGESTION TYPE FROM CONFIG ---
-        // Relies solely on hintConfigs (User JSON only)
         const activeHint = hintConfigs.find(h => h.Cmd === ctx.cmd.Name && h.ArgIndex === ctx.argIndex);
 
         let showPokemon = false;
         let showItems = false;
+        let showForms = false;
 
         if (activeHint) {
             if (activeHint.Type === "Pokemon") showPokemon = true;
             if (activeHint.Type === "Item") showItems = true;
+            if (activeHint.Type === "Form") showForms = true;
         }
 
-        // --- 2. GENERATE SUGGESTIONS ---
+        // --- GENERATE SUGGESTIONS ---
 
         if (showPokemon) {
             var suggestions = Object.keys(pokeReverseMap).map((name) => {
@@ -142,13 +154,40 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
                     documentation: `Insert ID for ${name}`,
                     insertText: id.toString(),
                     range: range,
-                    sortText: name // Ensure sorting by Name, not ID
+                    sortText: name
                 };
             });
             return { suggestions: suggestions };
         }
 
-        // --- 3. COMMAND SUGGESTIONS (Standard) ---
+        if (showForms && activeHint.PokemonArgIndex !== undefined) {
+            const args = getSiblingArgs(model, position.lineNumber, ctx.cmd.Name);
+            const pokeIdStr = args[activeHint.PokemonArgIndex];
+
+            if (pokeIdStr && /^\d+$/.test(pokeIdStr)) {
+                const pokeId = parseInt(pokeIdStr);
+                const prefix = `${pokeId}_`;
+
+                var suggestions = Object.keys(formMap)
+                    .filter(k => k.startsWith(prefix))
+                    .map(key => {
+                        const formId = key.split('_')[1];
+                        const name = formMap[key];
+                        return {
+                            label: name,
+                            kind: monaco.languages.CompletionItemKind.EnumMember,
+                            detail: `Form ID: ${formId}`,
+                            documentation: `Insert Form ID for ${name}`,
+                            insertText: formId,
+                            range: range,
+                            sortText: formId
+                        };
+                    });
+                return { suggestions: suggestions };
+            }
+        }
+
+        // --- COMMAND SUGGESTIONS (Fallback) ---
         var suggestions = Object.values(commandLookup).map((cmd) => {
             let sigData = getSignatureData(cmd);
             let snippetArgs = (cmd.Args || [])
@@ -233,23 +272,16 @@ monaco.languages.registerInlayHintsProvider("bdsp", {
     provideInlayHints: function (model, range, token) {
         let hints = [];
 
-        const addHint = (idStr, endColumn, lineNum, map, labelType) => {
-            if (!/^\d+$/.test(idStr)) return;
-            const id = parseInt(idStr);
-            const name = map ? map[id] : null;
-
-            if (name) {
-                hints.push({
-                    kind: monaco.languages.InlayHintKind.Type,
-                    position: { lineNumber: lineNum, column: endColumn },
-                    label: `: ${name}`,
-                    paddingLeft: true,
-                    tooltip: `${labelType} ID ${id}: ${name}`,
-                });
-            }
+        const addHint = (text, endColumn, lineNum, tooltip) => {
+            hints.push({
+                kind: monaco.languages.InlayHintKind.Type,
+                position: { lineNumber: lineNum, column: endColumn },
+                label: `: ${text}`,
+                paddingLeft: true,
+                tooltip: tooltip,
+            });
         };
 
-        // If no configs loaded yet, skip
         if (!hintConfigs || hintConfigs.length === 0) return { hints: [] };
 
         for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
@@ -257,16 +289,57 @@ monaco.languages.registerInlayHintsProvider("bdsp", {
 
             // Iterate through the GLOBAL hintConfigs populated by applySyntaxData
             hintConfigs.forEach(config => {
-                if (!config.Map) return; // Skip if map resolution failed
-
-                // Use Word Boundary (\b) to prevent partial matches (e.g., ADD_ITEM matching inside _ADD_ITEM)
-                const pattern = `\\b${config.Cmd}\\s*\\(\\s*(?:[^,)]*,\\s*){${config.ArgIndex}}(\\d+)`;
+                // Regex to match the command and capture ALL args inside parens
+                const pattern = `\\b${config.Cmd}\\s*\\(([^)]*)`;
                 const regex = new RegExp(pattern, "g");
 
                 let match;
                 while ((match = regex.exec(lineContent)) !== null) {
-                    const endCol = match.index + match[0].length + 1;
-                    addHint(match[1], endCol, i, config.Map, config.Label);
+                    // match[1] is the content inside parens: "21, 1, 5"
+                    const argsStr = match[1];
+                    // Split args to calculate precise offsets
+                    const rawArgs = argsStr.split(',');
+                    const args = rawArgs.map(s => s.trim());
+
+                    // Find start index of arguments relative to the line
+                    // match.index is start of Cmd. match[0].indexOf('(') gets us to the paren.
+                    let currentOffset = match.index + match[0].indexOf('(') + 1;
+
+                    // Iterate through arguments to find position of OUR target arg
+                    for (let k = 0; k < rawArgs.length; k++) {
+                        const rawArg = rawArgs[k];
+                        const trimmedVal = rawArg.trim();
+
+                        // Calculate where the value strictly ends
+                        // Pre-space is distance to first non-space char
+                        const preSpace = rawArg.indexOf(trimmedVal);
+
+                        // Valid index check
+                        if (k === config.ArgIndex && trimmedVal.length > 0) {
+                            // Column = Start + PreSpace + Length + 1 (Monaco is 1-based)
+                            const endCol = currentOffset + preSpace + trimmedVal.length + 1;
+
+                            if (config.Type === "Pokemon" && pokeMap[trimmedVal]) {
+                                addHint(pokeMap[trimmedVal], endCol, i, `Pokemon ID ${trimmedVal}`);
+                            }
+                            else if (config.Type === "Item" && itemMap[trimmedVal]) {
+                                addHint(itemMap[trimmedVal], endCol, i, `Item ID ${trimmedVal}`);
+                            }
+                            else if (config.Type === "Form" && config.PokemonArgIndex !== undefined) {
+                                // Safe check for dependency argument
+                                if (args.length > config.PokemonArgIndex) {
+                                    const pokeVal = args[config.PokemonArgIndex];
+                                    const formKey = `${pokeVal}_${trimmedVal}`;
+                                    if (formMap[formKey]) {
+                                        addHint(formMap[formKey], endCol, i, `Form: ${formMap[formKey]}`);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Advance offset: Length of raw arg + 1 for comma
+                        currentOffset += rawArg.length + 1;
+                    }
                 }
             });
         }
@@ -315,8 +388,9 @@ function applySyntaxData(data) {
     try {
         pokeMap = data.pokes || {};
         itemMap = data.items || {};
+        formMap = data.forms || {};
 
-        console.log("Syntax Loaded. Pokemon:", Object.keys(pokeMap).length, "Items:", Object.keys(itemMap).length);
+        console.log("Syntax Loaded. Pokemon:", Object.keys(pokeMap).length, "Items:", Object.keys(itemMap).length, "Forms:", Object.keys(formMap).length);
 
         pokeReverseMap = {};
         for (let id in pokeMap) {
@@ -327,31 +401,23 @@ function applySyntaxData(data) {
         hintConfigs = [];
         if (data.hints && Array.isArray(data.hints)) {
             data.hints.forEach(h => {
-                let mapRef = null;
-                if (h.Type === "Pokemon") mapRef = pokeMap;
-                else if (h.Type === "Item") mapRef = itemMap;
-
-                if (mapRef) {
-                    hintConfigs.push({
-                        Cmd: h.Cmd,
-                        ArgIndex: h.ArgIndex,
-                        Label: h.Label,
-                        Map: mapRef,
-                        Type: h.Type
-                    });
-                }
+                hintConfigs.push({
+                    Cmd: h.Cmd,
+                    ArgIndex: h.ArgIndex,
+                    Label: h.Label,
+                    Type: h.Type,
+                    PokemonArgIndex: h.PokemonArgIndex
+                });
             });
         }
 
-        // Removed default hints injection as requested. 
-        // Logic relies solely on JSON content now.
+        // 3. Defaults Injection REMOVED as requested.
 
     } catch (e) {
         console.error("Map loading error:", e);
     }
 
-    // 3. Register Tokenizer (Must run even if maps fail)
-    // IMPORTANT: Default to empty array if undefined to prevent crash
+    // 4. Register Tokenizer
     const commandList = loadedData.commands || [];
 
     monaco.languages.setMonarchTokensProvider("bdsp", {

@@ -204,7 +204,7 @@ namespace RelumiScript.Services
                     ? File.ReadAllText(Path.Combine(jd, "commands.json"))
                     : "[]";
 
-                // 2. Load or Create Hints Configuration
+                // 2. Load Hints Configuration
                 string hintsJson = "[]";
                 string hintsPath = Path.Combine(jd, "hints.json");
 
@@ -212,21 +212,9 @@ namespace RelumiScript.Services
                 {
                     hintsJson = File.ReadAllText(hintsPath);
                 }
-                else
-                {
-                    // Fallback default hints if file is missing
-                    var defaults = new[]
-                    {
-                        new { Cmd = "_ADD_POKEMON_UI_EXTRA", ArgIndex = 0, Type = "Pokemon", Label = "Pokémon" },
-                        new { Cmd = "_POKEMON_NAME_FORM",    ArgIndex = 1, Type = "Pokemon", Label = "Pokémon" },
-                        new { Cmd = "ADD_ITEM",              ArgIndex = 0, Type = "Item",    Label = "Item" },
-                        new { Cmd = "_ADD_ITEM",             ArgIndex = 0, Type = "Item",    Label = "Item" },
-                        new { Cmd = "GET_ITEM",              ArgIndex = 0, Type = "Item",    Label = "Item" }
-                    };
-                    hintsJson = JsonConvert.SerializeObject(defaults);
-                }
 
                 // 3. Construct the Master Data Object
+                // ADDED: forms export
                 var dataObj = new
                 {
                     commands = JArray.Parse(cmds),
@@ -235,6 +223,7 @@ namespace RelumiScript.Services
                     works = new string[0],
                     pokes = _assetService.PokemonMap,
                     items = _assetService.ItemMap,
+                    forms = _assetService.FormMap,
                     hints = JArray.Parse(hintsJson)
                 };
 

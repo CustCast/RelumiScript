@@ -14,7 +14,6 @@ namespace RelumiScript.Services
     // Model for individual arguments in commands.json
     public class CommandArg
     {
-        // ENFORCED ORDER: Type must be first (Order 1)
         [JsonProperty(Order = 1)]
         public string TentativeName { get; set; } = "";
 
@@ -70,6 +69,9 @@ namespace RelumiScript.Services
 
         public Dictionary<int, string> PokemonMap { get; private set; } = new Dictionary<int, string>();
         public Dictionary<int, string> ItemMap { get; private set; } = new Dictionary<int, string>();
+        // Key format: "{PokemonID}_{FormID}" (e.g., "95_1")
+        public Dictionary<string, string> FormMap { get; private set; } = new Dictionary<string, string>();
+
         public Dictionary<int, string> FlagMap => _flagMap;
         public Dictionary<int, string> SysFlagMap => _sysFlagMap;
 
@@ -85,6 +87,7 @@ namespace RelumiScript.Services
             _loadedJsonDir = jsonDir;
             _commandMap.Clear(); _flagMap.Clear(); _sysFlagMap.Clear(); _workMap.Clear(); _fileNameMap.Clear();
             _revCommandMap.Clear(); _revFlagMap.Clear(); _revSysFlagMap.Clear(); _revWorkMap.Clear();
+            PokemonMap.Clear(); ItemMap.Clear(); FormMap.Clear();
             Commands.Clear();
 
             try
@@ -254,7 +257,7 @@ namespace RelumiScript.Services
 
         public void LoadGameData(string rootPath)
         {
-            PokemonMap.Clear(); ItemMap.Clear();
+            PokemonMap.Clear(); ItemMap.Clear(); FormMap.Clear();
             if (!Directory.Exists(rootPath)) return;
             string enPath = Path.Combine(rootPath, "Assets", "format_msbt", "en", "english");
             string searchPath = Directory.Exists(enPath) ? enPath : Path.Combine(rootPath, "Assets");
@@ -267,16 +270,27 @@ namespace RelumiScript.Services
                 {
                     string name = Path.GetFileNameWithoutExtension(file);
 
+                    // Strict matching to avoid loading plural/declension files
                     bool isPokemon = name.Equals("english_ss_monsname", StringComparison.OrdinalIgnoreCase);
                     bool isItem = name.Equals("english_ss_itemname", StringComparison.OrdinalIgnoreCase);
+                    bool isForm = name.Equals("english_ss_zkn_form", StringComparison.OrdinalIgnoreCase);
 
-                    if (isPokemon || isItem)
+                    if (isPokemon || isItem || isForm)
                     {
                         Debug.WriteLine($"Loading Game Data from: {name}");
                         string content = File.ReadAllText(file);
-                        ParseMessageAssetForGameData(content, isPokemon ? PokemonMap : ItemMap);
-                        if (isItem) Debug.WriteLine($"Loaded {ItemMap.Count} Items.");
-                        if (isPokemon) Debug.WriteLine($"Loaded {PokemonMap.Count} Pokemon.");
+
+                        if (isForm)
+                        {
+                            ParseFormAsset(content, FormMap);
+                            Debug.WriteLine($"Loaded {FormMap.Count} Forms.");
+                        }
+                        else
+                        {
+                            ParseMessageAssetForGameData(content, isPokemon ? PokemonMap : ItemMap);
+                            if (isItem) Debug.WriteLine($"Loaded {ItemMap.Count} Items.");
+                            if (isPokemon) Debug.WriteLine($"Loaded {PokemonMap.Count} Pokemon.");
+                        }
                     }
                 }
             }
@@ -304,7 +318,6 @@ namespace RelumiScript.Services
                                     if (entry.Children.TryGetValue("arrayIndex", out var indexNode) &&
                                         entry.Children.TryGetValue("wordDataArray", out var wordsNode) && wordsNode is YamlSequenceNode words)
                                     {
-                                        // UPDATED: Use explicit casting to YamlScalarNode and .Value
                                         if (indexNode is YamlScalarNode indexScalar)
                                         {
                                             if (int.TryParse(indexScalar.Value, out int id))
@@ -326,10 +339,65 @@ namespace RelumiScript.Services
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception ex) { Debug.WriteLine($"Failed to parse game data: {ex.Message}"); }
+        }
+
+        private void ParseFormAsset(string content, Dictionary<string, string> targetMap)
+        {
+            try
             {
-                Debug.WriteLine($"Failed to parse game data: {ex.Message}");
+                string cleanYaml = CleanUnityYaml(content);
+                var yaml = new YamlStream();
+                using (var reader = new StringReader(cleanYaml)) yaml.Load(reader);
+
+                // Regex to extract PokemonID and FormID from ZKN_FORM_095_001
+                var regex = new Regex(@"ZKN_FORM_(\d+)_(\d+)", RegexOptions.Compiled);
+
+                foreach (var doc in yaml.Documents)
+                {
+                    if (doc.RootNode is YamlMappingNode rootMap &&
+                        rootMap.Children.TryGetValue("MonoBehaviour", out var monoNode) && monoNode is YamlMappingNode mono)
+                    {
+                        if (mono.Children.TryGetValue("labelDataArray", out var arrayNode) && arrayNode is YamlSequenceNode entries)
+                        {
+                            foreach (YamlMappingNode entry in entries)
+                            {
+                                // Logic: Use labelName to determine ID, use str for Value
+                                string labelName = "";
+                                if (entry.Children.TryGetValue("labelName", out var labelNode) && labelNode is YamlScalarNode ln)
+                                    labelName = ln.Value ?? "";
+
+                                if (!string.IsNullOrEmpty(labelName))
+                                {
+                                    var match = regex.Match(labelName);
+                                    if (match.Success)
+                                    {
+                                        // Parse to int to remove padding (095 -> 95), then recombine to standard key
+                                        if (int.TryParse(match.Groups[1].Value, out int pokeId) &&
+                                            int.TryParse(match.Groups[2].Value, out int formId))
+                                        {
+                                            string key = $"{pokeId}_{formId}"; // Format: "95_1"
+
+                                            if (entry.Children.TryGetValue("wordDataArray", out var wordsNode) && wordsNode is YamlSequenceNode words)
+                                            {
+                                                if (words.Children.Count > 0 && words.Children[0] is YamlMappingNode firstWord)
+                                                {
+                                                    if (firstWord.Children.TryGetValue("str", out var strNode) && strNode is YamlScalarNode strScalar)
+                                                    {
+                                                        string val = strScalar.Value ?? "";
+                                                        targetMap[key] = val;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
+            catch (Exception ex) { Debug.WriteLine($"Failed to parse form data: {ex.Message}"); }
         }
 
         private static string GetJoinStringForEvent(int eventID)
@@ -362,8 +430,11 @@ namespace RelumiScript.Services
                 foreach (var file in files)
                 {
                     string fileName = Path.GetFileNameWithoutExtension(file);
+
+                    // Skip these data files so they don't appear as editable scripts
                     if (fileName.Contains("monsname", StringComparison.OrdinalIgnoreCase) ||
-                        fileName.Contains("itemname", StringComparison.OrdinalIgnoreCase)) continue;
+                        fileName.Contains("itemname", StringComparison.OrdinalIgnoreCase) ||
+                        fileName.Contains("zkn_form", StringComparison.OrdinalIgnoreCase)) continue;
 
                     string content = File.ReadAllText(file);
                     if (!content.Contains("labelDataArray")) continue;
