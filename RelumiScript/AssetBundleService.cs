@@ -266,11 +266,17 @@ namespace RelumiScript.Services
                 foreach (var file in files)
                 {
                     string name = Path.GetFileNameWithoutExtension(file);
-                    if (name.Contains("monsname") || name.Contains("itemname"))
+
+                    bool isPokemon = name.Equals("english_ss_monsname", StringComparison.OrdinalIgnoreCase);
+                    bool isItem = name.Equals("english_ss_itemname", StringComparison.OrdinalIgnoreCase);
+
+                    if (isPokemon || isItem)
                     {
-                        bool isPokemon = name.Contains("monsname");
+                        Debug.WriteLine($"Loading Game Data from: {name}");
                         string content = File.ReadAllText(file);
                         ParseMessageAssetForGameData(content, isPokemon ? PokemonMap : ItemMap);
+                        if (isItem) Debug.WriteLine($"Loaded {ItemMap.Count} Items.");
+                        if (isPokemon) Debug.WriteLine($"Loaded {PokemonMap.Count} Pokemon.");
                     }
                 }
             }
@@ -298,13 +304,19 @@ namespace RelumiScript.Services
                                     if (entry.Children.TryGetValue("arrayIndex", out var indexNode) &&
                                         entry.Children.TryGetValue("wordDataArray", out var wordsNode) && wordsNode is YamlSequenceNode words)
                                     {
-                                        int id = int.Parse(indexNode.ToString());
-                                        if (words.Children.Count > 0 && words.Children[0] is YamlMappingNode firstWord)
+                                        // UPDATED: Use explicit casting to YamlScalarNode and .Value
+                                        if (indexNode is YamlScalarNode indexScalar)
                                         {
-                                            if (firstWord.Children.TryGetValue("str", out var strNode))
+                                            if (int.TryParse(indexScalar.Value, out int id))
                                             {
-                                                string val = strNode.ToString();
-                                                if (!targetMap.ContainsKey(id)) targetMap[id] = val;
+                                                if (words.Children.Count > 0 && words.Children[0] is YamlMappingNode firstWord)
+                                                {
+                                                    if (firstWord.Children.TryGetValue("str", out var strNode) && strNode is YamlScalarNode strScalar)
+                                                    {
+                                                        string val = strScalar.Value ?? "";
+                                                        if (!targetMap.ContainsKey(id)) targetMap[id] = val;
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -314,9 +326,9 @@ namespace RelumiScript.Services
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                Debug.WriteLine($"Failed to parse game data");
+                Debug.WriteLine($"Failed to parse game data: {ex.Message}");
             }
         }
 
@@ -350,7 +362,9 @@ namespace RelumiScript.Services
                 foreach (var file in files)
                 {
                     string fileName = Path.GetFileNameWithoutExtension(file);
-                    if (fileName.Contains("monsname") || fileName.Contains("itemname")) continue;
+                    if (fileName.Contains("monsname", StringComparison.OrdinalIgnoreCase) ||
+                        fileName.Contains("itemname", StringComparison.OrdinalIgnoreCase)) continue;
+
                     string content = File.ReadAllText(file);
                     if (!content.Contains("labelDataArray")) continue;
                     string logicalName = fileName;
@@ -370,7 +384,7 @@ namespace RelumiScript.Services
                                     foreach (YamlMappingNode entry in entries)
                                     {
                                         string label = "";
-                                        if (entry.Children.TryGetValue("labelName", out var labelNode)) label = labelNode.ToString();
+                                        if (entry.Children.TryGetValue("labelName", out var labelNode) && labelNode is YamlScalarNode ln) label = ln.Value ?? "";
                                         if (entry.Children.TryGetValue("wordDataArray", out var wordsNode) && wordsNode is YamlSequenceNode words)
                                         {
                                             var sb = new StringBuilder();
@@ -380,12 +394,12 @@ namespace RelumiScript.Services
 
                                             foreach (YamlMappingNode word in words)
                                             {
-                                                if (!word.Children.TryGetValue("str", out var s))
+                                                if (!word.Children.TryGetValue("str", out var s) || !(s is YamlScalarNode strScalar))
                                                 {
                                                     continue;
                                                 }
 
-                                                string text = s.ToString();
+                                                string text = strScalar.Value ?? "";
                                                 sb.Append(text);
 
                                                 index++;
@@ -395,8 +409,8 @@ namespace RelumiScript.Services
                                                     break;
                                                 }
 
-                                                if (word.Children.TryGetValue("eventID", out var e) &&
-                                                    int.TryParse(e.ToString(), out var eventID))
+                                                if (word.Children.TryGetValue("eventID", out var e) && e is YamlScalarNode eScalar &&
+                                                    int.TryParse(eScalar.Value, out var eventID))
                                                 {
                                                     sb.Append(GetJoinStringForEvent(eventID));
                                                 }

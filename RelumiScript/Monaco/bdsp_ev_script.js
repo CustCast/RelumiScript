@@ -79,11 +79,12 @@ function getActiveContext(model, position) {
     if (textAfterOpenParen.includes(")")) return null;
 
     const cmd = commandLookup[cmdName];
-    if (!cmd) return null;
+    // Create a dummy command object if not found to ensure context is valid
+    const effectiveCmd = cmd || { Name: cmdName, Args: [] };
 
     const commas = (textAfterOpenParen.match(/,/g) || []).length;
 
-    return { cmd, argIndex: commas };
+    return { cmd: effectiveCmd, argIndex: commas };
 }
 
 // --- PROVIDERS REGISTRATION ---
@@ -100,33 +101,54 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
         };
 
         const ctx = getActiveContext(model, position);
+        if (!ctx) return { suggestions: [] };
 
-        // A. POKEMON SUGGESTIONS (Legacy Hardcoded Fallback)
-        if (ctx) {
-            const activeArg = ctx.cmd.Args && ctx.cmd.Args[ctx.argIndex] ? ctx.cmd.Args[ctx.argIndex] : null;
+        // --- 1. DETERMINE SUGGESTION TYPE FROM CONFIG ---
+        // Relies solely on hintConfigs (User JSON only)
+        const activeHint = hintConfigs.find(h => h.Cmd === ctx.cmd.Name && h.ArgIndex === ctx.argIndex);
 
-            if (
-                activeArg &&
-                ((ctx.cmd.Name === "_ADD_POKEMON_UI_EXTRA" && ctx.argIndex === 0) ||
-                    activeArg.TentativeName === "Monsno" ||
-                    activeArg.TentativeName === "Species")
-            ) {
-                var suggestions = Object.keys(pokeReverseMap).map((name) => {
-                    let id = pokeReverseMap[name];
-                    return {
-                        label: name,
-                        kind: monaco.languages.CompletionItemKind.EnumMember,
-                        detail: `ID: ${id}`,
-                        documentation: `Insert ID for ${name}`,
-                        insertText: id.toString(),
-                        range: range,
-                    };
-                });
-                return { suggestions: suggestions };
-            }
+        let showPokemon = false;
+        let showItems = false;
+
+        if (activeHint) {
+            if (activeHint.Type === "Pokemon") showPokemon = true;
+            if (activeHint.Type === "Item") showItems = true;
         }
 
-        // B. COMMAND SUGGESTIONS
+        // --- 2. GENERATE SUGGESTIONS ---
+
+        if (showPokemon) {
+            var suggestions = Object.keys(pokeReverseMap).map((name) => {
+                let id = pokeReverseMap[name];
+                return {
+                    label: name,
+                    kind: monaco.languages.CompletionItemKind.EnumMember,
+                    detail: `ID: ${id}`,
+                    documentation: `Insert ID for ${name}`,
+                    insertText: id.toString(),
+                    range: range,
+                };
+            });
+            return { suggestions: suggestions };
+        }
+
+        if (showItems) {
+            var suggestions = Object.keys(itemMap).map((id) => {
+                let name = itemMap[id];
+                return {
+                    label: name,
+                    kind: monaco.languages.CompletionItemKind.EnumMember,
+                    detail: `ID: ${id}`,
+                    documentation: `Insert ID for ${name}`,
+                    insertText: id.toString(),
+                    range: range,
+                    sortText: name // Ensure sorting by Name, not ID
+                };
+            });
+            return { suggestions: suggestions };
+        }
+
+        // --- 3. COMMAND SUGGESTIONS (Standard) ---
         var suggestions = Object.values(commandLookup).map((cmd) => {
             let sigData = getSignatureData(cmd);
             let snippetArgs = (cmd.Args || [])
@@ -237,7 +259,8 @@ monaco.languages.registerInlayHintsProvider("bdsp", {
             hintConfigs.forEach(config => {
                 if (!config.Map) return; // Skip if map resolution failed
 
-                const pattern = `${config.Cmd}\\s*\\(\\s*(?:[^,)]*,\\s*){${config.ArgIndex}}(\\d+)`;
+                // Use Word Boundary (\b) to prevent partial matches (e.g., ADD_ITEM matching inside _ADD_ITEM)
+                const pattern = `\\b${config.Cmd}\\s*\\(\\s*(?:[^,)]*,\\s*){${config.ArgIndex}}(\\d+)`;
                 const regex = new RegExp(pattern, "g");
 
                 let match;
@@ -293,6 +316,8 @@ function applySyntaxData(data) {
         pokeMap = data.pokes || {};
         itemMap = data.items || {};
 
+        console.log("Syntax Loaded. Pokemon:", Object.keys(pokeMap).length, "Items:", Object.keys(itemMap).length);
+
         pokeReverseMap = {};
         for (let id in pokeMap) {
             if (pokeMap.hasOwnProperty(id)) pokeReverseMap[pokeMap[id]] = parseInt(id);
@@ -303,7 +328,6 @@ function applySyntaxData(data) {
         if (data.hints && Array.isArray(data.hints)) {
             data.hints.forEach(h => {
                 let mapRef = null;
-                // Resolve string "Type" to actual map object
                 if (h.Type === "Pokemon") mapRef = pokeMap;
                 else if (h.Type === "Item") mapRef = itemMap;
 
@@ -312,17 +336,22 @@ function applySyntaxData(data) {
                         Cmd: h.Cmd,
                         ArgIndex: h.ArgIndex,
                         Label: h.Label,
-                        Map: mapRef
+                        Map: mapRef,
+                        Type: h.Type
                     });
                 }
             });
         }
+
+        // Removed default hints injection as requested. 
+        // Logic relies solely on JSON content now.
+
     } catch (e) {
         console.error("Map loading error:", e);
     }
 
     // 3. Register Tokenizer (Must run even if maps fail)
-    // We default to an empty array if commands are missing to prevent tokenizer crash
+    // IMPORTANT: Default to empty array if undefined to prevent crash
     const commandList = loadedData.commands || [];
 
     monaco.languages.setMonarchTokensProvider("bdsp", {
@@ -363,91 +392,3 @@ function applySyntaxData(data) {
         setTimeout(() => monaco.editor.setModelLanguage(m, "bdsp"), 10);
     }
 }
-
-// --- LEGACY CONVERTER ---
-window.formatLegacyScript = function (text) {
-    if (!text) return "";
-    return text
-        .split("\n")
-        .map((line) => {
-            const trimmed = line.trim();
-            if (
-                !trimmed ||
-                trimmed.startsWith(";") ||
-                trimmed.startsWith("//") ||
-                trimmed.endsWith(":")
-            ) {
-                return line;
-            }
-            const match = trimmed.match(/^([A-Z_][A-Z0-9_]*)(?:\s+(.*))?$/);
-            if (!match) return line;
-            const cmdName = match[1];
-            const argsStr = match[2];
-            const cmdDef = commandLookup[cmdName];
-            if (!cmdDef) return line;
-            if (!argsStr) {
-                const indent = line.match(/^\s*/)[0];
-                return `${indent}${cmdName}()`;
-            }
-            const args = [];
-            const regex =
-                /"([^"\\]*(?:\\.[^"\\]*)*)"|'([^'\\]*(?:\\.[^'\\]*)*)'|[^\s]+/g;
-            let m;
-            while ((m = regex.exec(argsStr)) !== null) {
-                args.push(m[0]);
-            }
-            const formattedArgs = args.map((arg, index) => {
-                const argDef =
-                    cmdDef.Args && cmdDef.Args[index] ? cmdDef.Args[index] : null;
-                if (!argDef) return arg;
-                const types = argDef.Type || [];
-                if (/^-?\d+$/.test(arg)) {
-                    if (types.includes("Number")) return arg;
-
-                    if (types.includes("Work")) return "@" + arg;
-                    if (types.includes("Flag") || types.includes("SysFlag"))
-                        return "#" + arg;
-                    return arg;
-                }
-                if (arg.startsWith('"') || arg.startsWith("'")) {
-                    const unquoted = arg.slice(1, -1);
-                    if (unquoted.length <= 4 && unquoted === unquoted.toUpperCase())
-                        return arg;
-                    if (types.includes("Label")) return "'" + unquoted + "'";
-                    return arg;
-                }
-                if (
-                    types.includes("Flag") ||
-                    types.includes("System") ||
-                    types.includes("SysFlag")
-                ) {
-                    if (arg.startsWith("#") || arg.startsWith("$")) return arg;
-                    if (types.includes("SysFlag")) return "$" + arg;
-                    return "#" + arg;
-                }
-                if (types.includes("Work") && types.includes("Label")) {
-                    if (
-                        arg.startsWith("ev_") ||
-                        arg.startsWith("lbl_") ||
-                        arg.startsWith("common_")
-                    )
-                        return "'" + arg + "'";
-
-                    if (arg.startsWith("@")) return arg;
-                    return "@" + arg;
-                }
-                if (types.includes("Work")) {
-                    if (arg.startsWith("@")) return arg;
-                    return "@" + arg;
-                }
-                if (types.includes("Label")) {
-                    if (arg.startsWith('"') || arg.startsWith("'")) return arg;
-                    return "'" + arg + "'";
-                }
-                return arg;
-            });
-            const indent = line.match(/^\s*/)[0];
-            return `${indent}${cmdName}(${formattedArgs.join(", ")})`;
-        })
-        .join("\n");
-};
