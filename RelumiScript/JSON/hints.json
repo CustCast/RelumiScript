@@ -48,5 +48,12 @@
     "Type": "Form",
     "Label": "Form",
     "PokemonArgIndex": 0
+  },
+  {
+    "Cmd": "_POKEMON_NAME_FORM",
+    "ArgIndex": 2,
+    "Type": "Form",
+    "Label": "Form",
+    "PokemonArgIndex": 1
   }
 ]

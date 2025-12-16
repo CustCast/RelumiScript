@@ -1,4 +1,5 @@
-﻿// 1. Setup Language
+﻿//
+// 1. Setup Language
 if (!monaco.languages.getLanguages().some((l) => l.id === "bdsp")) {
     monaco.languages.register({ id: "bdsp" });
 }
@@ -298,7 +299,8 @@ monaco.languages.registerInlayHintsProvider("bdsp", {
             hints.push({
                 kind: monaco.languages.InlayHintKind.Type,
                 position: { lineNumber: lineNum, column: endColumn },
-                label: `: ${text}`,
+                // Clean label without ": " prefix (visual separation handled by paddingLeft)
+                label: `${text}`,
                 paddingLeft: true,
                 tooltip: tooltip,
             });
@@ -353,7 +355,18 @@ monaco.languages.registerInlayHintsProvider("bdsp", {
                                     const pokeVal = args[config.PokemonArgIndex];
                                     const formKey = `${pokeVal}_${trimmedVal}`;
                                     if (formMap[formKey]) {
-                                        addHint(formMap[formKey], endCol, i, `Form: ${formMap[formKey]}`);
+                                        let displayText = formMap[formKey];
+
+                                        // Attempt to trim the base Pokemon name from the Form name for cleaner UI
+                                        // Example: "Hisuian Voltorb" -> "Hisuian" if base is "Voltorb"
+                                        if (pokeMap[pokeVal]) {
+                                            const baseName = pokeMap[pokeVal];
+                                            if (displayText.includes(baseName)) {
+                                                displayText = displayText.replace(baseName, "").trim();
+                                            }
+                                        }
+
+                                        addHint(displayText, endCol, i, `Form: ${formMap[formKey]}`);
                                     }
                                 }
                             }
