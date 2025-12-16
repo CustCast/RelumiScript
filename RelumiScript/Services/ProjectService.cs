@@ -90,6 +90,9 @@ namespace RelumiScript.Services
                 AllCommandUsages = result.Commands;
                 AllEventUsages = result.Events;
 
+                // REFRESH SYNTAX: Regenerate to include new Event Snippets for the editor
+                await GenerateSyntaxFile();
+
                 statusCallback($"Scanner: Indexed {result.Flags.Count} flags, {result.Works.Count} works.");
             }
             catch (Exception ex)
@@ -213,7 +216,62 @@ namespace RelumiScript.Services
                     hintsJson = File.ReadAllText(hintsPath);
                 }
 
-                // 3. Construct the Master Data Object
+                // 3. Prepare Event Snippets
+                var eventMap = new Dictionary<string, object>();
+                if (AllEventUsages != null)
+                {
+                    foreach (var evt in AllEventUsages)
+                    {
+                        var def = evt.Locations.FirstOrDefault(l => l.IsDeclaration);
+                        if (def != null)
+                        {
+                            string snippet = "";
+
+                            // Case 1: NodeObject is a single ScriptNode (Rare, only if scanner logic changes)
+                            if (def.NodeObject is ScriptNode sNode && !string.IsNullOrEmpty(sNode.Content))
+                            {
+                                // Return full content
+                                snippet = sNode.Content;
+                            }
+                            // Case 2: NodeObject is a FileNode (Standard behavior of current ScriptScanner)
+                            else if (def.NodeObject is FileNode fNode)
+                            {
+                                int currentLineTotal = 1; // Monaco/Scanner uses 1-based indexing
+                                foreach (var subScript in fNode.Scripts)
+                                {
+                                    int scriptLineCount = CountLines(subScript.Content);
+
+                                    // Check if the definition line falls within this script's range
+                                    if (def.LineNumber >= currentLineTotal && def.LineNumber < currentLineTotal + scriptLineCount)
+                                    {
+                                        var lines = subScript.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+
+                                        // Calculate relative offset (0-based)
+                                        int relativeIndex = def.LineNumber - currentLineTotal;
+
+                                        // Safety check
+                                        if (relativeIndex >= 0 && relativeIndex < lines.Length)
+                                        {
+                                            // Take everything from the definition line to the end of this script block
+                                            snippet = string.Join("\n", lines.Skip(relativeIndex));
+                                        }
+                                        break;
+                                    }
+                                    currentLineTotal += scriptLineCount;
+                                }
+                            }
+
+                            eventMap[evt.EventName] = new
+                            {
+                                File = def.FileName,
+                                Line = def.LineNumber,
+                                Snippet = snippet
+                            };
+                        }
+                    }
+                }
+
+                // 4. Construct the Master Data Object
                 var dataObj = new
                 {
                     commands = JArray.Parse(cmds),
@@ -224,13 +282,21 @@ namespace RelumiScript.Services
                     items = _assetService.ItemMap,
                     forms = _assetService.FormMap,
                     balls = _assetService.BallMap,
-                    hints = JArray.Parse(hintsJson)
+                    hints = JArray.Parse(hintsJson),
+                    events = eventMap // Add the event dictionary to the syntax data
                 };
 
                 string js = $"window.RELUMI_DATA = {JsonConvert.SerializeObject(dataObj)}; window.RELUMI_DATA_LOADED = true;";
 
                 File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Monaco", "syntax_data.js"), js, Encoding.UTF8);
             });
+        }
+
+        // Helper to match scanner's line counting logic
+        private int CountLines(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return 0;
+            return s.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None).Length;
         }
 
         public string? FindJsonFolder()

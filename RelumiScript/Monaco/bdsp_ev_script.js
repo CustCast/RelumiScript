@@ -22,6 +22,7 @@ monaco.languages.setLanguageConfiguration("bdsp", {
 // --- GLOBAL STATE ---
 var loadedData = { commands: [], flags: [], sysflags: [], works: [] };
 var commandLookup = {};
+var eventLookup = {}; // New: Look up for event definitions
 var pokeMap = {};
 var pokeReverseMap = {};
 var itemMap = {};
@@ -217,6 +218,7 @@ monaco.languages.registerHoverProvider("bdsp", {
         const word = model.getWordAtPosition(position);
         if (!word) return;
 
+        // 1. Check for Command
         const cmd = commandLookup[word.word];
         if (cmd) {
             const data = getSignatureData(cmd);
@@ -235,6 +237,25 @@ monaco.languages.registerHoverProvider("bdsp", {
                     return `Arg ${i + 1}. **${p.label}**: ${doc}`;
                 });
                 contents.push({ value: "**Arguments:**\n\n" + argLines.join("\n\n") });
+            }
+
+            return { contents: contents };
+        }
+
+        // 2. Check for Event Definition (Peek)
+        const evt = eventLookup[word.word];
+        if (evt) {
+            const contents = [];
+
+            // Header: Definition Location
+            contents.push({ value: `**Event**: \`${word.word}\`` });
+            contents.push({ value: `Defined in **${evt.File}** at Line **${evt.Line}**` });
+
+            // Body: Code Snippet
+            if (evt.Snippet) {
+                contents.push({ value: "```bdsp\n" + evt.Snippet + "\n```" });
+            } else {
+                contents.push({ value: "_(No preview available)_" });
             }
 
             return { contents: contents };
@@ -398,7 +419,10 @@ function applySyntaxData(data) {
         formMap = data.forms || {};
         ballMap = data.balls || {};
 
-        console.log("Syntax Loaded. Pokemon:", Object.keys(pokeMap).length, "Items:", Object.keys(itemMap).length, "Forms:", Object.keys(formMap).length, "Balls:", Object.keys(ballMap).length);
+        // Load Events Data
+        eventLookup = data.events || {};
+
+        console.log("Syntax Loaded. Pokemon:", Object.keys(pokeMap).length, "Items:", Object.keys(itemMap).length, "Events:", Object.keys(eventLookup).length);
 
         pokeReverseMap = {};
         for (let id in pokeMap) {
