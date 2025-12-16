@@ -258,7 +258,7 @@ namespace RelumiScript
                     if (m) {
                         window.chrome.webview.postMessage('PREVIEW:' + m[1] + '%' + m[2]);
                     } else if (macroMatch) {
-                        window.chrome.webview.postMessage('PREVIEW:' + macroMatch[1] + '%' + macroMatch[2]);
+                        window.chrome.webview.postMessage('PREVIEW:' + macroMatch[1] + '%' + macroMatch[2] + '%' + macroMatch[3]);
                     } else {
                         window.chrome.webview.postMessage('HIDE_PREVIEW');
                     }
@@ -289,7 +289,19 @@ namespace RelumiScript
         {
             if (e.Message == "HIDE_PREVIEW") return;
             if (e.Message == "SAVE_REQUEST") { await _viewModel.SaveAllCommand(); return; }
-            if (e.Message.StartsWith("PREVIEW:")) { var p = e.Message.Substring(8).Split('%'); if (p.Length == 2) ShowMessagePreview(p[0].Trim(), p[1].Trim()); return; }
+            if (e.Message.StartsWith("PREVIEW:"))
+            {
+                var p = e.Message.Substring(8).Split('%');
+                if (p.Length == 2)
+                {
+                    ShowMessagePreview(p[0].Trim(), p[1].Trim());
+                }
+                else if (p.Length == 3)
+                {
+                    ShowMessagePreview(p[0].Trim(), p[1].Trim(), p[2].Trim());
+                }
+                return;
+            }
             if (e.Message.StartsWith("GLOBAL_SEARCH:")) { SwitchSideView("Search", forceOpen: true); SearchBox.Text = e.Message.Substring(e.Message.IndexOf(':') + 1).Trim(); return; }
             if (e.Message.StartsWith("CONTENT_UPDATE:"))
             {
@@ -430,23 +442,70 @@ namespace RelumiScript
 
         private void BtnPrevPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex > 0) { _currentPageIndex--; RenderCurrentPage(); } }
         private void BtnNextPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex < _currentMessagePages.Count - 1) { _currentPageIndex++; RenderCurrentPage(); } }
-        private void ShowMessagePreview(string file, string label)
+        private void ShowMessagePreview(string file, string label, string? message=null)
         {
             TryInitMessageRenderer();
-            if (_messageRenderer == null) return;
-            var target = _viewModel.Project.LoadedMessages.FirstOrDefault(f => f.Name.Equals(file, StringComparison.OrdinalIgnoreCase))?.Scripts.FirstOrDefault(s => s.Label.Equals(label, StringComparison.OrdinalIgnoreCase));
-            if (target != null) { _currentMessagePages = _messageRenderer.SplitIntoPages(target.Content); _currentPageIndex = 0; RenderCurrentPage(); }
+
+            if (_messageRenderer == null)
+            {
+                return;
+            }
+
+            if (message == null)
+            {
+                var target = _viewModel.Project.LoadedMessages
+                    .FirstOrDefault(f => f.Name.Equals(file, StringComparison.OrdinalIgnoreCase))
+                    ?.Scripts
+                    .FirstOrDefault(s => s.Label.Equals(label, StringComparison.OrdinalIgnoreCase));
+
+                if (target != null)
+                {
+                    _currentMessagePages = _messageRenderer.SplitIntoPages(target.Content);
+                    _currentPageIndex = 0;
+                    RenderCurrentPage();
+                }
+            }
+            else
+            {
+                _currentMessagePages = _messageRenderer.SplitIntoPages(message, true);
+                _currentPageIndex = 0;
+                RenderCurrentPage();
+            }
+
         }
+
         private void RenderCurrentPage()
         {
-            if (_messageRenderer == null || _currentMessagePages.Count == 0) return;
+            if (_messageRenderer == null || _currentMessagePages.Count == 0)
+            {
+                return;
+            }
+
             _currentPageIndex = Math.Clamp(_currentPageIndex, 0, _currentMessagePages.Count - 1);
-            MessagePreviewContent.Content = _messageRenderer.RenderPage(_currentMessagePages[_currentPageIndex], _currentPageIndex + 1, _currentMessagePages.Count);
+
+            MessagePreviewContent.Content = _messageRenderer.RenderPage(
+                _currentMessagePages[_currentPageIndex],
+                _currentPageIndex + 1,
+                _currentMessagePages.Count
+            );
+
             PageIndicator.Text = $"{_currentPageIndex + 1} / {_currentMessagePages.Count}";
+
             bool showPaginationControls = _currentMessagePages.Count > 1;
-            BtnPrevPage.IsVisible = showPaginationControls; BtnNextPage.IsVisible = showPaginationControls; PageIndicator.IsVisible = showPaginationControls;
+            BtnPrevPage.IsVisible = showPaginationControls;
+            BtnNextPage.IsVisible = showPaginationControls;
+            PageIndicator.IsVisible = showPaginationControls;
         }
-        private void TryInitMessageRenderer() { if (_messageRenderer == null && !string.IsNullOrEmpty(_viewModel.Project.FindJsonFolder())) _messageRenderer = new MessageRenderer(Path.GetFullPath(Path.Combine(_viewModel.Project.FindJsonFolder()!, "..", "Assets"))); }
+
+        private void TryInitMessageRenderer()
+        {
+            if (_messageRenderer == null && !string.IsNullOrEmpty(_viewModel.Project.FindJsonFolder()))
+            {
+                _messageRenderer = new MessageRenderer(
+                    Path.GetFullPath(Path.Combine(_viewModel.Project.FindJsonFolder()!, "..", "Assets"))
+                );
+            }
+        }
         public void SearchResult_PointerWheelChanged(object? sender, PointerWheelEventArgs e) { if (e.KeyModifiers.HasFlag(KeyModifiers.Alt)) { if (sender is Control control && ToolTip.GetIsOpen(control)) { var tipContent = ToolTip.GetTip(control); if (tipContent is Border border && border.Child is ScrollViewer scroller) { double offset = e.Delta.Y * -30; scroller.Offset = new Vector(scroller.Offset.X, Math.Clamp(scroller.Offset.Y + offset, 0, scroller.Extent.Height)); e.Handled = true; } } } }
     }
 }

@@ -139,7 +139,7 @@ namespace RelumiScript
             }
         }
 
-        public List<string> SplitIntoPages(string rawText)
+        public List<string> SplitIntoPages(string rawText, bool macro = false)
         {
             var pages = new List<string>();
             string? lastLine = null;
@@ -148,8 +148,19 @@ namespace RelumiScript
 
             var currentPage = new List<string>();
 
-            // Split but keep delimiters
-            var tokens = Regex.Split(rawText, @"(\{n\}|\{f\}|\{r\})");
+            string normalizedText = rawText;
+
+            if (macro)
+            {
+                // Replace normal delimiters with token delimiters
+                normalizedText = normalizedText
+                    .Replace("\\n", "{n}")
+                    .Replace("\\f", "{f}")
+                    .Replace("\\r", "{r}");
+            }
+
+            // Split but keep token delimiters
+            var tokens = Regex.Split(normalizedText, @"(\{n\}|\{f\}|\{r\})");
 
             for (int i = 0; i < tokens.Length; i++)
             {
