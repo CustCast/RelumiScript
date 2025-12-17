@@ -262,6 +262,12 @@
 							</Panel>
 						</Button>
 
+						<Button Classes="ActivityButton" x:Name="BtnNavHints" Click="OnSidebarNav_Click" Tag="Hints" ToolTip.Tip="Edit Hints">
+							<Panel>
+								<TextBlock Text="💡" />
+							</Panel>
+						</Button>
+
 						<Button Classes="ActivityButton" x:Name="BtnNavTheme" Click="OnSidebarNav_Click" Tag="Theme" ToolTip.Tip="Theme Settings">
 							<Panel>
 								<Rectangle Width="24" Height="24" IsVisible="{Binding ThemeVm.Icons.HasTheme}" Fill="{Binding $parent[Button].Foreground}">
@@ -457,6 +463,16 @@
 								</DataTemplate>
 							</ListBox.ItemTemplate>
 						</ListBox>
+					</Grid>
+
+					<Grid x:Name="PanelHints" IsVisible="False" RowDefinitions="35, *">
+						<Border Grid.Row="0" Padding="10,0" Background="{DynamicResource ThemeSidebarBackground}">
+							<TextBlock Text="HINT EDITOR" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
+						</Border>
+						<StackPanel Grid.Row="1" Margin="10">
+							<TextBlock Text="Manage command hints and tooltips shown in the editor." TextWrapping="Wrap" Margin="0,0,0,20" Opacity="0.8"/>
+							<Button Classes="PanelButton" Content="📝 Open Hint Editor" Command="{Binding OpenHintEditorCommand}"/>
+						</StackPanel>
 					</Grid>
 
 					<Grid x:Name="PanelTheme" IsVisible="False" RowDefinitions="Auto, 35, Auto, *">

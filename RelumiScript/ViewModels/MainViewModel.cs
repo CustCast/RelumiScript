@@ -45,7 +45,6 @@ namespace RelumiScript.ViewModels
             _projectService = projectService;
             _dialogService = dialogService;
 
-            // Initialize Child ViewModels
             _explorerVm = new ExplorerViewModel(_projectService);
             _searchVm = new SearchViewModel(_projectService);
             _analysisVm = new AnalysisViewModel(_projectService);
@@ -92,14 +91,10 @@ namespace RelumiScript.ViewModels
             try
             {
                 await _projectService.LoadProjectAsync(folder, msg => StatusMessage = msg);
-                OnPropertyChanged(nameof(Files)); // Update UI that binds to Files
-
-                // Refresh the Explorer specifically since it wraps the files
+                OnPropertyChanged(nameof(Files));
                 _explorerVm.Refresh();
-
                 await _projectService.RefreshTrackersAsync(msg => StatusMessage = msg);
                 AnalysisRevision++;
-
                 SyntaxRevision++;
             }
             catch (Exception ex)
@@ -122,7 +117,6 @@ namespace RelumiScript.ViewModels
             try
             {
                 await _projectService.SaveDocumentsAsync(dirty);
-
                 foreach (var doc in dirty)
                 {
                     doc.OriginalContent = doc.Content;
@@ -133,6 +127,52 @@ namespace RelumiScript.ViewModels
             catch (Exception ex)
             {
                 StatusMessage = $"Save Error: {ex.Message}";
+            }
+        }
+
+        // --- New Command: Open Hint Editor ---
+        public async Task OpenHintEditorCommand()
+        {
+            if (_projectService.AllHints == null) return;
+
+            // 1. Create the VM with the current hints
+            var vm = new HintEditorViewModel(_projectService.AllHints);
+
+            // 2. Open the Dialog and wait for result
+            bool saveChanges = await _dialogService.ShowHintEditorDialog(vm);
+
+            if (saveChanges)
+            {
+                IsBusy = true;
+                try
+                {
+                    // 3. Update the ProjectService with the modified list
+                    // We must do this because Add/Remove in the Editor VM doesn't automatically 
+                    // add/remove from the ProjectService's list reference, it modifies its own collection.
+                    _projectService.AllHints = vm.GetResultingHints();
+
+                    await _projectService.SaveHintsAsync();
+
+                    // Regenerate the JS syntax file so the editor updates immediately
+                    await _projectService.GenerateSyntaxFile();
+
+                    // Increment revision to signal UI (if bound) to reload webview
+                    SyntaxRevision++;
+
+                    StatusMessage = "Hints updated and saved.";
+                }
+                catch (Exception ex)
+                {
+                    StatusMessage = $"Error saving hints: {ex.Message}";
+                }
+                finally
+                {
+                    IsBusy = false;
+                }
+            }
+            else
+            {
+                StatusMessage = "Hint editing cancelled.";
             }
         }
 

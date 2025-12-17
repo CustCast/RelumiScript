@@ -168,7 +168,16 @@ namespace RelumiScript
             if (!SidePanelContainer.IsVisible) { SidebarGrid.ColumnDefinitions[1].Width = _lastSidebarWidth; SidebarGrid.ColumnDefinitions[2].Width = new GridLength(4); }
             SidePanelContainer.IsVisible = true;
             _currentView = viewName;
-            PanelFile.IsVisible = viewName == "File"; PanelExplorer.IsVisible = viewName == "Explorer"; PanelSearch.IsVisible = viewName == "Search"; PanelFlags.IsVisible = viewName == "Flags"; PanelCommands.IsVisible = viewName == "Commands"; PanelTheme.IsVisible = viewName == "Theme";
+            PanelFile.IsVisible = viewName == "File";
+            PanelExplorer.IsVisible = viewName == "Explorer";
+            PanelSearch.IsVisible = viewName == "Search";
+            PanelFlags.IsVisible = viewName == "Flags";
+            PanelCommands.IsVisible = viewName == "Commands";
+            PanelTheme.IsVisible = viewName == "Theme";
+
+            // NEW
+            PanelHints.IsVisible = viewName == "Hints";
+
             SetButtonActive(viewName);
 
             if (viewName == "Search") Dispatcher.UIThread.Post(() => { SearchBox.Focus(); if (!string.IsNullOrWhiteSpace(SearchBox.Text)) PerformSearch(SearchBox.Text); });
@@ -176,7 +185,19 @@ namespace RelumiScript
             else if (viewName == "Commands") { if (_viewModel.Project.AllWorkUsages.Count > 0 && ScriptList.ItemsSource == null) FilterWorks(""); }
             else if (viewName == "Explorer") Dispatcher.UIThread.Post(() => ExplorerSearchBox.Focus());
         }
-        private void SetButtonActive(string? activeTag) { UpdateBtnStyle(BtnNavFile, activeTag); UpdateBtnStyle(BtnNavExplorer, activeTag); UpdateBtnStyle(BtnNavSearch, activeTag); UpdateBtnStyle(BtnNavFlags, activeTag); UpdateBtnStyle(BtnNavCommands, activeTag); UpdateBtnStyle(BtnNavTheme, activeTag); }
+        private void SetButtonActive(string? activeTag)
+        {
+            UpdateBtnStyle(BtnNavFile, activeTag);
+            UpdateBtnStyle(BtnNavExplorer, activeTag);
+            UpdateBtnStyle(BtnNavSearch, activeTag);
+            UpdateBtnStyle(BtnNavFlags, activeTag);
+            UpdateBtnStyle(BtnNavCommands, activeTag);
+
+            // NEW
+            UpdateBtnStyle(BtnNavHints, activeTag);
+
+            UpdateBtnStyle(BtnNavTheme, activeTag);
+        }
         private void UpdateBtnStyle(Button btn, string? activeTag) { if (btn.Tag?.ToString() == activeTag) { if (!btn.Classes.Contains("Active")) btn.Classes.Add("Active"); } else btn.Classes.Remove("Active"); }
 
         private void PerformSearch(string? query)

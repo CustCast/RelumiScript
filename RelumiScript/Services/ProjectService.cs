@@ -22,6 +22,9 @@ namespace RelumiScript.Services
         public List<FileNode> LoadedMessages { get; private set; } = new List<FileNode>();
         public Dictionary<int, string> WorkIdMap { get; private set; } = new Dictionary<int, string>();
 
+        // FIX: Changed 'private set' to 'set' so MainViewModel can update it
+        public List<HintDef> AllHints { get; set; } = new List<HintDef>();
+
         // Analysis Data (Populated by Scanner)
         public List<FlagUsageInfo> AllFlagUsages { get; private set; } = new List<FlagUsageInfo>();
         public List<CommandUsageInfo> AllCommandUsages { get; private set; } = new List<CommandUsageInfo>();
@@ -57,6 +60,9 @@ namespace RelumiScript.Services
 
                 statusCallback("Loading Messages...");
                 LoadedMessages = await Task.Run(() => _assetService.LoadMessageFiles(rootPath));
+
+                // Load Hints
+                await LoadHintsAsync();
 
                 await GenerateSyntaxFile();
 
@@ -161,8 +167,6 @@ namespace RelumiScript.Services
             ScriptNode? currentScript = null;
             StringBuilder currentContent = new StringBuilder();
 
-            // FIXED REGEX: Matches "Label:" allowing for indentation and trailing whitespace.
-            // Does NOT allow comments on the same line (to be safe/compatible).
             var labelRegex = new Regex(@"^(?:\s*)?([a-zA-Z0-9_]+):(?=\s*$)");
 
             foreach (var line in lines)
@@ -196,27 +200,79 @@ namespace RelumiScript.Services
             return list;
         }
 
+        public async Task LoadHintsAsync()
+        {
+            string? jsonDir = FindJsonFolder();
+            if (string.IsNullOrEmpty(jsonDir)) return;
+
+            string hintsPath = Path.Combine(jsonDir, "hints.json");
+
+            if (File.Exists(hintsPath))
+            {
+                try
+                {
+                    string json = await File.ReadAllTextAsync(hintsPath);
+                    var hints = JsonConvert.DeserializeObject<List<HintDef>>(json);
+                    if (hints != null)
+                    {
+                        AllHints = hints;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error deserializing hints.json: {ex.Message}");
+                    AllHints = new List<HintDef>();
+                }
+            }
+            else
+            {
+                AllHints = new List<HintDef>();
+            }
+        }
+
+        public async Task SaveHintsAsync()
+        {
+            string? jsonDir = FindJsonFolder();
+            if (string.IsNullOrEmpty(jsonDir)) return;
+
+            string hintsPath = Path.Combine(jsonDir, "hints.json");
+
+            try
+            {
+                string json = JsonConvert.SerializeObject(AllHints, Formatting.Indented);
+                await File.WriteAllTextAsync(hintsPath, json);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error saving hints.json: {ex.Message}");
+                throw;
+            }
+        }
+
         public async Task GenerateSyntaxFile()
         {
             string? jd = FindJsonFolder();
             if (string.IsNullOrEmpty(jd)) return;
 
             await Task.Run(() => {
-                // 1. Load Commands
                 string cmds = File.Exists(Path.Combine(jd, "commands.json"))
                     ? File.ReadAllText(Path.Combine(jd, "commands.json"))
                     : "[]";
 
-                // 2. Load Hints Configuration
                 string hintsJson = "[]";
-                string hintsPath = Path.Combine(jd, "hints.json");
-
-                if (File.Exists(hintsPath))
+                if (AllHints != null && AllHints.Count > 0)
                 {
-                    hintsJson = File.ReadAllText(hintsPath);
+                    hintsJson = JsonConvert.SerializeObject(AllHints);
+                }
+                else
+                {
+                    string hintsPath = Path.Combine(jd, "hints.json");
+                    if (File.Exists(hintsPath))
+                    {
+                        hintsJson = File.ReadAllText(hintsPath);
+                    }
                 }
 
-                // 3. Prepare Event Snippets
                 var eventMap = new Dictionary<string, object>();
                 if (AllEventUsages != null)
                 {
@@ -226,33 +282,22 @@ namespace RelumiScript.Services
                         if (def != null)
                         {
                             string snippet = "";
-
-                            // Case 1: NodeObject is a single ScriptNode (Rare, only if scanner logic changes)
                             if (def.NodeObject is ScriptNode sNode && !string.IsNullOrEmpty(sNode.Content))
                             {
-                                // Return full content
                                 snippet = sNode.Content;
                             }
-                            // Case 2: NodeObject is a FileNode (Standard behavior of current ScriptScanner)
                             else if (def.NodeObject is FileNode fNode)
                             {
-                                int currentLineTotal = 1; // Monaco/Scanner uses 1-based indexing
+                                int currentLineTotal = 1;
                                 foreach (var subScript in fNode.Scripts)
                                 {
                                     int scriptLineCount = CountLines(subScript.Content);
-
-                                    // Check if the definition line falls within this script's range
                                     if (def.LineNumber >= currentLineTotal && def.LineNumber < currentLineTotal + scriptLineCount)
                                     {
                                         var lines = subScript.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-
-                                        // Calculate relative offset (0-based)
                                         int relativeIndex = def.LineNumber - currentLineTotal;
-
-                                        // Safety check
                                         if (relativeIndex >= 0 && relativeIndex < lines.Length)
                                         {
-                                            // Take everything from the definition line to the end of this script block
                                             snippet = string.Join("\n", lines.Skip(relativeIndex));
                                         }
                                         break;
@@ -271,7 +316,6 @@ namespace RelumiScript.Services
                     }
                 }
 
-                // 4. Construct the Master Data Object
                 var dataObj = new
                 {
                     commands = JArray.Parse(cmds),
@@ -283,7 +327,7 @@ namespace RelumiScript.Services
                     forms = _assetService.FormMap,
                     balls = _assetService.BallMap,
                     hints = JArray.Parse(hintsJson),
-                    events = eventMap // Add the event dictionary to the syntax data
+                    events = eventMap
                 };
 
                 string js = $"window.RELUMI_DATA = {JsonConvert.SerializeObject(dataObj)}; window.RELUMI_DATA_LOADED = true;";
@@ -292,7 +336,6 @@ namespace RelumiScript.Services
             });
         }
 
-        // Helper to match scanner's line counting logic
         private int CountLines(string s)
         {
             if (string.IsNullOrEmpty(s)) return 0;
