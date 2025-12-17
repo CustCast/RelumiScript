@@ -34,6 +34,10 @@ var editor = monaco.editor.create(document.getElementById("container"), {
     unicodeHighlight: {
         ambiguousCharacters: false,
         invisibleCharacters: false,
+    },
+    // NEW: STICKY SCROLL
+    stickyScroll: {
+        enabled: true
     }
 });
 

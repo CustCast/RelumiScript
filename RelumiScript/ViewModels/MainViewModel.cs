@@ -138,7 +138,7 @@ namespace RelumiScript.ViewModels
             // 1. Create the VM with the current hints
             var vm = new HintEditorViewModel(_projectService.AllHints);
 
-            // 2. Open the Dialog and wait for result
+            // 2. Open the Dialog via the Service (Correct way)
             bool saveChanges = await _dialogService.ShowHintEditorDialog(vm);
 
             if (saveChanges)
@@ -147,18 +147,13 @@ namespace RelumiScript.ViewModels
                 try
                 {
                     // 3. Update the ProjectService with the modified list
-                    // We must do this because Add/Remove in the Editor VM doesn't automatically 
-                    // add/remove from the ProjectService's list reference, it modifies its own collection.
                     _projectService.AllHints = vm.GetResultingHints();
 
                     await _projectService.SaveHintsAsync();
-
-                    // Regenerate the JS syntax file so the editor updates immediately
                     await _projectService.GenerateSyntaxFile();
 
-                    // Increment revision to signal UI (if bound) to reload webview
+                    // Trigger UI Refresh
                     SyntaxRevision++;
-
                     StatusMessage = "Hints updated and saved.";
                 }
                 catch (Exception ex)

@@ -6,7 +6,6 @@ using Newtonsoft.Json;
 
 namespace RelumiScript.Models
 {
-    // Represents a named definition with an ID and name, used for JSON deserialization.
     public class NameDef
     {
         [JsonProperty("Id")]
@@ -16,34 +15,28 @@ namespace RelumiScript.Models
         public string? Name { get; set; }
     }
 
-    // Represents a file name mapping with internal and friendly names.
     public class FileNameDef
     {
         public string FileName { get; set; } = "";
         public string FriendlyName { get; set; } = "";
     }
 
-    // Represents a file node containing multiple scripts.
     public class FileNode
     {
         public string Name { get; set; } = "Unknown";
-        public string FileName { get; set; } = ""; // Stores raw asset name (e.g. "ev_script") for saving
+        public string FileName { get; set; } = "";
         public bool IsMessage { get; set; }
         public List<ScriptNode> Scripts { get; set; } = new List<ScriptNode>();
-
-        // Computed properties for UI binding
         public string Icon => IsMessage ? "💬" : "📜";
         public string Color => IsMessage ? "#569CD6" : "#4EC9B0";
     }
 
-    // Represents a single script with a label and content.
     public class ScriptNode
     {
         public string Label { get; set; } = "";
         public string Content { get; set; } = "";
     }
 
-    // Represents an open document tab in the editor.
     public class EditorDocument : INotifyPropertyChanged
     {
         private string _title = "";
@@ -52,8 +45,6 @@ namespace RelumiScript.Models
         private string _content = "";
 
         public string Id { get; set; } = Guid.NewGuid().ToString();
-
-        // Reference to the source node (either FileNode or ScriptNode)
         public object? SourceNode { get; set; }
 
         public string Title
@@ -62,7 +53,7 @@ namespace RelumiScript.Models
             set { if (_title != value) { _title = value; OnPropertyChanged(); OnPropertyChanged(nameof(DisplayName)); } }
         }
 
-        public string DisplayName => Title; // Helper for binding if needed
+        public string DisplayName => Title;
 
         public bool IsDirty
         {
@@ -83,8 +74,6 @@ namespace RelumiScript.Models
         }
 
         public string OriginalContent { get; set; } = "";
-
-        // UI Helpers
         public string FontStyle => IsPreview ? "Italic" : "Normal";
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -92,25 +81,30 @@ namespace RelumiScript.Models
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
     }
 
-    // --- New Models for Hints ---
+    // --- UPDATED HINT MODELS ---
 
-    // Represents a parameter definition for a command hint.
     public class HintParamDef
     {
         [JsonProperty("Index")]
         public int Index { get; set; }
 
         [JsonProperty("Type")]
-        public string? Type { get; set; }
+        public List<string> Type { get; set; } = new List<string>();
 
         [JsonProperty("Ref")]
         public string? Ref { get; set; }
 
+        // NEW: Description field restoration
+        [JsonProperty("Description")]
+        public string? Description { get; set; }
+
         [JsonProperty("DependsOn")]
-        public int? DependsOn { get; set; } // Nullable int
+        public int? DependsOn { get; set; }
+
+        [JsonProperty("Fragments")]
+        public Dictionary<string, string> Fragments { get; set; } = new Dictionary<string, string>();
     }
 
-    // Represents a part of the sentence/description for a command hint.
     public class HintSentencePartDef
     {
         [JsonProperty("Text")]
@@ -120,14 +114,16 @@ namespace RelumiScript.Models
         public string? Check { get; set; }
 
         [JsonProperty("ShowZero")]
-        public bool? ShowZero { get; set; } // Nullable bool
+        public bool? ShowZero { get; set; }
     }
 
-    // Represents a single hint definition from hints.json.
     public class HintDef
     {
         [JsonProperty("Cmd")]
         public string? Cmd { get; set; }
+
+        [JsonProperty("Description")]
+        public string? Description { get; set; }
 
         [JsonProperty("Params")]
         public List<HintParamDef> Params { get; set; } = new List<HintParamDef>();

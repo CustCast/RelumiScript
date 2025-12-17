@@ -6,6 +6,9 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
+// ADD THIS NAMESPACE so HintEditorWindow is found
+using RelumiScript;
+
 namespace RelumiScript.Services
 {
     public class DialogService : IDialogService
@@ -46,9 +49,9 @@ namespace RelumiScript.Services
 
         public async Task<bool> ShowHintEditorDialog(HintEditorViewModel vm)
         {
+            // Now HintEditorWindow will be found because of 'using RelumiScript;'
             var dialog = new HintEditorWindow();
             dialog.DataContext = vm;
-            // The dialog closes with true/false based on the button clicked
             var result = await dialog.ShowDialog<bool>(_owner);
             return result;
         }

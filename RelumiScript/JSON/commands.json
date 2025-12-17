@@ -19200,8 +19200,8 @@
     "Animation": false,
     "Args": [
       {
-        "TentativeName": "Sphere",
-        "Description": "ID of the sphere to give.",
+        "TentativeName": "Monsno",
+        "Description": "ID of the Pokemon to give.",
         "Type": [
           "Number",
           "Work"
