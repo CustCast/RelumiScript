@@ -50,7 +50,7 @@
           Background="{Binding Theme.Colors.WindowBackground, Converter={StaticResource ColorToBrush}}"
           TextElement.Foreground="{Binding Theme.Colors.TextColor, Converter={StaticResource ColorToBrush}}">
 
-		<Grid Grid.Row="0" IsHitTestVisible="False" Background="{Binding Theme.Colors.PanelBackground, Converter={StaticResource ColorToBrush}}">
+		<Grid Grid.Row="0" PointerPressed="TitleBar_PointerPressed" Background="{Binding Theme.Colors.PanelBackground, Converter={StaticResource ColorToBrush}}">
 			<StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="10">
 				<TextBlock Text="💠" Foreground="{Binding Theme.Colors.AccentColor, Converter={StaticResource ColorToBrush}}"/>
 				<TextBlock Text="Unified Definition Editor" Opacity="0.8" FontWeight="SemiBold"/>
@@ -84,10 +84,9 @@
                     Background="{Binding Theme.Colors.SidebarBackground, Converter={StaticResource ColorToBrush}}"
                     IsVisible="{Binding SelectedHint, Converter={x:Static ObjectConverters.IsNotNull}}">
 				<ScrollViewer>
-					
-                    <StackPanel x:Name="HintDetailRoot" 
-                                DataContext="{Binding SelectedHint}" 
-                                x:DataType="vm:HintViewModel" 
+					<StackPanel x:Name="HintDetailRoot"
+                                DataContext="{Binding SelectedHint}"
+                                x:DataType="vm:HintViewModel"
                                 x:CompileBindings="False"
                                 Spacing="15">
 
@@ -121,17 +120,16 @@
 							<ItemsControl ItemsSource="{Binding Params}">
 								<ItemsControl.ItemTemplate>
 									<DataTemplate x:DataType="vm:HintParamViewModel">
-										
-                                        <Border x:Name="ParamBlockRoot" 
+										<Border x:Name="ParamBlockRoot"
                                                 Margin="0,0,0,15" Padding="12" CornerRadius="5"
 												BorderBrush="#444" BorderThickness="1"
                                                 x:CompileBindings="False"
 												Background="{Binding #EditorWindow.DataContext.Theme.Colors.PanelBackground, Converter={StaticResource ColorToBrush}}">
-											
+
 											<StackPanel Spacing="8">
 												<Grid ColumnDefinitions="Auto, *, 140, Auto">
-													<TextBlock Grid.Column="0" Text="{Binding Model.Index, StringFormat='Arg {0}'}" 
-															   VerticalAlignment="Center" Margin="0,0,10,0" 
+													<TextBlock Grid.Column="0" Text="{Binding Model.Index, StringFormat='Arg {0}'}"
+															   VerticalAlignment="Center" Margin="0,0,10,0"
 															   Opacity="0.7" FontWeight="SemiBold"/>
 
 													<TextBox Grid.Column="1" Text="{Binding Model.Ref}" Watermark="Ref Name" Margin="0,0,10,0"
@@ -155,7 +153,7 @@
 													<Button Grid.Column="3" Content="X"
 															Command="{Binding #HintDetailRoot.DataContext.RemoveParam}"
 															CommandParameter="{Binding}"
-															Background="Transparent" BorderThickness="0" 
+															Background="Transparent" BorderThickness="0"
 															Foreground="#FF6B6B" FontWeight="Bold"/>
 												</Grid>
 
@@ -168,10 +166,10 @@
 													<ItemsControl.ItemTemplate>
 														<DataTemplate x:DataType="vm:FragmentItem">
 															<Grid ColumnDefinitions="140, *, Auto, Auto" Margin="0,0,0,5" x:CompileBindings="False">
-																
-																<ComboBox Grid.Column="0" 
+
+																<ComboBox Grid.Column="0"
 																		  ItemsSource="{Binding #ParamBlockRoot.DataContext.AvailableTypes}"
-																		  SelectedItem="{Binding Type}" 
+																		  SelectedItem="{Binding Type}"
 																		  Margin="0,0,5,0" HorizontalAlignment="Stretch"
 																		  Background="{Binding #EditorWindow.DataContext.Theme.Colors.InputBackground, Converter={StaticResource ColorToBrush}}"
 																		  Foreground="{Binding #EditorWindow.DataContext.Theme.Colors.InputForeground, Converter={StaticResource ColorToBrush}}"/>
@@ -181,7 +179,7 @@
 																		 Foreground="{Binding #EditorWindow.DataContext.Theme.Colors.InputForeground, Converter={StaticResource ColorToBrush}}"
 																		 CaretBrush="{Binding #EditorWindow.DataContext.Theme.Colors.InputForeground, Converter={StaticResource ColorToBrush}}"/>
 
-																<CheckBox Grid.Column="2" IsChecked="{Binding ShowZero}" Content="Show 0" 
+																<CheckBox Grid.Column="2" IsChecked="{Binding ShowZero}" Content="Show 0"
 																		  Margin="5,0,5,0" FontSize="11"/>
 
 																<Button Grid.Column="3" Content="×"
@@ -232,7 +230,7 @@
 												<TextBox Text="{Binding Text}" MinWidth="100" BorderThickness="0" Background="Transparent" Padding="0"
                                                          Foreground="{Binding #EditorWindow.DataContext.Theme.Colors.InputForeground, Converter={StaticResource ColorToBrush}}"
                                                          CaretBrush="{Binding #EditorWindow.DataContext.Theme.Colors.InputForeground, Converter={StaticResource ColorToBrush}}"/>
-												
+
 												<Button Content="×"
 														Command="{Binding #HintDetailRoot.DataContext.RemoveSentencePart}"
 														CommandParameter="{Binding}"
