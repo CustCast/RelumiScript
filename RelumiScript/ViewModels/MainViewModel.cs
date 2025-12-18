@@ -32,7 +32,6 @@ namespace RelumiScript.ViewModels
 
         public ObservableCollection<EditorDocument> Documents { get; } = new ObservableCollection<EditorDocument>();
 
-        // EXPOSED PROPERTY FOR UI BINDING
         public IEnumerable<FileNode> Files => _projectService.AllFiles;
 
         public ThemeEditorViewModel ThemeVm => _themeVm;
@@ -135,10 +134,9 @@ namespace RelumiScript.ViewModels
         {
             if (_projectService.AllHints == null) return;
 
-            // 1. Create the VM with the current hints
-            var vm = new HintEditorViewModel(_projectService.AllHints);
+            // FIXED: Passing the Theme ViewModel correctly
+            var vm = new HintEditorViewModel(_projectService.AllHints, _themeVm);
 
-            // 2. Open the Dialog via the Service (Correct way)
             bool saveChanges = await _dialogService.ShowHintEditorDialog(vm);
 
             if (saveChanges)
@@ -146,13 +144,11 @@ namespace RelumiScript.ViewModels
                 IsBusy = true;
                 try
                 {
-                    // 3. Update the ProjectService with the modified list
                     _projectService.AllHints = vm.GetResultingHints();
 
                     await _projectService.SaveHintsAsync();
                     await _projectService.GenerateSyntaxFile();
 
-                    // Trigger UI Refresh
                     SyntaxRevision++;
                     StatusMessage = "Hints updated and saved.";
                 }

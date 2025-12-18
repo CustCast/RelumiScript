@@ -1,4 +1,5 @@
-﻿using Avalonia.Media;
+﻿using Avalonia.Data.Converters;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Svg.Skia;
@@ -7,12 +8,12 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
 
 namespace RelumiScript.ViewModels
 {
-    // ... [Classes ThemeSettings, ThemeIcons, ThemeColors, SyntaxTheme, TokenStyle same as previously provided] ...
     public class ThemeSettings
     {
         public ThemeColors Colors { get; set; } = new ThemeColors();
@@ -153,10 +154,6 @@ namespace RelumiScript.ViewModels
     public class ThemeIconsVM : INotifyPropertyChanged
     {
         private string _basePath = "";
-
-        // Remove debug property as requested
-        // public string DebugInfo { get; } 
-
         private string _open = "folder.svg";
         private string _explorer = "files.svg";
         private string _search = "search.svg";
@@ -420,5 +417,23 @@ namespace RelumiScript.ViewModels
 
         public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
+
+    // --- CONVERTER ADDED HERE TO ENSURE VISIBILITY ---
+    public class ColorToBrushConverter : IValueConverter
+    {
+        public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            if (value is Color color)
+            {
+                return new SolidColorBrush(color);
+            }
+            return Brushes.Transparent;
+        }
+
+        public object? ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

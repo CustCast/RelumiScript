@@ -94,7 +94,6 @@ namespace RelumiScript.Models
         [JsonProperty("Ref")]
         public string? Ref { get; set; }
 
-        // NEW: Description field restoration
         [JsonProperty("Description")]
         public string? Description { get; set; }
 
@@ -103,6 +102,9 @@ namespace RelumiScript.Models
 
         [JsonProperty("Fragments")]
         public Dictionary<string, string> Fragments { get; set; } = new Dictionary<string, string>();
+
+        [JsonProperty("ShowZero")]
+        public List<string> ShowZero { get; set; } = new List<string>();
     }
 
     public class HintSentencePartDef
@@ -110,11 +112,7 @@ namespace RelumiScript.Models
         [JsonProperty("Text")]
         public string? Text { get; set; }
 
-        [JsonProperty("Check")]
-        public string? Check { get; set; }
-
-        [JsonProperty("ShowZero")]
-        public bool? ShowZero { get; set; }
+        // Removed: Check property is no longer used
     }
 
     public class HintDef

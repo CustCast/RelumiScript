@@ -35,8 +35,10 @@ var hintConfigs = [];
 // --- HELPERS ---
 
 function detectArgType(argStr) {
-    if (!argStr) return "Unknown";
+    if (argStr === undefined || argStr === null) return "Unknown";
     argStr = argStr.trim();
+    if (argStr.length === 0) return "Unknown";
+
     if (argStr.startsWith("@")) return "Work";
     if (argStr.startsWith("#")) return "Flag";
     if (argStr.startsWith("$")) return "SysFlag";
@@ -174,7 +176,6 @@ function getSiblingArgs(model, lineNumber, cmdName) {
 
 // --- PROVIDERS REGISTRATION ---
 
-// 1. Document Symbol Provider (Fixed Scope Calculation for Sticky Scroll)
 monaco.languages.registerDocumentSymbolProvider("bdsp", {
     provideDocumentSymbols: function (model) {
         const symbols = [];
@@ -190,7 +191,6 @@ monaco.languages.registerDocumentSymbolProvider("bdsp", {
             const match = content.match(labelRegex);
 
             if (match) {
-                // Close previous label
                 if (currentLabel) {
                     const endLine = Math.max(startLine, i - 1);
                     symbols.push({
@@ -201,7 +201,7 @@ monaco.languages.registerDocumentSymbolProvider("bdsp", {
                             startLineNumber: startLine,
                             startColumn: 1,
                             endLineNumber: endLine,
-                            endColumn: model.getLineMaxColumn(endLine) // FIX: Use Max Column
+                            endColumn: model.getLineMaxColumn(endLine)
                         },
                         selectionRange: {
                             startLineNumber: startLine,
@@ -211,15 +211,12 @@ monaco.languages.registerDocumentSymbolProvider("bdsp", {
                         }
                     });
                 }
-
-                // Start new label
                 currentLabel = match[1];
                 startLine = i;
                 startCol = content.indexOf(currentLabel) + 1;
             }
         }
 
-        // Close final label
         if (currentLabel) {
             symbols.push({
                 name: currentLabel,
@@ -229,7 +226,7 @@ monaco.languages.registerDocumentSymbolProvider("bdsp", {
                     startLineNumber: startLine,
                     startColumn: 1,
                     endLineNumber: lines,
-                    endColumn: model.getLineMaxColumn(lines) // FIX: Use Max Column
+                    endColumn: model.getLineMaxColumn(lines)
                 },
                 selectionRange: {
                     startLineNumber: startLine,
@@ -257,12 +254,10 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
 
         const ctx = getActiveContext(model, position);
 
-        // 1. ARGUMENT COMPLETION
         if (ctx) {
             const activeConfig = hintConfigs.find(h => h.Cmd === ctx.cmd.Name);
             const rawCmd = commandLookup[ctx.cmd.Name];
 
-            // Auto-Comma Logic
             let totalArgs = 0;
             if (activeConfig && activeConfig.Params && activeConfig.Params.length > 0) {
                 totalArgs = activeConfig.Params.length;
@@ -376,7 +371,6 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
             return { suggestions: [] };
         }
 
-        // 2. COMMAND COMPLETION
         const allCmdNames = new Set([
             ...Object.keys(commandLookup),
             ...hintConfigs.map(h => h.Cmd)
@@ -386,7 +380,6 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
             const data = getCommandDefinitionData(cmdName);
             if (!data) return null;
 
-            // FIXED: Added closing parenthesis and $0 cursor marker
             let insertText = `${cmdName}($0)`;
 
             let mdDocs = { value: "" };
@@ -513,44 +506,65 @@ monaco.languages.registerInlayHintsProvider("bdsp", {
                     const rawArgs = argsStr.split(',').map(s => s.trim());
 
                     let resolvedParams = {};
-                    let resolvedRaw = {};
 
                     if (config.Params) {
                         config.Params.forEach(param => {
                             if (param.Index < rawArgs.length) {
                                 const rawVal = rawArgs[param.Index];
-                                const detectedType = detectArgType(rawVal);
+                                const basicType = detectArgType(rawVal);
 
-                                resolvedRaw[param.Ref] = rawVal;
+                                // Normalize Key to Lowercase for consistent lookups
+                                const refKey = param.Ref ? param.Ref.trim().toLowerCase() : `arg${param.Index}`;
 
-                                let fragment = null;
-                                if (param.Fragments) {
-                                    fragment = param.Fragments[detectedType];
-                                    if (!fragment && (detectedType === "Value" || detectedType === "Number")) {
-                                        fragment = param.Fragments["Value"];
-                                    }
-                                    if (!fragment) fragment = param.Fragments["Value"];
-                                }
-                                if (!fragment) fragment = "{Value}";
-
-                                let resolvedFragment = fragment.replace(/\{(\w+)\}/g, (m, key) => {
-                                    key = key.toLowerCase();
-                                    if (key === "value" || key === "val") {
-                                        let bestGuessType = "Value";
-                                        if (param.Type) {
-                                            const pType = Array.isArray(param.Type) ? param.Type : [param.Type];
-                                            if (pType.includes("Pokemon")) bestGuessType = "Pokemon";
-                                            else if (pType.includes("Item")) bestGuessType = "Item";
-                                            else if (pType.includes("Ball")) bestGuessType = "Ball";
-                                            else if (pType.includes("Form")) bestGuessType = "Form";
+                                // Strict Fragment Type Determination
+                                let fragmentType = basicType;
+                                if (param.Type) {
+                                    if (Array.isArray(param.Type) && param.Type.length === 1) {
+                                        fragmentType = param.Type[0];
+                                    } else if (!Array.isArray(param.Type)) {
+                                        fragmentType = param.Type;
+                                    } else if (basicType === "Value") {
+                                        const priorities = ["Pokemon", "Item", "Ball", "Form", "SysFlag", "Flag", "Work"];
+                                        const allowedTypes = Array.isArray(param.Type) ? param.Type : [param.Type];
+                                        for (const t of priorities) {
+                                            if (allowedTypes.includes(t)) {
+                                                fragmentType = t;
+                                                break;
+                                            }
                                         }
-                                        return resolveValue(rawVal, bestGuessType, rawArgs, param.DependsOn);
                                     }
-                                    if (key === "work") return rawVal;
-                                    if (key === "flag") return rawVal;
-                                    return m;
-                                });
-                                resolvedParams[param.Ref] = resolvedFragment;
+                                }
+
+                                // Show/Hide Zero Logic
+                                const isZero = (rawVal == 0 && rawVal !== "");
+                                const allowedZeros = param.ShowZero || [];
+                                const shouldHide = isZero && !allowedZeros.includes(fragmentType);
+
+                                if (shouldHide) {
+                                    resolvedParams[refKey] = null; // Mark as explicitly hidden
+                                }
+                                else {
+                                    // Resolve Fragment
+                                    let fragment = null;
+                                    if (param.Fragments) {
+                                        fragment = param.Fragments[fragmentType];
+                                        if (!fragment && fragmentType !== "Value") {
+                                            fragment = param.Fragments["Value"];
+                                        }
+                                    }
+                                    if (!fragment) fragment = "{Value}";
+
+                                    let resolvedFragment = fragment.replace(/\{(\w+)\}/g, (m, key) => {
+                                        key = key.toLowerCase();
+                                        if (key === "value" || key === "val") {
+                                            return resolveValue(rawVal, fragmentType, rawArgs, param.DependsOn);
+                                        }
+                                        if (key === "work") return rawVal;
+                                        if (key === "flag") return rawVal;
+                                        return m;
+                                    });
+                                    resolvedParams[refKey] = resolvedFragment;
+                                }
                             }
                         });
                     }
@@ -560,18 +574,26 @@ monaco.languages.registerInlayHintsProvider("bdsp", {
                         let validSentence = false;
 
                         config.Sentence.forEach(part => {
+                            // 1. Explicit Check (Only this causes the whole part to be skipped)
                             if (part.Check) {
-                                if (!resolvedParams[part.Check]) return;
-                                const raw = resolvedRaw[part.Check];
-                                if ((raw === "0" || raw === 0) && part.ShowZero !== true) {
-                                    return;
-                                }
+                                const checkKey = part.Check.trim().toLowerCase();
+                                if (resolvedParams[checkKey] === null) return; // Explicit dependency is hidden
+                                if (resolvedParams[checkKey] === undefined) return; // Explicit dependency is missing
                             }
+
+                            // 2. Safe Replacement (Never skips the part implicitly)
                             let text = part.Text;
                             text = text.replace(/\{(\w+)\}/g, (m, key) => {
-                                if (resolvedParams[key]) return resolvedParams[key];
-                                return m;
+                                const val = resolvedParams[key.toLowerCase()];
+
+                                // If the value is NULL (hidden), replace it with empty string ""
+                                if (val === null) return "";
+
+                                // If the value is undefined (key not found), keep the original placeholder {Key}
+                                // This makes it obvious something is wrong with the Ref name.
+                                return (val !== undefined) ? val : m;
                             });
+
                             finalString += text;
                             validSentence = true;
                         });

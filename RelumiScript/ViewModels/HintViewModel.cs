@@ -12,6 +12,7 @@ namespace RelumiScript.ViewModels
     {
         private string _type = "";
         private string _text = "";
+        private bool _showZero;
 
         public string Type
         {
@@ -23,6 +24,12 @@ namespace RelumiScript.ViewModels
         {
             get => _text;
             set { _text = value; OnPropertyChanged(); }
+        }
+
+        public bool ShowZero
+        {
+            get => _showZero;
+            set { _showZero = value; OnPropertyChanged(); }
         }
     }
 
@@ -46,7 +53,6 @@ namespace RelumiScript.ViewModels
             set { _selectedTypeToAdd = value; OnPropertyChanged(); }
         }
 
-        // NEW: Exposed Description property
         public string Description
         {
             get => Model.Description ?? "";
@@ -70,7 +76,8 @@ namespace RelumiScript.ViewModels
             {
                 foreach (var kvp in model.Fragments)
                 {
-                    Fragments.Add(new FragmentItem { Type = kvp.Key, Text = kvp.Value });
+                    bool showZero = model.ShowZero != null && model.ShowZero.Contains(kvp.Key);
+                    Fragments.Add(new FragmentItem { Type = kvp.Key, Text = kvp.Value, ShowZero = showZero });
                 }
             }
 
@@ -135,12 +142,12 @@ namespace RelumiScript.ViewModels
             if (Fragments.Any(f => f.Type == type)) return;
             string defaultText = "{Value}";
             if (type == "Label") defaultText = "Jump to {Value}";
-            Fragments.Add(new FragmentItem { Type = type, Text = defaultText });
+            Fragments.Add(new FragmentItem { Type = type, Text = defaultText, ShowZero = false });
         }
 
         public void AddFragment()
         {
-            Fragments.Add(new FragmentItem { Type = "NewType", Text = "{Value}" });
+            Fragments.Add(new FragmentItem { Type = "NewType", Text = "{Value}", ShowZero = false });
         }
 
         public void RemoveFragment(FragmentItem item)
@@ -152,11 +159,19 @@ namespace RelumiScript.ViewModels
         {
             if (Model.Fragments == null) Model.Fragments = new Dictionary<string, string>();
             Model.Fragments.Clear();
+
+            if (Model.ShowZero == null) Model.ShowZero = new List<string>();
+            Model.ShowZero.Clear();
+
             foreach (var item in Fragments)
             {
                 if (!string.IsNullOrWhiteSpace(item.Type))
                 {
                     Model.Fragments[item.Type] = item.Text;
+                    if (item.ShowZero)
+                    {
+                        Model.ShowZero.Add(item.Type);
+                    }
                 }
             }
         }
@@ -251,9 +266,7 @@ namespace RelumiScript.ViewModels
         {
             var newPart = new HintSentencePartDef
             {
-                Text = " new part",
-                Check = null,
-                ShowZero = null
+                Text = " new part"
             };
             SentenceParts.Add(newPart);
             _model.Sentence.Add(newPart);
