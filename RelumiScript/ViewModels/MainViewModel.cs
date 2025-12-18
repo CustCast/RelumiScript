@@ -130,12 +130,17 @@ namespace RelumiScript.ViewModels
         }
 
         // --- New Command: Open Hint Editor ---
-        public async Task OpenHintEditorCommand()
+        public async Task OpenHintEditorCommand(string? initialSearch = null)
         {
             if (_projectService.AllHints == null) return;
 
             // FIXED: Passing the Theme ViewModel correctly
             var vm = new HintEditorViewModel(_projectService.AllHints, _themeVm);
+
+            if (!string.IsNullOrWhiteSpace(initialSearch))
+            {
+                vm.SearchText = initialSearch;
+            }
 
             bool saveChanges = await _dialogService.ShowHintEditorDialog(vm);
 

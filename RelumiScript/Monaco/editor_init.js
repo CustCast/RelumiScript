@@ -149,3 +149,24 @@ window.updateRelumiTheme = function (settings) {
 
     monaco.editor.setTheme("bdsp-custom");
 }
+
+// 4. Register Actions
+if (editor) {
+    // Add the "Open Unified Definition Editor" action
+    editor.addAction({
+        id: 'relumi-open-hint-editor',
+        label: 'Open Unified Definition Editor',
+        contextMenuGroupId: 'navigation',
+        contextMenuOrder: 1.6,
+        run: function (ed) {
+            var p = ed.getPosition();
+            var m = ed.getModel();
+            var w = m.getWordAtPosition(p);
+            var term = '';
+            if (w) {
+                term = w.word;
+            }
+            window.chrome.webview.postMessage('OPEN_HINT_EDITOR:' + term);
+        }
+    });
+}

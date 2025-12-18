@@ -344,6 +344,19 @@ namespace RelumiScript
                 var parts = e.Message.Split(':');
                 if (parts.Length < 3) return;
                 await HandleEditDefinition(parts[1], parts[2]);
+                return; // Added return to prevent falling through
+            }
+
+            // --- NEW: Open Hint Editor ---
+            if (e.Message.StartsWith("OPEN_HINT_EDITOR"))
+            {
+                string search = "";
+                if (e.Message.Contains(":"))
+                {
+                    search = e.Message.Substring(e.Message.IndexOf(':') + 1).Trim();
+                }
+                await _viewModel.OpenHintEditorCommand(search);
+                return;
             }
 
             // --- NEW: Handle Load File Message from Ctrl+Click (Go To Def) ---
