@@ -4,6 +4,7 @@ using System.Windows.Input;
 using RelumiScript.Models;
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
 namespace RelumiScript.ViewModels
 {
@@ -40,9 +41,12 @@ namespace RelumiScript.ViewModels
         public HintEditorViewModel(List<HintDef> hints, ThemeEditorViewModel theme)
         {
             Theme = theme;
-            _allHints = hints != null
-                ? hints.Select(h => new HintViewModel(h)).ToList()
-                : new List<HintViewModel>();
+
+            // Deep Clone the hints so we don't modify the live project until Save is clicked
+            var json = JsonConvert.SerializeObject(hints);
+            var clonedHints = JsonConvert.DeserializeObject<List<HintDef>>(json) ?? new List<HintDef>();
+
+            _allHints = clonedHints.Select(h => new HintViewModel(h)).ToList();
 
             FilteredHints = new ObservableCollection<HintViewModel>(_allHints);
         }
