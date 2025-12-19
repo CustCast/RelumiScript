@@ -32,6 +32,15 @@ var ballMap = {};
 
 var hintConfigs = [];
 
+// --- PROVIDER MANAGEMENT (FIX FOR DUPLICATION) ---
+// If providers were already registered in this window session, dispose them first.
+// This prevents "stacking" hints if the script is re-run.
+if (window.BDSP_DISPOSABLES) {
+    console.log("Disposing " + window.BDSP_DISPOSABLES.length + " existing providers.");
+    window.BDSP_DISPOSABLES.forEach(d => d.dispose());
+}
+window.BDSP_DISPOSABLES = [];
+
 // --- HELPERS ---
 
 function detectArgType(argStr) {
@@ -176,7 +185,7 @@ function getSiblingArgs(model, lineNumber, cmdName) {
 
 // --- PROVIDERS REGISTRATION ---
 
-monaco.languages.registerDocumentSymbolProvider("bdsp", {
+window.BDSP_DISPOSABLES.push(monaco.languages.registerDocumentSymbolProvider("bdsp", {
     provideDocumentSymbols: function (model) {
         const symbols = [];
         const lines = model.getLineCount();
@@ -239,9 +248,9 @@ monaco.languages.registerDocumentSymbolProvider("bdsp", {
 
         return symbols;
     }
-});
+}));
 
-monaco.languages.registerCompletionItemProvider("bdsp", {
+window.BDSP_DISPOSABLES.push(monaco.languages.registerCompletionItemProvider("bdsp", {
     triggerCharacters: ["(", ","],
     provideCompletionItems: function (model, position) {
         var word = model.getWordUntilPosition(position);
@@ -403,9 +412,9 @@ monaco.languages.registerCompletionItemProvider("bdsp", {
 
         return { suggestions: suggestions };
     },
-});
+}));
 
-monaco.languages.registerHoverProvider("bdsp", {
+window.BDSP_DISPOSABLES.push(monaco.languages.registerHoverProvider("bdsp", {
     provideHover: function (model, position) {
         const word = model.getWordAtPosition(position);
         if (!word) return;
@@ -437,9 +446,9 @@ monaco.languages.registerHoverProvider("bdsp", {
             return { contents: contents };
         }
     },
-});
+}));
 
-monaco.languages.registerDefinitionProvider("bdsp", {
+window.BDSP_DISPOSABLES.push(monaco.languages.registerDefinitionProvider("bdsp", {
     provideDefinition: function (model, position) {
         const word = model.getWordAtPosition(position);
         if (!word) return;
@@ -457,9 +466,9 @@ monaco.languages.registerDefinitionProvider("bdsp", {
             };
         }
     }
-});
+}));
 
-monaco.languages.registerSignatureHelpProvider("bdsp", {
+window.BDSP_DISPOSABLES.push(monaco.languages.registerSignatureHelpProvider("bdsp", {
     signatureHelpTriggerCharacters: ["(", ","],
     provideSignatureHelp: function (model, position, token, context) {
         const ctx = getActiveContext(model, position);
@@ -485,10 +494,10 @@ monaco.languages.registerSignatureHelpProvider("bdsp", {
             dispose: () => { },
         };
     },
-});
+}));
 
 // --- DYNAMIC INLAY HINTS ---
-monaco.languages.registerInlayHintsProvider("bdsp", {
+window.BDSP_DISPOSABLES.push(monaco.languages.registerInlayHintsProvider("bdsp", {
     provideInlayHints: function (model, range, token) {
         let hints = [];
         if (!hintConfigs || hintConfigs.length === 0) return { hints: [] };
@@ -574,23 +583,18 @@ monaco.languages.registerInlayHintsProvider("bdsp", {
                         let validSentence = false;
 
                         config.Sentence.forEach(part => {
-                            // 1. Explicit Check (Only this causes the whole part to be skipped)
+                            // 1. Explicit Check
                             if (part.Check) {
                                 const checkKey = part.Check.trim().toLowerCase();
-                                if (resolvedParams[checkKey] === null) return; // Explicit dependency is hidden
-                                if (resolvedParams[checkKey] === undefined) return; // Explicit dependency is missing
+                                if (resolvedParams[checkKey] === null) return;
+                                if (resolvedParams[checkKey] === undefined) return;
                             }
 
-                            // 2. Safe Replacement (Never skips the part implicitly)
+                            // 2. Safe Replacement
                             let text = part.Text;
                             text = text.replace(/\{(\w+)\}/g, (m, key) => {
                                 const val = resolvedParams[key.toLowerCase()];
-
-                                // If the value is NULL (hidden), replace it with empty string ""
                                 if (val === null) return "";
-
-                                // If the value is undefined (key not found), keep the original placeholder {Key}
-                                // This makes it obvious something is wrong with the Ref name.
                                 return (val !== undefined) ? val : m;
                             });
 
@@ -613,7 +617,7 @@ monaco.languages.registerInlayHintsProvider("bdsp", {
         }
         return { hints: hints };
     },
-});
+}));
 
 // --- DATA LOADING ---
 
@@ -665,9 +669,14 @@ function applySyntaxData(data) {
             if (pokeMap.hasOwnProperty(id)) pokeReverseMap[pokeMap[id]] = parseInt(id);
         }
 
+        // FIX: Deduplicate hints by Command Name to prevent double-display
         hintConfigs = [];
         if (data.hints && Array.isArray(data.hints)) {
-            hintConfigs = data.hints;
+            const uniqueHints = new Map();
+            data.hints.forEach(h => {
+                if (h.Cmd) uniqueHints.set(h.Cmd, h);
+            });
+            hintConfigs = Array.from(uniqueHints.values());
         }
 
     } catch (e) {
@@ -690,6 +699,7 @@ function applySyntaxData(data) {
                         },
                     },
                 ],
+                // FIXED REGEX
                 [/@[a-zA-Z0-9_\-]+/, "bdsp-workvar"],
                 [/#[a-zA-Z0-9_\-]+/, "bdsp-flag"],
                 [/\$[a-zA-Z0-9_\-]+/, "bdsp-sysflag"],

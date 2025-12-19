@@ -162,7 +162,7 @@
 
 												<Grid ColumnDefinitions="140, *, 50, 30" Margin="0,5,0,0">
 													<TextBlock Grid.Column="0" Text="Type" Classes="colHeader"/>
-													<TextBlock Grid.Column="1" Text="Output Template (Prefix - {Type} - Suffix)" Classes="colHeader"/>
+													<TextBlock Grid.Column="1" Text="Output Template (Prefix - {Value} - Suffix)" Classes="colHeader"/>
 													<TextBlock Grid.Column="2" Text="Show 0" Classes="colHeader" HorizontalAlignment="Center"/>
 												</Grid>
 
@@ -262,13 +262,21 @@
 									</ItemsPanelTemplate>
 								</ItemsControl.ItemsPanel>
 								<ItemsControl.ItemTemplate>
-									<DataTemplate x:DataType="models:HintSentencePartDef">
+									<DataTemplate x:DataType="vm:SentencePartViewModel">
 										<Border CornerRadius="15" Margin="0,2,5,2" Padding="8,4" BorderBrush="#444" BorderThickness="1"
 												Background="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.InputBackground, Converter={StaticResource ColorToBrush}}">
 											<StackPanel Orientation="Horizontal" Spacing="5">
+
 												<TextBox Text="{Binding Text}" MinWidth="30" BorderThickness="0" Background="Transparent" Padding="0"
+                                                         IsVisible="{Binding !IsRef}"
                                                          Foreground="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.InputForeground, Converter={StaticResource ColorToBrush}}"
                                                          CaretBrush="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.InputForeground, Converter={StaticResource ColorToBrush}}"/>
+
+												<Border Background="#2A2A30" CornerRadius="3" Padding="5,0"
+                                                        IsVisible="{Binding IsRef}" VerticalAlignment="Center">
+													<TextBlock Text="{Binding Text}" FontSize="12" FontWeight="Bold"
+                                                               Foreground="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.AccentColor, Converter={StaticResource ColorToBrush}}"/>
+												</Border>
 
 												<Button Content="×"
 														x:CompileBindings="True"

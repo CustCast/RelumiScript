@@ -9,6 +9,49 @@ using System.Text.RegularExpressions;
 
 namespace RelumiScript.ViewModels
 {
+    // ViewModel to handle Sentence Parts (Text vs Block)
+    public class SentencePartViewModel : ViewModelBase
+    {
+        public HintSentencePartDef Model { get; }
+
+        public string Text
+        {
+            get => Model.Text ?? "";
+            set
+            {
+                if (Model.Text != value)
+                {
+                    Model.Text = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool IsRef
+        {
+            get => Model.IsRef;
+            set
+            {
+                if (Model.IsRef != value)
+                {
+                    Model.IsRef = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public SentencePartViewModel(HintSentencePartDef model)
+        {
+            Model = model;
+            // Auto-detect Ref if it looks like {Ref} but isn't marked yet
+            if (!model.IsRef && !string.IsNullOrEmpty(model.Text) &&
+                model.Text.StartsWith("{") && model.Text.EndsWith("}") && !model.Text.Contains(" "))
+            {
+                model.IsRef = true;
+            }
+        }
+    }
+
     public class FragmentItem : ViewModelBase
     {
         private string _type = "";
@@ -25,16 +68,12 @@ namespace RelumiScript.ViewModels
                 {
                     _type = value;
                     OnPropertyChanged();
-                    OnPropertyChanged(nameof(PlaceholderToken));
-                    // When type changes, the token changes, but we keep prefix/suffix
-                    // so we just trigger a full Text update
-                    OnPropertyChanged(nameof(Text));
                 }
             }
         }
 
-        // Returns "{Pokemon}", "{Value}", etc based on the Type property
-        public string PlaceholderToken => string.IsNullOrWhiteSpace(Type) ? "{Value}" : $"{{{Type}}}";
+        // Always use {Value} as the token to ensure consistency with the Engine
+        public string PlaceholderToken => "{Value}";
 
         public string Prefix
         {
@@ -69,8 +108,6 @@ namespace RelumiScript.ViewModels
             get => $"{Prefix}{PlaceholderToken}{Suffix}";
             set
             {
-                // Intelligent Parsing:
-                // Try to find the *current* token first. If not found, try generic brace patterns.
                 if (string.IsNullOrEmpty(value))
                 {
                     _prefix = "";
@@ -78,30 +115,38 @@ namespace RelumiScript.ViewModels
                 }
                 else
                 {
-                    string token = PlaceholderToken;
-                    int idx = value.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+                    string cleanValue = value;
 
-                    // If exact token not found, check if there is ANY {Something} in there we can latch onto?
-                    // For now, we assume standard behavior. If token is missing, put everything in Prefix.
-                    if (idx >= 0)
+                    // SMART CLEANUP LOGIC:
+                    // 1. Detect corrupted data: "Jump to {Label}{Value}"
+                    // If the string ends with "{Value}" AND contains another placeholder before it...
+                    if (cleanValue.EndsWith("{Value}", StringComparison.OrdinalIgnoreCase))
                     {
-                        _prefix = value.Substring(0, idx);
-                        _suffix = value.Substring(idx + token.Length);
+                        int lastBrace = cleanValue.LastIndexOf('{'); // Index of final {Value}
+                        int firstBrace = cleanValue.IndexOf('{');
+
+                        // If there is another brace pair before the final {Value}
+                        if (firstBrace != -1 && firstBrace < lastBrace)
+                        {
+                            // Strip the trailing {Value}
+                            cleanValue = cleanValue.Substring(0, lastBrace);
+                        }
+                    }
+
+                    // 2. Now find the primary placeholder (e.g. {Label} or {Value})
+                    var match = Regex.Match(cleanValue, @"\{[^}]+\}");
+
+                    if (match.Success)
+                    {
+                        // Split around the found placeholder (replacing it logically with {Value})
+                        _prefix = cleanValue.Substring(0, match.Index);
+                        _suffix = cleanValue.Substring(match.Index + match.Length);
                     }
                     else
                     {
-                        // Fallback: Check for generic {Value} if current Type-token isn't found
-                        int valIdx = value.IndexOf("{Value}", StringComparison.OrdinalIgnoreCase);
-                        if (valIdx >= 0)
-                        {
-                            _prefix = value.Substring(0, valIdx);
-                            _suffix = value.Substring(valIdx + 7);
-                        }
-                        else
-                        {
-                            _prefix = value;
-                            _suffix = "";
-                        }
+                        // No placeholder found, treat entire string as Prefix
+                        _prefix = cleanValue;
+                        _suffix = "";
                     }
                 }
                 OnPropertyChanged(nameof(Prefix));
@@ -121,20 +166,12 @@ namespace RelumiScript.ViewModels
         public HintParamDef Model { get; }
 
         public ObservableCollection<FragmentItem> Fragments { get; }
-        public ObservableCollection<string> Types { get; }
 
         public List<string> AvailableTypes { get; } = new List<string>
         {
             "Value", "Work", "Flag", "SysFlag", "Pokemon", "Item",
             "Ball", "Form", "Number", "Label", "String"
         };
-
-        private string? _selectedTypeToAdd;
-        public string? SelectedTypeToAdd
-        {
-            get => _selectedTypeToAdd;
-            set { _selectedTypeToAdd = value; OnPropertyChanged(); }
-        }
 
         public string Description
         {
@@ -153,19 +190,20 @@ namespace RelumiScript.ViewModels
         {
             Model = model;
             Fragments = new ObservableCollection<FragmentItem>();
-            Types = new ObservableCollection<string>(model.Type);
+
+            var initialTypes = model.Type != null ? new List<string>(model.Type) : new List<string>();
 
             if (model.Fragments != null)
             {
                 foreach (var kvp in model.Fragments)
                 {
                     bool showZero = model.ShowZero != null && model.ShowZero.Contains(kvp.Key);
-                    // This setter will trigger the parsing logic
                     Fragments.Add(new FragmentItem { Type = kvp.Key, Text = kvp.Value, ShowZero = showZero });
                 }
             }
 
-            foreach (var t in Types)
+            // Generate defaults only for types that exist in Model.Type but have no Fragment
+            foreach (var t in initialTypes)
             {
                 if (!Fragments.Any(f => f.Type == t))
                 {
@@ -180,7 +218,7 @@ namespace RelumiScript.ViewModels
                 frag.PropertyChanged += Fragment_PropertyChanged;
             }
 
-            Types.CollectionChanged += (s, e) => SyncTypes();
+            SyncFragments();
         }
 
         private void Fragments_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -201,34 +239,11 @@ namespace RelumiScript.ViewModels
             SyncFragments();
         }
 
-        public void AddType()
-        {
-            if (string.IsNullOrEmpty(SelectedTypeToAdd)) return;
-            if (Types.Contains(SelectedTypeToAdd)) return;
-
-            Types.Add(SelectedTypeToAdd);
-            GenerateFragmentForType(SelectedTypeToAdd);
-            SelectedTypeToAdd = null;
-        }
-
-        public void RemoveType(string type)
-        {
-            if (Types.Contains(type))
-            {
-                Types.Remove(type);
-                var frag = Fragments.FirstOrDefault(f => f.Type == type);
-                if (frag != null) Fragments.Remove(frag);
-            }
-        }
-
         private void GenerateFragmentForType(string type)
         {
             if (Fragments.Any(f => f.Type == type)) return;
-
-            // Default text now respects the type token
-            string defaultText = $"{{{type}}}";
-            if (type == "Label") defaultText = $"Jump to {{{type}}}";
-
+            string defaultText = "{Value}";
+            if (type == "Label") defaultText = "Jump to {Value}";
             Fragments.Add(new FragmentItem { Type = type, Text = defaultText, ShowZero = false });
         }
 
@@ -250,23 +265,26 @@ namespace RelumiScript.ViewModels
             if (Model.ShowZero == null) Model.ShowZero = new List<string>();
             Model.ShowZero.Clear();
 
+            if (Model.Type == null) Model.Type = new List<string>();
+            Model.Type.Clear();
+
             foreach (var item in Fragments)
             {
                 if (!string.IsNullOrWhiteSpace(item.Type))
                 {
-                    // This will construct the full string (Prefix + {Type} + Suffix)
                     Model.Fragments[item.Type] = item.Text;
+
                     if (item.ShowZero)
                     {
                         Model.ShowZero.Add(item.Type);
                     }
+
+                    if (!Model.Type.Contains(item.Type))
+                    {
+                        Model.Type.Add(item.Type);
+                    }
                 }
             }
-        }
-
-        public void SyncTypes()
-        {
-            Model.Type = new List<string>(Types);
         }
     }
 
@@ -307,7 +325,7 @@ namespace RelumiScript.ViewModels
         }
 
         public ObservableCollection<HintParamViewModel> Params { get; }
-        public ObservableCollection<HintSentencePartDef> SentenceParts { get; }
+        public ObservableCollection<SentencePartViewModel> SentenceParts { get; }
 
         public HintViewModel(HintDef model)
         {
@@ -319,7 +337,9 @@ namespace RelumiScript.ViewModels
                 model.Params.Select(p => new HintParamViewModel(p))
             );
 
-            SentenceParts = new ObservableCollection<HintSentencePartDef>(model.Sentence);
+            SentenceParts = new ObservableCollection<SentencePartViewModel>(
+                model.Sentence.Select(s => new SentencePartViewModel(s))
+            );
         }
 
         public void AddParam()
@@ -354,9 +374,10 @@ namespace RelumiScript.ViewModels
         {
             var newPart = new HintSentencePartDef
             {
-                Text = " new part"
+                Text = " new part",
+                IsRef = false
             };
-            SentenceParts.Add(newPart);
+            SentenceParts.Add(new SentencePartViewModel(newPart));
             _model.Sentence.Add(newPart);
         }
 
@@ -364,18 +385,19 @@ namespace RelumiScript.ViewModels
         {
             var newPart = new HintSentencePartDef
             {
-                Text = " {" + refName + "}"
+                Text = "{" + refName + "}",
+                IsRef = true
             };
-            SentenceParts.Add(newPart);
+            SentenceParts.Add(new SentencePartViewModel(newPart));
             _model.Sentence.Add(newPart);
         }
 
-        public void RemoveSentencePart(HintSentencePartDef part)
+        public void RemoveSentencePart(SentencePartViewModel part)
         {
             if (SentenceParts.Contains(part))
             {
                 SentenceParts.Remove(part);
-                _model.Sentence.Remove(part);
+                _model.Sentence.Remove(part.Model);
             }
         }
     }

@@ -112,7 +112,9 @@ namespace RelumiScript.Models
         [JsonProperty("Text")]
         public string? Text { get; set; }
 
-        // Removed: Check property is no longer used
+        // New property to distinguish Blocks from Text
+        [JsonProperty("IsRef")]
+        public bool IsRef { get; set; }
     }
 
     public class HintDef
