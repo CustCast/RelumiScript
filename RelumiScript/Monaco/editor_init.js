@@ -38,7 +38,10 @@ var editor = monaco.editor.create(document.getElementById("container"), {
     // NEW: STICKY SCROLL
     stickyScroll: {
         enabled: true
-    }
+    },
+    // FIX: Disable random word suggestions. 
+    // This ensures that when we return "no suggestions" for a Value, the editor actually shows nothing.
+    wordBasedSuggestions: false
 });
 
 var model = editor.getModel();
