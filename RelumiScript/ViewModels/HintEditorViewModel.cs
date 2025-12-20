@@ -14,7 +14,14 @@ namespace RelumiScript.ViewModels
         private HintViewModel? _selectedHint;
         private readonly List<HintViewModel> _allHints;
 
-        public ObservableCollection<HintViewModel> FilteredHints { get; }
+        // Backing field for property
+        private ObservableCollection<HintViewModel> _filteredHints;
+
+        public ObservableCollection<HintViewModel> FilteredHints
+        {
+            get => _filteredHints;
+            set { _filteredHints = value; OnPropertyChanged(); }
+        }
 
         public ThemeEditorViewModel Theme { get; }
 
@@ -42,38 +49,90 @@ namespace RelumiScript.ViewModels
         {
             Theme = theme;
 
-            // Deep Clone the hints so we don't modify the live project until Save is clicked
-            var json = JsonConvert.SerializeObject(hints);
-            var clonedHints = JsonConvert.DeserializeObject<List<HintDef>>(json) ?? new List<HintDef>();
+            // Optimization: Replaced slow JSON cloning with manual clone
+            var clonedHints = FastCloneHints(hints);
 
             _allHints = clonedHints.Select(h => new HintViewModel(h)).ToList();
 
-            FilteredHints = new ObservableCollection<HintViewModel>(_allHints);
+            // Initialize directly
+            _filteredHints = new ObservableCollection<HintViewModel>(_allHints);
+        }
+
+        // Optimization: Helper to avoid JsonConvert overhead
+        private List<HintDef> FastCloneHints(List<HintDef> source)
+        {
+            var list = new List<HintDef>(source.Count);
+            foreach (var s in source)
+            {
+                var h = new HintDef
+                {
+                    Cmd = s.Cmd,
+                    Description = s.Description,
+                    Params = new List<HintParamDef>(),
+                    Sentence = new List<HintSentencePartDef>()
+                };
+
+                if (s.Params != null)
+                {
+                    foreach (var p in s.Params)
+                    {
+                        h.Params.Add(new HintParamDef
+                        {
+                            Index = p.Index,
+                            Ref = p.Ref,
+                            DependsOn = p.DependsOn,
+                            Description = p.Description,
+                            Type = p.Type != null ? new List<string>(p.Type) : null,
+                            ShowZero = p.ShowZero != null ? new List<string>(p.ShowZero) : null,
+                            Fragments = p.Fragments != null ? new Dictionary<string, string>(p.Fragments) : null
+                        });
+                    }
+                }
+
+                if (s.Sentence != null)
+                {
+                    foreach (var part in s.Sentence)
+                    {
+                        h.Sentence.Add(new HintSentencePartDef
+                        {
+                            Text = part.Text,
+                            IsRef = part.IsRef
+                        });
+                    }
+                }
+                list.Add(h);
+            }
+            return list;
         }
 
         public void FilterHints()
         {
-            FilteredHints.Clear();
+            // Optimization: Create new collection and swap it in O(1) time
+            // preventing N layout updates where N is hint count.
             if (string.IsNullOrWhiteSpace(SearchText))
             {
-                foreach (var h in _allHints) FilteredHints.Add(h);
+                FilteredHints = new ObservableCollection<HintViewModel>(_allHints);
             }
             else
             {
                 var lower = SearchText.ToLower();
-                foreach (var h in _allHints)
-                {
-                    if (h.Cmd.ToLower().Contains(lower)) FilteredHints.Add(h);
-                }
+                var matches = _allHints.Where(h => h.Cmd.ToLower().Contains(lower));
+                FilteredHints = new ObservableCollection<HintViewModel>(matches);
             }
         }
 
         public void AddHint()
         {
-            var newDef = new HintDef { Cmd = "NewCommand" };
+            var newDef = new HintDef { Cmd = "NewCommand", Params = new List<HintParamDef>(), Sentence = new List<HintSentencePartDef>() };
             var vm = new HintViewModel(newDef);
             _allHints.Add(vm);
-            FilteredHints.Add(vm);
+
+            // Add to current view if it matches search (or search is empty)
+            if (string.IsNullOrWhiteSpace(SearchText) || vm.Cmd.ToLower().Contains(SearchText.ToLower()))
+            {
+                FilteredHints.Add(vm);
+            }
+
             SelectedHint = vm;
         }
 

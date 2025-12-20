@@ -306,7 +306,7 @@ namespace RelumiScript
                 });
                 editor.onDidChangeModelContent((e) => { if(!e.isFlush) window.chrome.webview.postMessage('CONTENT_UPDATE:' + editor.getValue()); });
                 editor.addAction({ id: 'relumi-save', label: 'Save', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S], run: function(ed) { window.chrome.webview.postMessage('SAVE_REQUEST'); } });
-                editor.addAction({ id: 'relumi-edit-def', label: 'Edit Definition', contextMenuGroupId: 'navigation', contextMenuOrder: 1.0, run: function(ed) { var p = ed.getPosition(); var m = ed.getModel(); var w = m.getWordAtPosition(p); if(w) { var charBefore = w.startColumn > 1 ? m.getLineContent(p.lineNumber).charAt(w.startColumn - 2) : ''; var prefix = (charBefore === '#' || charBefore === '$' || charBefore === '@') ? charBefore : ''; var token = prefix + w.word; if (prefix === '#') { window.chrome.webview.postMessage('EDIT_DEFINITION:FLG:' + w.word); } else if (prefix === '$') { window.chrome.webview.postMessage('EDIT_DEFINITION:SYS:' + w.word); } else if (prefix === '@') { window.chrome.webview.postMessage('EDIT_DEFINITION:WRK:' + w.word); } else if(token.startsWith('Cmd_') || token.startsWith('_') || /^[A-Z0-9_]+$/.test(token)) { window.chrome.webview.postMessage('EDIT_DEFINITION:CMD:' + w.word); } } } });";
+            ";
             await Editor.ExecuteScriptAsync(script);
         }
 
@@ -338,13 +338,6 @@ namespace RelumiScript
                     _viewModel.ActiveDocument.IsDirty = !string.Equals(_viewModel.ActiveDocument.Content, _viewModel.ActiveDocument.OriginalContent);
                 }
                 return;
-            }
-            if (e.Message.StartsWith("EDIT_DEFINITION:"))
-            {
-                var parts = e.Message.Split(':');
-                if (parts.Length < 3) return;
-                await HandleEditDefinition(parts[1], parts[2]);
-                return; // Added return to prevent falling through
             }
 
             // --- NEW: Open Hint Editor ---
@@ -389,50 +382,6 @@ namespace RelumiScript
                     Debug.WriteLine("Load File Error: " + ex.Message);
                 }
                 return;
-            }
-        }
-
-        private async Task HandleEditDefinition(string type, string name)
-        {
-            int foundId = -1;
-            object? dataObj = null;
-
-            var service = _viewModel.Project.AssetService;
-            var workMap = _viewModel.Project.WorkIdMap;
-
-            if (type == "FLG")
-            {
-                var kvp = service.FlagMap.FirstOrDefault(x => x.Value == name);
-                if (kvp.Value != null) { foundId = kvp.Key; dataObj = new NameDef { Id = foundId, Name = name }; }
-            }
-            else if (type == "SYS")
-            {
-                var kvp = service.SysFlagMap.FirstOrDefault(x => x.Value == name);
-                if (kvp.Value != null) { foundId = kvp.Key; dataObj = new NameDef { Id = foundId, Name = name }; }
-            }
-            else if (type == "WRK")
-            {
-                var kvp = workMap.FirstOrDefault(x => x.Value == name);
-                if (kvp.Value != null) { foundId = kvp.Key; dataObj = new NameDef { Id = foundId, Name = name }; }
-            }
-            else if (type == "CMD")
-            {
-                var cmd = service.Commands.FirstOrDefault(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-                if (cmd != null) { foundId = cmd.Id; dataObj = cmd; }
-            }
-
-            if (foundId == -1 || dataObj == null) { _viewModel.StatusMessage = $"Could not find definition for {name} ({type})."; return; }
-
-            var dialog = new EditDataDialog(type, foundId, dataObj, service, workMap, _viewModel.ThemeVm);
-            var result = await dialog.ShowDialog<bool>(this);
-
-            if (result)
-            {
-                _viewModel.StatusMessage = $"Updated definition for {name}. Re-scanning...";
-                await _viewModel.Project.GenerateSyntaxFile();
-                if (_isEditorReady) await Editor.ExecuteScriptAsync($"loadSyntaxFromFile('syntax_data.js?t={DateTime.Now.Ticks}');");
-                await _viewModel.Project.RefreshTrackersAsync(msg => _viewModel.StatusMessage = msg);
-                _viewModel.AnalysisRevision++;
             }
         }
 

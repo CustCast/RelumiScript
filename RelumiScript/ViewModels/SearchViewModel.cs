@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using RelumiScript.Models;
 using RelumiScript.Services;
 
@@ -12,6 +14,7 @@ namespace RelumiScript.ViewModels
         private readonly ProjectService _projectService;
         private string _searchQuery = "";
         private List<SearchResult>? _results;
+        private CancellationTokenSource? _searchCts;
 
         public SearchViewModel(ProjectService projectService)
         {
@@ -27,7 +30,7 @@ namespace RelumiScript.ViewModels
                 {
                     _searchQuery = value;
                     OnPropertyChanged();
-                    PerformSearch();
+                    TriggerSearch();
                 }
             }
         }
@@ -40,24 +43,54 @@ namespace RelumiScript.ViewModels
 
         public void Refresh()
         {
-            PerformSearch();
+            TriggerSearch();
         }
 
-        private void PerformSearch()
+        private void TriggerSearch()
         {
-            if (string.IsNullOrWhiteSpace(_searchQuery))
+            _searchCts?.Cancel();
+            _searchCts = new CancellationTokenSource();
+            var token = _searchCts.Token;
+
+            Task.Run(async () =>
             {
-                Results = null;
-                return;
+                try
+                {
+                    // Debounce: Wait 300ms to see if user keeps typing
+                    await Task.Delay(300, token);
+                    if (token.IsCancellationRequested) return;
+
+                    string query = _searchQuery;
+
+                    // Perform heavy search logic on background thread
+                    var results = PerformSearchInternal(query);
+
+                    if (token.IsCancellationRequested) return;
+
+                    // Update UI on Main Thread
+                    Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+                    {
+                        Results = results;
+                    });
+                }
+                catch (TaskCanceledException) { /* Ignore */ }
+            }, token);
+        }
+
+        private List<SearchResult>? PerformSearchInternal(string query)
+        {
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return null;
             }
 
-            string query = _searchQuery.Trim();
+            query = query.Trim();
             var results = new List<SearchResult>();
             bool isIdSearch = int.TryParse(query, out int searchId);
 
             var service = _projectService.AssetService;
             var workMap = _projectService.WorkIdMap;
-            var project = _projectService; // Access analysis lists directly from service
+            var project = _projectService;
 
             // Pokemon
             if (isIdSearch && service.PokemonMap.TryGetValue(searchId, out string? pName))
@@ -116,7 +149,7 @@ namespace RelumiScript.ViewModels
             // Auto-expand if single result
             if (results.Count == 1) results[0].IsExpanded = true;
 
-            Results = results;
+            return results;
         }
     }
 }

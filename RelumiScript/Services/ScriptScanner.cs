@@ -17,14 +17,12 @@ namespace RelumiScript.Services
             public List<EventUsageInfo> Events { get; set; } = new List<EventUsageInfo>();
         }
 
-        // Optimization 1: Compile Regexes once to avoid overhead in loops
+        // Compiled Regexes
         private static readonly Regex LabelRegex = new Regex(@"^([A-Za-z0-9_]+):$", RegexOptions.Compiled);
         private static readonly Regex CommandRegex = new Regex(@"^([A-Z_][A-Z0-9_]*)", RegexOptions.Compiled);
         private static readonly Regex FlagRegex = new Regex(@"([#$][A-Za-z0-9_]+)", RegexOptions.Compiled);
         private static readonly Regex WorkRegex = new Regex(@"(@[A-Za-z0-9_]+)", RegexOptions.Compiled);
         private static readonly Regex WordRegex = new Regex(@"\b[A-Za-z0-9_]+\b", RegexOptions.Compiled);
-
-        private static readonly string[] LineSeparators = new[] { "\r\n", "\r", "\n" };
 
         public static async Task<ScanResult> ScanAllAsync(
             IEnumerable<object> nodes,
@@ -36,7 +34,6 @@ namespace RelumiScript.Services
             {
                 var result = new ScanResult();
 
-                // Case-insensitive dictionaries
                 var combinedFlags = new Dictionary<string, FlagUsageInfo>(StringComparer.OrdinalIgnoreCase);
                 var combinedWorks = new Dictionary<string, FlagUsageInfo>(StringComparer.OrdinalIgnoreCase);
                 var combinedCommands = new Dictionary<string, CommandUsageInfo>(StringComparer.OrdinalIgnoreCase);
@@ -47,9 +44,9 @@ namespace RelumiScript.Services
                 foreach (var kvp in knownSysFlags) AddPredefined(combinedFlags, kvp.Value, "$");
                 foreach (var kvp in knownWorks) AddPredefined(combinedWorks, kvp.Value, "@");
 
-                // Optimization 2: Split content into lines ONCE and store it.
-                // This prevents 2-3 extra splits per file later in the pipeline.
-                var scriptsToScan = new List<(string[] Lines, string FileName, object NodeObj, int Offset)>(500);
+                // 2. Identify Scripts to Scan
+                // We flatten FileNodes into individual ScriptNodes + Context
+                var tasks = new List<(ScriptNode Script, string FileName, int LineOffset)>();
 
                 foreach (var node in nodes)
                 {
@@ -58,31 +55,28 @@ namespace RelumiScript.Services
                         int currentOffset = 0;
                         foreach (var s in fNode.Scripts)
                         {
-                            var lines = s.Content.Split(LineSeparators, StringSplitOptions.None);
-
-                            scriptsToScan.Add((lines, fNode.Name, fNode, currentOffset));
-
-                            // Optimization 3: Use array length directly
-                            currentOffset += lines.Length;
+                            tasks.Add((s, fNode.Name, currentOffset));
+                            // Estimate line count for offset without splitting
+                            currentOffset += CountLines(s.Content);
                         }
                     }
                     else if (node is ScriptNode sNode)
                     {
-                        var lines = sNode.Content.Split(LineSeparators, StringSplitOptions.None);
-                        scriptsToScan.Add((lines, "Root", sNode, 0));
+                        tasks.Add((sNode, "Root", 0));
                     }
                 }
 
-                // 2. PASS ONE: Identify Event Declarations (Labels)
-                foreach (var script in scriptsToScan)
+                // 3. Scan Content
+                // Pass 1: Declarations
+                foreach (var task in tasks)
                 {
-                    ScanForDeclarations(script.Lines, script.FileName, script.NodeObj, combinedEvents, script.Offset);
+                    ScanScriptForDeclarations(task.Script, task.FileName, task.LineOffset, combinedEvents);
                 }
 
-                // 3. PASS TWO: Identify References
-                foreach (var script in scriptsToScan)
+                // Pass 2: References
+                foreach (var task in tasks)
                 {
-                    ScanContent(script.Lines, script.FileName, script.NodeObj, combinedFlags, combinedWorks, combinedCommands, combinedEvents, script.Offset);
+                    ScanScriptContent(task.Script, task.FileName, task.LineOffset, combinedFlags, combinedWorks, combinedCommands, combinedEvents);
                 }
 
                 // 4. Convert to Sorted Lists
@@ -95,61 +89,120 @@ namespace RelumiScript.Services
             });
         }
 
+        private static int CountLines(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+            int count = 1;
+            for (int i = 0; i < text.Length; i++) if (text[i] == '\n') count++;
+            return count;
+        }
+
         private static void AddPredefined(Dictionary<string, FlagUsageInfo> dict, string name, string prefix)
         {
             string key = name.StartsWith(prefix) ? name : $"{prefix}{name}";
             if (!dict.ContainsKey(key)) dict[key] = new FlagUsageInfo { FlagName = key };
         }
 
-        private static void ScanForDeclarations(
-            string[] lines,
-            string fileName,
-            object nodeObj,
-            Dictionary<string, EventUsageInfo> events,
-            int lineOffset)
+        // Helper to iterate lines without allocating string arrays
+        private static IEnumerable<(string Line, int StartIndex, int Length)> IterateLines(string text)
         {
-            for (int i = 0; i < lines.Length; i++)
+            if (string.IsNullOrEmpty(text)) yield break;
+
+            int index = 0;
+            while (index < text.Length)
             {
-                string line = lines[i].Trim();
-                if (string.IsNullOrWhiteSpace(line) || line.StartsWith("//") || line.StartsWith(";")) continue;
+                int nextR = text.IndexOf('\r', index);
+                int nextN = text.IndexOf('\n', index);
 
-                // Optimization: Use compiled regex
-                var labelMatch = LabelRegex.Match(line);
-                if (labelMatch.Success)
+                int lineEnd;
+                int newlineLen;
+
+                if (nextR != -1 && nextN == nextR + 1) // \r\n
                 {
-                    string labelName = labelMatch.Groups[1].Value;
-                    if (!events.ContainsKey(labelName)) events[labelName] = new EventUsageInfo { EventName = labelName };
-
-                    events[labelName].Locations.Add(new FlagLocation
-                    {
-                        LineNumber = i + 1 + lineOffset,
-                        Command = "DEF",
-                        Content = line,
-                        FileName = fileName,
-                        NodeObject = nodeObj,
-                        IsDeclaration = true
-                    });
+                    lineEnd = nextR;
+                    newlineLen = 2;
                 }
+                else if (nextR != -1 && (nextN == -1 || nextR < nextN)) // \r only
+                {
+                    lineEnd = nextR;
+                    newlineLen = 1;
+                }
+                else if (nextN != -1) // \n only
+                {
+                    lineEnd = nextN;
+                    newlineLen = 1;
+                }
+                else // End of string
+                {
+                    lineEnd = text.Length;
+                    newlineLen = 0;
+                }
+
+                int len = lineEnd - index;
+                yield return (text.Substring(index, len), index, len);
+
+                index = lineEnd + newlineLen;
             }
         }
 
-        private static void ScanContent(
-            string[] lines,
+        private static void ScanScriptForDeclarations(
+            ScriptNode script,
             string fileName,
-            object nodeObj,
+            int lineOffset,
+            Dictionary<string, EventUsageInfo> events)
+        {
+            int lineIdx = 0;
+            foreach (var (line, start, len) in IterateLines(script.Content))
+            {
+                string trimmed = line.Trim();
+                if (!string.IsNullOrWhiteSpace(trimmed) && !trimmed.StartsWith("//") && !trimmed.StartsWith(";"))
+                {
+                    var labelMatch = LabelRegex.Match(trimmed);
+                    if (labelMatch.Success)
+                    {
+                        string labelName = labelMatch.Groups[1].Value;
+                        if (!events.ContainsKey(labelName)) events[labelName] = new EventUsageInfo { EventName = labelName };
+
+                        events[labelName].Locations.Add(new FlagLocation
+                        {
+                            LineNumber = lineIdx + 1 + lineOffset,
+                            Command = "DEF",
+                            StartIndex = start,
+                            Length = len,
+                            FileName = fileName,
+                            NodeObject = script, // Store ScriptNode for dynamic lookup
+                            IsDeclaration = true
+                        });
+                    }
+                }
+                lineIdx++;
+            }
+        }
+
+        private static void ScanScriptContent(
+            ScriptNode script,
+            string fileName,
+            int lineOffset,
             Dictionary<string, FlagUsageInfo> flags,
             Dictionary<string, FlagUsageInfo> works,
             Dictionary<string, CommandUsageInfo> commands,
-            Dictionary<string, EventUsageInfo> events,
-            int lineOffset)
+            Dictionary<string, EventUsageInfo> events)
         {
-            for (int i = 0; i < lines.Length; i++)
+            int lineIdx = 0;
+            foreach (var (line, start, len) in IterateLines(script.Content))
             {
-                string line = lines[i];
                 string trimmed = line.Trim();
-                if (string.IsNullOrWhiteSpace(line) || trimmed.StartsWith("//") || trimmed.StartsWith(";")) continue;
+                if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("//") || trimmed.StartsWith(";"))
+                {
+                    lineIdx++;
+                    continue;
+                }
 
-                if (trimmed.EndsWith(":")) continue;
+                if (trimmed.EndsWith(":"))
+                {
+                    lineIdx++;
+                    continue;
+                }
 
                 // 1. Identify Command
                 string currentCmd = "UNK";
@@ -160,29 +213,48 @@ namespace RelumiScript.Services
                     if (!commands.ContainsKey(currentCmd)) commands[currentCmd] = new CommandUsageInfo { CommandName = currentCmd };
                     commands[currentCmd].Locations.Add(new FlagLocation
                     {
-                        LineNumber = i + 1 + lineOffset,
+                        LineNumber = lineIdx + 1 + lineOffset,
                         Command = currentCmd,
-                        Content = trimmed,
+                        StartIndex = start,
+                        Length = len,
                         FileName = fileName,
-                        NodeObject = nodeObj
+                        NodeObject = script
                     });
                 }
 
-                // 2. Identify Flags (#), SysFlags ($), Works (@)
+                // 2. Identify Flags (#)
                 foreach (Match m in FlagRegex.Matches(line))
                 {
                     string f = m.Value;
                     if (!flags.ContainsKey(f)) flags[f] = new FlagUsageInfo { FlagName = f };
-                    flags[f].Locations.Add(new FlagLocation { LineNumber = i + 1 + lineOffset, Command = currentCmd, Content = trimmed, FileName = fileName, NodeObject = nodeObj });
+                    flags[f].Locations.Add(new FlagLocation
+                    {
+                        LineNumber = lineIdx + 1 + lineOffset,
+                        Command = currentCmd,
+                        StartIndex = start,
+                        Length = len,
+                        FileName = fileName,
+                        NodeObject = script
+                    });
                 }
+
+                // 3. Identify Works (@)
                 foreach (Match m in WorkRegex.Matches(line))
                 {
                     string w = m.Value;
                     if (!works.ContainsKey(w)) works[w] = new FlagUsageInfo { FlagName = w };
-                    works[w].Locations.Add(new FlagLocation { LineNumber = i + 1 + lineOffset, Command = currentCmd, Content = trimmed, FileName = fileName, NodeObject = nodeObj });
+                    works[w].Locations.Add(new FlagLocation
+                    {
+                        LineNumber = lineIdx + 1 + lineOffset,
+                        Command = currentCmd,
+                        StartIndex = start,
+                        Length = len,
+                        FileName = fileName,
+                        NodeObject = script
+                    });
                 }
 
-                // 3. Identify Event References
+                // 4. Identify Event References
                 var words = WordRegex.Matches(line);
                 foreach (Match match in words)
                 {
@@ -193,15 +265,17 @@ namespace RelumiScript.Services
                     {
                         evtInfo.Locations.Add(new FlagLocation
                         {
-                            LineNumber = i + 1 + lineOffset,
+                            LineNumber = lineIdx + 1 + lineOffset,
                             Command = currentCmd,
-                            Content = trimmed,
+                            StartIndex = start,
+                            Length = len,
                             FileName = fileName,
-                            NodeObject = nodeObj,
+                            NodeObject = script,
                             IsDeclaration = false
                         });
                     }
                 }
+                lineIdx++;
             }
         }
     }

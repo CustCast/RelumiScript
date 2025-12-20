@@ -30,6 +30,11 @@ namespace RelumiScript
 
     public class ScriptPreviewConverter : IMultiValueConverter
     {
+        // Optimization: Compiled Regex for syntax highlighting
+        private static readonly Regex TokenRegex = new Regex(
+            @"(//.*|;.*)|(""[^""]*""|'[^']*')|([#$@][\w]+)|(\w+:)|(\w+)|(\s+)|(.)",
+            RegexOptions.Compiled);
+
         public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
         {
             // Expects: [0] Node, [1] LineNumber, [2] ThemeVm
@@ -121,9 +126,8 @@ namespace RelumiScript
                 return segments;
             }
 
-            // UPDATED REGEX: Added support for single quotes: 'text'
-            string pattern = @"(//.*|;.*)|(""[^""]*""|'[^']*')|([#$@][\w]+)|(\w+:)|(\w+)|(\s+)|(.)";
-            var matches = Regex.Matches(line, pattern);
+            // Optimization: Use compiled regex
+            var matches = TokenRegex.Matches(line);
 
             foreach (Match m in matches)
             {
@@ -143,7 +147,6 @@ namespace RelumiScript
                     weight = syntax.Comment.Weight;
                     style = syntax.Comment.FontStyle;
                 }
-                // CHECK UPDATED: Now checks for single quotes too
                 else if (text.StartsWith("\"") || text.StartsWith("'"))
                 {
                     fg = syntax.String.Brush;

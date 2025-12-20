@@ -4,7 +4,6 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="using:RelumiScript.ViewModels"
         xmlns:models="using:RelumiScript.Models"
-        xmlns:cv="using:RelumiScript.Converters"
         mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
         Width="1100" Height="700"
         x:Class="RelumiScript.HintEditorWindow"
@@ -15,7 +14,6 @@
         x:DataType="vm:HintEditorViewModel">
 
 	<Window.Resources>
-		<cv:StringListConverter x:Key="StringListConverter"/>
 		<vm:ColorToBrushConverter x:Key="ColorToBrush"/>
 	</Window.Resources>
 
@@ -273,7 +271,7 @@
                                                          CaretBrush="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.InputForeground, Converter={StaticResource ColorToBrush}}"/>
 
 												<Border Background="#2A2A30" CornerRadius="3" Padding="5,0"
-                                                        IsVisible="{Binding IsRef}" VerticalAlignment="Center">
+                                                IsVisible="{Binding IsRef}" VerticalAlignment="Center">
 													<TextBlock Text="{Binding Text}" FontSize="12" FontWeight="Bold"
                                                                Foreground="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.AccentColor, Converter={StaticResource ColorToBrush}}"/>
 												</Border>

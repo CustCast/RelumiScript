@@ -315,8 +315,6 @@
 						<StackPanel Grid.Row="1" Margin="10">
 							<Button Classes="PanelButton" Content="📂 Load Project" Click="BtnLoad_Click"/>
 							<Button Classes="PanelButton" Content="💾 Save Changed Scripts (.ev)" Click="BtnSave_Click"/>
-							<Button Classes="PanelButton" Content="📦 Unpack Bundle" IsEnabled="False"/>
-							<Button Classes="PanelButton" Content="📦 Pack Bundle" IsEnabled="False"/>
 						</StackPanel>
 					</Grid>
 
@@ -470,7 +468,8 @@
 							<TextBlock Text="HINT EDITOR" FontWeight="Bold" Foreground="{DynamicResource ThemeTextColor}" Opacity="0.7" FontSize="11" VerticalAlignment="Center"/>
 						</Border>
 						<StackPanel Grid.Row="1" Margin="10">
-							<TextBlock Text="Manage command hints and tooltips shown in the editor." TextWrapping="Wrap" Margin="0,0,0,20" Opacity="0.8"/>
+							<TextBlock Text="Manage command hints and tooltips shown in the editor."
+                                       TextWrapping="Wrap" Margin="0,0,0,20" Opacity="0.8"/>
 							<Button Classes="PanelButton" Content="📝 Open Hint Editor" Command="{Binding OpenHintEditorCommand}"/>
 						</StackPanel>
 					</Grid>

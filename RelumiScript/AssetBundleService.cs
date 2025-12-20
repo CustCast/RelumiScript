@@ -65,6 +65,10 @@ namespace RelumiScript.Services
         private Dictionary<string, int> _revSysFlagMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         private Dictionary<string, int> _revWorkMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
+        // Optimization: Compile regex once
+        private static readonly Regex LabelRegex = new Regex(@"^(?:\\s*)?([a-zA-Z0-9_]+):$", RegexOptions.Compiled);
+        private static readonly Regex FormRegex = new Regex(@"ZKN_FORM_(\d+)_(\d+)", RegexOptions.Compiled);
+
         public List<CommandDefinition> Commands { get; private set; } = new List<CommandDefinition>();
 
         public Dictionary<int, string> PokemonMap { get; private set; } = new Dictionary<int, string>();
@@ -375,9 +379,6 @@ namespace RelumiScript.Services
                 var yaml = new YamlStream();
                 using (var reader = new StringReader(cleanYaml)) yaml.Load(reader);
 
-                // Regex to extract PokemonID and FormID from ZKN_FORM_095_001
-                var regex = new Regex(@"ZKN_FORM_(\d+)_(\d+)", RegexOptions.Compiled);
-
                 foreach (var doc in yaml.Documents)
                 {
                     if (doc.RootNode is YamlMappingNode rootMap &&
@@ -394,7 +395,7 @@ namespace RelumiScript.Services
 
                                 if (!string.IsNullOrEmpty(labelName))
                                 {
-                                    var match = regex.Match(labelName);
+                                    var match = FormRegex.Match(labelName);
                                     if (match.Success)
                                     {
                                         // Parse to int to remove padding (095 -> 95), then recombine to standard key
@@ -601,11 +602,12 @@ namespace RelumiScript.Services
                     var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                     ScriptNode? currentScript = null;
                     StringBuilder currentContent = new StringBuilder();
-                    var labelRegex = new Regex(@"^(?:\\s*)?([a-zA-Z0-9_]+):$");
+
                     foreach (var line in lines)
                     {
                         var trimmed = line.Trim();
-                        var match = labelRegex.Match(trimmed);
+                        // Optimization: Use compiled regex
+                        var match = LabelRegex.Match(trimmed);
                         if (match.Success)
                         {
                             if (currentScript != null) { currentScript.Content = currentContent.ToString(); node.Scripts.Add(currentScript); }

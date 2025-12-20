@@ -53,8 +53,10 @@ namespace RelumiScript
         private AtlasData? _atlasData;
         private readonly List<Bitmap> _atlasPages = new List<Bitmap>();
 
-        // Optimization: Cache cropped bitmaps to avoid allocation on every frame/char
+        // Optimization: Cache cropped bitmaps using CHAR keys to avoid hex conversion allocations
         private readonly Dictionary<string, CroppedBitmap> _glyphCache = new Dictionary<string, CroppedBitmap>();
+        private readonly Dictionary<char, CroppedBitmap> _charBitmapCache = new Dictionary<char, CroppedBitmap>();
+        private readonly Dictionary<char, GlyphData> _charDataCache = new Dictionary<char, GlyphData>();
 
         public MessageRenderer(string assetRoot)
         {
@@ -80,6 +82,7 @@ namespace RelumiScript
 
             foreach (var bmp in _glyphCache.Values) bmp.Dispose();
             _glyphCache.Clear();
+            _charBitmapCache.Clear();
         }
 
         private void LoadMetrics()
@@ -168,6 +171,14 @@ namespace RelumiScript
                                 new PixelRect(data.X, data.Y, data.Width, data.Height)
                             );
                             _glyphCache[kvp.Key] = cropped;
+
+                            // Optimization: Store in char-based dictionary
+                            if (int.TryParse(kvp.Key, System.Globalization.NumberStyles.HexNumber, null, out int code))
+                            {
+                                char c = (char)code;
+                                _charBitmapCache[c] = cropped;
+                                _charDataCache[c] = data;
+                            }
                         }
                         catch { /* Ignore invalid glyphs */ }
                     }
@@ -327,12 +338,11 @@ namespace RelumiScript
             double renderScale
         )
         {
-            string hex = ((int)c).ToString("X4");
-
-            // Look up in cache directly
-            if (!_atlasData!.Glyphs!.TryGetValue(hex, out GlyphData? data) ||
-                !_glyphCache.TryGetValue(hex, out var croppedBitmap))
+            // Optimization: Look up directly via char instead of allocating new strings
+            if (!_charBitmapCache.TryGetValue(c, out var croppedBitmap) ||
+                !_charDataCache.TryGetValue(c, out var data))
             {
+                // Fallback (rare): if strict caching missed but somehow hex exists (unlikely given caching logic)
                 return false;
             }
 

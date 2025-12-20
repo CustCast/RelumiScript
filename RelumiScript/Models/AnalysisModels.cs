@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System; // For Math
 
 namespace RelumiScript.Models
 {
@@ -76,9 +77,29 @@ namespace RelumiScript.Models
     {
         public int LineNumber { get; set; }
         public string Command { get; set; } = "";
-        public string Content { get; set; } = "";
+
+        // RAM OPTIMIZATION: Removed 'Content' string field to prevent duplication.
+        // We now store the range and fetch it from the source ScriptNode only when needed.
+        public int StartIndex { get; set; }
+        public int Length { get; set; }
+
         public string FileName { get; set; } = "";
         public object? NodeObject { get; set; }
         public bool IsDeclaration { get; set; } // True if this is the label definition
+
+        public string Content
+        {
+            get
+            {
+                if (NodeObject is ScriptNode sn && !string.IsNullOrEmpty(sn.Content))
+                {
+                    // Safety clamping
+                    int safeStart = Math.Max(0, Math.Min(StartIndex, sn.Content.Length));
+                    int safeLen = Math.Max(0, Math.Min(Length, sn.Content.Length - safeStart));
+                    return sn.Content.Substring(safeStart, safeLen);
+                }
+                return "";
+            }
+        }
     }
 }

@@ -22,7 +22,6 @@ namespace RelumiScript.Services
         public List<FileNode> LoadedMessages { get; private set; } = new List<FileNode>();
         public Dictionary<int, string> WorkIdMap { get; private set; } = new Dictionary<int, string>();
 
-        // FIX: Changed 'private set' to 'set' so MainViewModel can update it
         public List<HintDef> AllHints { get; set; } = new List<HintDef>();
 
         // Analysis Data (Populated by Scanner)
@@ -125,12 +124,10 @@ namespace RelumiScript.Services
 
             foreach (var file in affectedFiles)
             {
-                // Reconstruct full file content from documents + existing scripts
                 var scriptDocs = dirtyDocs
                     .Where(d => d.SourceNode is ScriptNode sn && file.Scripts.Contains(sn))
                     .ToDictionary(d => (ScriptNode)d.SourceNode!, d => d.Content);
 
-                // If the file itself is open as a document, use that, otherwise reconstruct
                 string content;
                 var fileDoc = dirtyDocs.FirstOrDefault(d => d.SourceNode == file);
                 if (fileDoc != null)
@@ -147,11 +144,9 @@ namespace RelumiScript.Services
 
                 await File.WriteAllTextAsync(Path.Combine(saveDir, Path.GetFileName(fileName)), content);
 
-                // Update In-Memory Models
                 var newScripts = ParseScriptsFromContent(content);
                 file.Scripts = new List<ScriptNode>(newScripts);
 
-                // Update Master List Reference
                 var masterNode = AllFiles.FirstOrDefault(f => f.FileName == file.FileName);
                 if (masterNode != null && masterNode != file)
                 {
@@ -282,27 +277,13 @@ namespace RelumiScript.Services
                         if (def != null)
                         {
                             string snippet = "";
+                            // Optimization: Use the updated FlagLocation to get content directly
                             if (def.NodeObject is ScriptNode sNode && !string.IsNullOrEmpty(sNode.Content))
                             {
-                                snippet = sNode.Content;
-                            }
-                            else if (def.NodeObject is FileNode fNode)
-                            {
-                                int currentLineTotal = 1;
-                                foreach (var subScript in fNode.Scripts)
+                                int bodyStart = def.StartIndex + def.Length;
+                                if (bodyStart < sNode.Content.Length)
                                 {
-                                    int scriptLineCount = CountLines(subScript.Content);
-                                    if (def.LineNumber >= currentLineTotal && def.LineNumber < currentLineTotal + scriptLineCount)
-                                    {
-                                        var lines = subScript.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
-                                        int relativeIndex = def.LineNumber - currentLineTotal;
-                                        if (relativeIndex >= 0 && relativeIndex < lines.Length)
-                                        {
-                                            snippet = string.Join("\n", lines.Skip(relativeIndex));
-                                        }
-                                        break;
-                                    }
-                                    currentLineTotal += scriptLineCount;
+                                    snippet = sNode.Content.Substring(bodyStart).TrimStart();
                                 }
                             }
 
@@ -339,7 +320,12 @@ namespace RelumiScript.Services
         private int CountLines(string s)
         {
             if (string.IsNullOrEmpty(s)) return 0;
-            return s.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None).Length;
+            int count = 1;
+            for (int i = 0; i < s.Length; i++)
+            {
+                if (s[i] == '\n') count++;
+            }
+            return count;
         }
 
         public string? FindJsonFolder()

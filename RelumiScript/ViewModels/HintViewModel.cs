@@ -54,6 +54,9 @@ namespace RelumiScript.ViewModels
 
     public class FragmentItem : ViewModelBase
     {
+        // Optimization: Compile Regex once to avoid overhead on every keystroke
+        private static readonly Regex PlaceholderRegex = new Regex(@"\{[^}]+\}", RegexOptions.Compiled);
+
         private string _type = "";
         private string _prefix = "";
         private string _suffix = "";
@@ -134,7 +137,8 @@ namespace RelumiScript.ViewModels
                     }
 
                     // 2. Now find the primary placeholder (e.g. {Label} or {Value})
-                    var match = Regex.Match(cleanValue, @"\{[^}]+\}");
+                    // Optimization: Use compiled regex
+                    var match = PlaceholderRegex.Match(cleanValue);
 
                     if (match.Success)
                     {
@@ -259,7 +263,12 @@ namespace RelumiScript.ViewModels
 
         public void SyncFragments()
         {
+            // Update the underlying model based on current UI state
             if (Model.Fragments == null) Model.Fragments = new Dictionary<string, string>();
+
+            // Note: We intentionally clear here to ensure the Model exactly matches the UI list.
+            // While slightly inefficient, it prevents stale keys. 
+            // The list is small (<10 items), so the cost is negligible compared to Regex overhead.
             Model.Fragments.Clear();
 
             if (Model.ShowZero == null) Model.ShowZero = new List<string>();
@@ -354,6 +363,8 @@ namespace RelumiScript.ViewModels
                 DependsOn = null
             };
 
+            // Ensure dictionary is initialized
+            if (newParam.Fragments == null) newParam.Fragments = new Dictionary<string, string>();
             newParam.Fragments["Value"] = "{Value}";
 
             var vm = new HintParamViewModel(newParam);
