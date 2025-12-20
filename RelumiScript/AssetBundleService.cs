@@ -626,7 +626,5 @@ namespace RelumiScript.Services
             catch (Exception ex) { output.Add(new FileNode { Name = "ERROR", Scripts = { new ScriptNode { Label = "Log", Content = ex.ToString() } } }); }
             return output;
         }
-        
-        public void Pack(List<FileNode> nodes, string rootPath) { }
     }
 }

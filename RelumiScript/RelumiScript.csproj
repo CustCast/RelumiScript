@@ -31,10 +31,10 @@
 		<None Update="commands.json">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</None>
-		<Content Include="Monaco\**">
+		<Content Include="Monaco\**" Exclude="Monaco\min\vs\basic-languages\**">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
-		<Content Include="JSON\**">
+		<Content Include="JSON\**" Exclude="JSON\temp\**;JSON\*.py">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
 		<Content Include="Assets\**">
@@ -49,6 +49,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="Icons\" />
+		<Folder Include="Icons\" />
 	</ItemGroup>
 </Project>

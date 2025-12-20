@@ -30,7 +30,7 @@ namespace RelumiScript
         [JsonProperty("ax")] public double AdvanceX { get; set; }
     }
 
-    public class MessageRenderer
+    public class MessageRenderer : IDisposable
     {
         private Dictionary<string, double> _metrics = new Dictionary<string, double>();
 
@@ -48,10 +48,13 @@ namespace RelumiScript
         private double _baseMetricCalculated = BaseMetric;
         private double _pixelsPerUnitCalculated = 1.88;
 
-        private string _assetDir;
+        private readonly string _assetDir;
         private Bitmap? _bgImage;
         private AtlasData? _atlasData;
-        private List<Bitmap> _atlasPages = new List<Bitmap>();
+        private readonly List<Bitmap> _atlasPages = new List<Bitmap>();
+
+        // Optimization: Cache cropped bitmaps to avoid allocation on every frame/char
+        private readonly Dictionary<string, CroppedBitmap> _glyphCache = new Dictionary<string, CroppedBitmap>();
 
         public MessageRenderer(string assetRoot)
         {
@@ -69,10 +72,24 @@ namespace RelumiScript
             public double RenderScale { get; init; }
         }
 
+        public void Dispose()
+        {
+            _bgImage?.Dispose();
+            foreach (var bmp in _atlasPages) bmp.Dispose();
+            _atlasPages.Clear();
+
+            foreach (var bmp in _glyphCache.Values) bmp.Dispose();
+            _glyphCache.Clear();
+        }
+
         private void LoadMetrics()
         {
             string path = Path.Combine(_assetDir, "strlength.txt");
-            if (!File.Exists(path)) return;
+            if (!File.Exists(path))
+            {
+                if (!_metrics.ContainsKey(" ")) _metrics[" "] = 8.671875;
+                return;
+            }
 
             var lines = File.ReadAllLines(path);
             foreach (var line in lines)
@@ -114,29 +131,49 @@ namespace RelumiScript
         {
             string fontDir = Path.Combine(_assetDir, "Fonts");
             string mapPath = Path.Combine(fontDir, "atlas_map.json");
-            if (File.Exists(mapPath))
+            if (!File.Exists(mapPath)) return;
+
+            try
             {
-                try
+                string json = File.ReadAllText(mapPath);
+                _atlasData = JsonConvert.DeserializeObject<AtlasData>(json);
+
+                if (_atlasData?.Glyphs == null) return;
+
+                // Normalize keys
+                var safeMap = new Dictionary<string, GlyphData>(StringComparer.OrdinalIgnoreCase);
+                foreach (var kvp in _atlasData.Glyphs) safeMap[kvp.Key] = kvp.Value;
+                _atlasData.Glyphs = safeMap;
+
+                // Load Pages
+                int pageIndex = 0;
+                while (true)
                 {
-                    string json = File.ReadAllText(mapPath);
-                    _atlasData = JsonConvert.DeserializeObject<AtlasData>(json);
-                    if (_atlasData?.Glyphs != null)
+                    string imgPath = Path.Combine(fontDir, $"atlas_{pageIndex}.png");
+                    if (!File.Exists(imgPath)) break;
+                    _atlasPages.Add(new Bitmap(imgPath));
+                    pageIndex++;
+                }
+
+                // Pre-cache Glyphs
+                foreach (var kvp in _atlasData.Glyphs)
+                {
+                    var data = kvp.Value;
+                    if (data.Page < _atlasPages.Count)
                     {
-                        var safeMap = new Dictionary<string, GlyphData>(StringComparer.OrdinalIgnoreCase);
-                        foreach (var kvp in _atlasData.Glyphs) safeMap[kvp.Key] = kvp.Value;
-                        _atlasData.Glyphs = safeMap;
-                    }
-                    int pageIndex = 0;
-                    while (true)
-                    {
-                        string imgPath = Path.Combine(fontDir, $"atlas_{pageIndex}.png");
-                        if (!File.Exists(imgPath)) break;
-                        _atlasPages.Add(new Bitmap(imgPath));
-                        pageIndex++;
+                        try
+                        {
+                            var cropped = new CroppedBitmap(
+                                _atlasPages[data.Page],
+                                new PixelRect(data.X, data.Y, data.Width, data.Height)
+                            );
+                            _glyphCache[kvp.Key] = cropped;
+                        }
+                        catch { /* Ignore invalid glyphs */ }
                     }
                 }
-                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[MessageRenderer] Atlas Load Error: {ex.Message}"); }
             }
+            catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"[MessageRenderer] Atlas Load Error: {ex.Message}"); }
         }
 
         public List<string> SplitIntoPages(string rawText, bool macro = false)
@@ -152,14 +189,12 @@ namespace RelumiScript
 
             if (macro)
             {
-                // Replace normal delimiters with token delimiters
                 normalizedText = normalizedText
                     .Replace("\\n", "{n}")
                     .Replace("\\f", "{f}")
                     .Replace("\\r", "{r}");
             }
 
-            // Split but keep token delimiters
             var tokens = Regex.Split(normalizedText, @"(\{n\}|\{f\}|\{r\})");
 
             for (int i = 0; i < tokens.Length; i++)
@@ -169,22 +204,18 @@ namespace RelumiScript
                 switch (token)
                 {
                     case "{n}":
-                        // newline handled naturally by line accumulation
                         break;
 
                     case "{r}":
-                        // force page break immediately
                         if (currentPage.Count > 0)
                         {
                             pages.Add(string.Join("\n", currentPage));
                             currentPage.Clear();
                         }
-
                         lastLine = null;
                         break;
 
                     case "{f}":
-                        // finish current page
                         if (currentPage.Count > 0)
                         {
                             pages.Add(string.Join("\n", currentPage));
@@ -199,12 +230,11 @@ namespace RelumiScript
                         {
                             currentPage.Add(tokens[i + 1]);
                             lastLine = tokens[i + 1];
-                            i++; // consume next token
+                            i++;
                         }
                         break;
 
                     default:
-                        // Normal text
                         if (!string.IsNullOrEmpty(token))
                         {
                             currentPage.Add(token);
@@ -299,19 +329,12 @@ namespace RelumiScript
         {
             string hex = ((int)c).ToString("X4");
 
-            if (_atlasData?.Glyphs == null || _atlasPages.Count == 0) return false;
-
-            if (!_atlasData.Glyphs.TryGetValue(hex, out GlyphData? data) ||
-                data == null ||
-                data.Page >= _atlasPages.Count)
+            // Look up in cache directly
+            if (!_atlasData!.Glyphs!.TryGetValue(hex, out GlyphData? data) ||
+                !_glyphCache.TryGetValue(hex, out var croppedBitmap))
             {
                 return false;
             }
-
-            var croppedBitmap = new CroppedBitmap(
-                _atlasPages[data.Page],
-                new PixelRect(data.X, data.Y, data.Width, data.Height)
-            );
 
             var img = new Image
             {
@@ -436,7 +459,6 @@ namespace RelumiScript
             return canvas;
         }
 
-        // Legacy Render method kept for compatibility
         public Canvas Render(string rawText) => RenderPage(rawText.Replace("{n}", "\n"), 1, 1);
     }
 }
