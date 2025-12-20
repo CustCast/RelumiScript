@@ -121,34 +121,26 @@ namespace RelumiScript.ViewModels
                     string cleanValue = value;
 
                     // SMART CLEANUP LOGIC:
-                    // 1. Detect corrupted data: "Jump to {Label}{Value}"
-                    // If the string ends with "{Value}" AND contains another placeholder before it...
                     if (cleanValue.EndsWith("{Value}", StringComparison.OrdinalIgnoreCase))
                     {
-                        int lastBrace = cleanValue.LastIndexOf('{'); // Index of final {Value}
+                        int lastBrace = cleanValue.LastIndexOf('{');
                         int firstBrace = cleanValue.IndexOf('{');
 
-                        // If there is another brace pair before the final {Value}
                         if (firstBrace != -1 && firstBrace < lastBrace)
                         {
-                            // Strip the trailing {Value}
                             cleanValue = cleanValue.Substring(0, lastBrace);
                         }
                     }
 
-                    // 2. Now find the primary placeholder (e.g. {Label} or {Value})
-                    // Optimization: Use compiled regex
                     var match = PlaceholderRegex.Match(cleanValue);
 
                     if (match.Success)
                     {
-                        // Split around the found placeholder (replacing it logically with {Value})
                         _prefix = cleanValue.Substring(0, match.Index);
                         _suffix = cleanValue.Substring(match.Index + match.Length);
                     }
                     else
                     {
-                        // No placeholder found, treat entire string as Prefix
                         _prefix = cleanValue;
                         _suffix = "";
                     }
@@ -176,6 +168,27 @@ namespace RelumiScript.ViewModels
             "Value", "Work", "Flag", "SysFlag", "Pokemon", "Item",
             "Ball", "Form", "Number", "Label", "String"
         };
+
+        // Event to notify parent when the Ref name changes
+        public event Action<string, string>? RefChanged;
+
+        // Wrapper around Model.Ref to handle notification and events
+        public string Ref
+        {
+            get => Model.Ref ?? "";
+            set
+            {
+                if (Model.Ref != value)
+                {
+                    string oldRef = Model.Ref ?? "";
+                    Model.Ref = value;
+                    OnPropertyChanged();
+
+                    // Notify listeners (HintViewModel) to update sentence parts
+                    RefChanged?.Invoke(oldRef, value);
+                }
+            }
+        }
 
         public string Description
         {
@@ -206,7 +219,6 @@ namespace RelumiScript.ViewModels
                 }
             }
 
-            // Generate defaults only for types that exist in Model.Type but have no Fragment
             foreach (var t in initialTypes)
             {
                 if (!Fragments.Any(f => f.Type == t))
@@ -263,12 +275,8 @@ namespace RelumiScript.ViewModels
 
         public void SyncFragments()
         {
-            // Update the underlying model based on current UI state
             if (Model.Fragments == null) Model.Fragments = new Dictionary<string, string>();
 
-            // Note: We intentionally clear here to ensure the Model exactly matches the UI list.
-            // While slightly inefficient, it prevents stale keys. 
-            // The list is small (<10 items), so the cost is negligible compared to Regex overhead.
             Model.Fragments.Clear();
 
             if (Model.ShowZero == null) Model.ShowZero = new List<string>();
@@ -343,12 +351,35 @@ namespace RelumiScript.ViewModels
             _description = model.Description ?? "";
 
             Params = new ObservableCollection<HintParamViewModel>(
-                model.Params.Select(p => new HintParamViewModel(p))
+                model.Params.Select(p =>
+                {
+                    var vm = new HintParamViewModel(p);
+                    // Hook up the rename event
+                    vm.RefChanged += OnParamRefChanged;
+                    return vm;
+                })
             );
 
             SentenceParts = new ObservableCollection<SentencePartViewModel>(
                 model.Sentence.Select(s => new SentencePartViewModel(s))
             );
+        }
+
+        private void OnParamRefChanged(string oldVal, string newVal)
+        {
+            if (string.IsNullOrEmpty(oldVal)) return;
+
+            string oldToken = "{" + oldVal + "}";
+            string newToken = "{" + newVal + "}";
+
+            // Auto-update any sentence parts that refer to the old parameter name
+            foreach (var part in SentenceParts)
+            {
+                if (part.IsRef && part.Text == oldToken)
+                {
+                    part.Text = newToken;
+                }
+            }
         }
 
         public void AddParam()
@@ -363,11 +394,11 @@ namespace RelumiScript.ViewModels
                 DependsOn = null
             };
 
-            // Ensure dictionary is initialized
             if (newParam.Fragments == null) newParam.Fragments = new Dictionary<string, string>();
             newParam.Fragments["Value"] = "{Value}";
 
             var vm = new HintParamViewModel(newParam);
+            vm.RefChanged += OnParamRefChanged; // Subscribe
             Params.Add(vm);
             _model.Params.Add(newParam);
         }
@@ -376,6 +407,7 @@ namespace RelumiScript.ViewModels
         {
             if (Params.Contains(param))
             {
+                param.RefChanged -= OnParamRefChanged; // Unsubscribe
                 Params.Remove(param);
                 _model.Params.Remove(param.Model);
             }

@@ -127,9 +127,10 @@ namespace RelumiScript
 
         private async Task ScrollToLine(int lineNumber)
         {
-            if (_isEditorReady)
+            if (_isEditorReady && lineNumber > 0)
             {
-                await Task.Delay(50);
+                // Increased delay to ensure editor content is loaded before scrolling
+                await Task.Delay(300);
                 await Editor.ExecuteScriptAsync($"editor.revealLineInCenter({lineNumber}); editor.setPosition({{lineNumber: {lineNumber}, column: 1}}); editor.focus();");
             }
         }
@@ -430,11 +431,19 @@ namespace RelumiScript
                 {
                     int targetLine = loc.LineNumber;
                     object targetNode = loc.NodeObject;
+
+                    // Removed redundant offset calculation because FlagLocation.LineNumber 
+                    // is already global relative to the FileNode as per ScriptScanner logic.
+                    // We only need to ensure the parent file is opened.
                     if (loc.NodeObject is ScriptNode sNode)
                     {
                         var (parent, offset) = GetParentFileAndLine(sNode);
-                        if (parent != null) { targetNode = sNode; targetLine = offset + loc.LineNumber - 1; }
+                        if (parent != null)
+                        {
+                            targetNode = sNode;
+                        }
                     }
+
                     if (targetNode != null) _viewModel.OpenDocument(targetNode, isPeek: true);
                     await ScrollToLine(targetLine);
                 }

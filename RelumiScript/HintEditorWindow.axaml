@@ -127,7 +127,7 @@
 															   VerticalAlignment="Center" Margin="0,0,10,0"
 															   Opacity="0.7" FontWeight="SemiBold"/>
 
-													<TextBox Grid.Column="1" Text="{Binding Model.Ref}" Watermark="Ref Name" Margin="0,0,10,0"
+													<TextBox Grid.Column="1" Text="{Binding Ref}" Watermark="Ref Name" Margin="0,0,10,0"
 															 Background="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.InputBackground, Converter={StaticResource ColorToBrush}}"
 															 Foreground="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.InputForeground, Converter={StaticResource ColorToBrush}}"
 															 CaretBrush="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.InputForeground, Converter={StaticResource ColorToBrush}}"/>
@@ -139,8 +139,15 @@
 															  Background="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.InputBackground, Converter={StaticResource ColorToBrush}}"
 															  Foreground="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.InputForeground, Converter={StaticResource ColorToBrush}}">
 														<ComboBox.ItemTemplate>
-															<DataTemplate>
-																<TextBlock Text="{Binding Model.Index, StringFormat='Arg {0}'}"/>
+															<DataTemplate x:DataType="vm:HintParamViewModel">
+																<TextBlock>
+																	<TextBlock.Text>
+																		<MultiBinding StringFormat="Arg {0} ({1})">
+																			<Binding Path="Model.Index"/>
+																			<Binding Path="Ref"/>
+																		</MultiBinding>
+																	</TextBlock.Text>
+																</TextBlock>
 															</DataTemplate>
 														</ComboBox.ItemTemplate>
 													</ComboBox>
@@ -246,8 +253,15 @@
 										  Background="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.InputBackground, Converter={StaticResource ColorToBrush}}"
 										  Foreground="{Binding #EditorWindow.((vm:HintEditorViewModel)DataContext).Theme.Colors.InputForeground, Converter={StaticResource ColorToBrush}}">
 									<ComboBox.ItemTemplate>
-										<DataTemplate>
-											<TextBlock Text="{Binding Model.Ref, StringFormat='Add \{{0}\}'}"/>
+										<DataTemplate x:DataType="vm:HintParamViewModel">
+											<TextBlock>
+												<TextBlock.Text>
+													<MultiBinding StringFormat="Insert Arg {0} ({1})">
+														<Binding Path="Model.Index"/>
+														<Binding Path="Ref"/>
+													</MultiBinding>
+												</TextBlock.Text>
+											</TextBlock>
 										</DataTemplate>
 									</ComboBox.ItemTemplate>
 								</ComboBox>
