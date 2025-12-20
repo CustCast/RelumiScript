@@ -306,7 +306,7 @@ namespace RelumiScript
                 });
                 editor.onDidChangeModelContent((e) => { if(!e.isFlush) window.chrome.webview.postMessage('CONTENT_UPDATE:' + editor.getValue()); });
                 editor.addAction({ id: 'relumi-save', label: 'Save', keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KEY_S], run: function(ed) { window.chrome.webview.postMessage('SAVE_REQUEST'); } });
-            ";
+                ";
             await Editor.ExecuteScriptAsync(script);
         }
 
@@ -339,6 +339,7 @@ namespace RelumiScript
                 }
                 return;
             }
+            // REMOVED: EDIT_DEFINITION BLOCK (Functionality Replaced)
 
             // --- NEW: Open Hint Editor ---
             if (e.Message.StartsWith("OPEN_HINT_EDITOR"))
@@ -385,7 +386,30 @@ namespace RelumiScript
             }
         }
 
-        private async Task SetEditorText(string content) { string safe = JsonConvert.ToString(content); if (_isEditorReady) await Editor.ExecuteScriptAsync($"editor.setValue(window.formatLegacyScript ? window.formatLegacyScript({safe}) : {safe}); editor.updateOptions({{readOnly: false}});"); }
+        private async Task SetEditorText(string content)
+        {
+            string safe = JsonConvert.ToString(content);
+            if (_isEditorReady)
+            {
+                // FIX: Toggle language to 'plaintext' then back to 'bdsp'.
+                // This forces Monaco to completely tear down the providers/view-zones
+                // and re-initialize them, effectively clearing any "Ghost" hints.
+                string script = $@"
+                    var m = editor.getModel();
+                    monaco.editor.setModelLanguage(m, 'plaintext');
+                    var val = window.formatLegacyScript ? window.formatLegacyScript({safe}) : {safe};
+                    editor.setValue(val);
+                    
+                    // Re-apply language after a brief tick to ensure the flush completes
+                    setTimeout(() => {{
+                        monaco.editor.setModelLanguage(m, 'bdsp');
+                        editor.updateOptions({{readOnly: false}});
+                    }}, 10);
+                ";
+                await Editor.ExecuteScriptAsync(script);
+            }
+        }
+
         public async void BtnCloseTab_Click(object? sender, RoutedEventArgs e) { if (sender is Button btn && btn.Tag is EditorDocument doc) { if (doc.IsDirty) { bool result = await new DiscardChangesDialog(doc.Title.TrimEnd('*')).ShowDialog<bool>(this); if (!result) return; } _viewModel.CloseDocument(doc); } }
         private void TabStrip_SelectionChanged(object? sender, SelectionChangedEventArgs e) { if (TabStrip.SelectedItem is EditorDocument doc) _viewModel.ActiveDocument = doc; }
         private void UpdateNoTabsPlaceholder() { if (NoTabsPlaceholder != null) NoTabsPlaceholder.IsVisible = _viewModel.Documents.Count == 0; if (Editor != null) Editor.IsVisible = _viewModel.Documents.Count > 0; }
