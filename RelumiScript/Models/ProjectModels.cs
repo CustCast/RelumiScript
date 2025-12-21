@@ -115,6 +115,9 @@ namespace RelumiScript.Models
         // New property to distinguish Blocks from Text
         [JsonProperty("IsRef")]
         public bool IsRef { get; set; }
+
+        [JsonProperty("Check")]
+        public string? Check { get; set; }
     }
 
     public class HintDef
@@ -130,5 +133,9 @@ namespace RelumiScript.Models
 
         [JsonProperty("Sentence")]
         public List<HintSentencePartDef> Sentence { get; set; } = new List<HintSentencePartDef>();
+
+        // NEW: Toggle for Inlay Hints
+        [JsonProperty("IsEnabled")]
+        public bool IsEnabled { get; set; } = true;
     }
 }

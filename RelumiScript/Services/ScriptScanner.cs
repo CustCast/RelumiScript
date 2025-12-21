@@ -46,7 +46,8 @@ namespace RelumiScript.Services
 
                 // 2. Identify Scripts to Scan
                 // We flatten FileNodes into individual ScriptNodes + Context
-                var tasks = new List<(ScriptNode Script, string FileName, int LineOffset)>();
+                // UPDATED: Now storing 'NodeContext' to pass the FileNode if available
+                var tasks = new List<(ScriptNode Script, string FileName, int LineOffset, object NodeContext)>();
 
                 foreach (var node in nodes)
                 {
@@ -55,14 +56,16 @@ namespace RelumiScript.Services
                         int currentOffset = 0;
                         foreach (var s in fNode.Scripts)
                         {
-                            tasks.Add((s, fNode.Name, currentOffset));
+                            // Pass fNode as the context
+                            tasks.Add((s, fNode.Name, currentOffset, fNode));
                             // Estimate line count for offset without splitting
                             currentOffset += CountLines(s.Content);
                         }
                     }
                     else if (node is ScriptNode sNode)
                     {
-                        tasks.Add((sNode, "Root", 0));
+                        // Pass sNode itself if it's a root script
+                        tasks.Add((sNode, "Root", 0, sNode));
                     }
                 }
 
@@ -70,13 +73,13 @@ namespace RelumiScript.Services
                 // Pass 1: Declarations
                 foreach (var task in tasks)
                 {
-                    ScanScriptForDeclarations(task.Script, task.FileName, task.LineOffset, combinedEvents);
+                    ScanScriptForDeclarations(task.Script, task.FileName, task.LineOffset, task.NodeContext, combinedEvents);
                 }
 
                 // Pass 2: References
                 foreach (var task in tasks)
                 {
-                    ScanScriptContent(task.Script, task.FileName, task.LineOffset, combinedFlags, combinedWorks, combinedCommands, combinedEvents);
+                    ScanScriptContent(task.Script, task.FileName, task.LineOffset, task.NodeContext, combinedFlags, combinedWorks, combinedCommands, combinedEvents);
                 }
 
                 // 4. Convert to Sorted Lists
@@ -149,6 +152,7 @@ namespace RelumiScript.Services
             ScriptNode script,
             string fileName,
             int lineOffset,
+            object nodeContext,
             Dictionary<string, EventUsageInfo> events)
         {
             int lineIdx = 0;
@@ -170,7 +174,7 @@ namespace RelumiScript.Services
                             StartIndex = start,
                             Length = len,
                             FileName = fileName,
-                            NodeObject = script, // Store ScriptNode for dynamic lookup
+                            NodeObject = nodeContext, // Store NodeContext (FileNode) for dynamic lookup
                             IsDeclaration = true
                         });
                     }
@@ -183,6 +187,7 @@ namespace RelumiScript.Services
             ScriptNode script,
             string fileName,
             int lineOffset,
+            object nodeContext,
             Dictionary<string, FlagUsageInfo> flags,
             Dictionary<string, FlagUsageInfo> works,
             Dictionary<string, CommandUsageInfo> commands,
@@ -218,7 +223,7 @@ namespace RelumiScript.Services
                         StartIndex = start,
                         Length = len,
                         FileName = fileName,
-                        NodeObject = script
+                        NodeObject = nodeContext
                     });
                 }
 
@@ -234,7 +239,7 @@ namespace RelumiScript.Services
                         StartIndex = start,
                         Length = len,
                         FileName = fileName,
-                        NodeObject = script
+                        NodeObject = nodeContext
                     });
                 }
 
@@ -250,7 +255,7 @@ namespace RelumiScript.Services
                         StartIndex = start,
                         Length = len,
                         FileName = fileName,
-                        NodeObject = script
+                        NodeObject = nodeContext
                     });
                 }
 
@@ -270,7 +275,7 @@ namespace RelumiScript.Services
                             StartIndex = start,
                             Length = len,
                             FileName = fileName,
-                            NodeObject = script,
+                            NodeObject = nodeContext,
                             IsDeclaration = false
                         });
                     }

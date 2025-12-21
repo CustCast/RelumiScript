@@ -549,6 +549,9 @@ window.BDSP_DISPOSABLES.push(monaco.languages.registerInlayHintsProvider("bdsp",
             const lineContent = model.getLineContent(i);
 
             hintConfigs.forEach(config => {
+                // NEW: Toggle check
+                if (config.IsEnabled === false) return;
+
                 const pattern = `\\b${config.Cmd}\\s*\\(([^)]*)`;
                 const regex = new RegExp(pattern, "g");
                 let match;
@@ -606,14 +609,39 @@ window.BDSP_DISPOSABLES.push(monaco.languages.registerInlayHintsProvider("bdsp",
                                     }
                                     if (!fragment) fragment = "{Value}";
 
-                                    let resolvedFragment = fragment.replace(/\{(\w+)\}/g, (m, key) => {
+                                    let resolvedFragment = fragment.replace(/\{(\w+)\}/g, (m, key, offset, fullStr) => {
                                         key = key.toLowerCase();
+                                        let val = null;
+
                                         if (key === "value" || key === "val") {
-                                            return resolveValue(rawVal, fragmentType, rawArgs, param.DependsOn);
+                                            val = resolveValue(rawVal, fragmentType, rawArgs, param.DependsOn);
+                                        } else if (key === "work") val = rawVal;
+                                        else if (key === "flag") val = rawVal;
+
+                                        if (val === null || val === undefined) return m;
+
+                                        let replacement = val.toString();
+
+                                        // Auto-Spacing Logic
+                                        // 1. Prefix (Before {Value})
+                                        if (offset > 0) {
+                                            const charBefore = fullStr[offset - 1];
+                                            if (charBefore !== ' ' && !['(', '[', '{', '"', "'"].includes(charBefore)) {
+                                                replacement = " " + replacement;
+                                            }
                                         }
-                                        if (key === "work") return rawVal;
-                                        if (key === "flag") return rawVal;
-                                        return m;
+
+                                        // 2. Suffix (After {Value})
+                                        const endPos = offset + m.length;
+                                        if (endPos < fullStr.length) {
+                                            const charAfter = fullStr[endPos];
+                                            // Regex for punctuation/closers
+                                            if (charAfter !== ' ' && !/[.,:;!?\])}"' ]/.test(charAfter)) {
+                                                replacement = replacement + " ";
+                                            }
+                                        }
+
+                                        return replacement;
                                     });
                                     resolvedParams[refKey] = resolvedFragment;
                                 }
@@ -640,6 +668,14 @@ window.BDSP_DISPOSABLES.push(monaco.languages.registerInlayHintsProvider("bdsp",
                                 if (val === null) return "";
                                 return (val !== undefined) ? val : m;
                             });
+
+                            // --- NEW: Dynamic Spacing Logic ---
+                            if (validSentence) {
+                                // Add space if previous char wasn't space AND new char isn't space AND new char isn't punctuation
+                                if (!finalString.endsWith(" ") && !text.startsWith(" ") && !/^[.,:;!?]/.test(text)) {
+                                    finalString += " ";
+                                }
+                            }
 
                             finalString += text;
                             validSentence = true;

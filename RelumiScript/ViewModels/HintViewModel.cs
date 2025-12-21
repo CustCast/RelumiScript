@@ -57,11 +57,37 @@ namespace RelumiScript.ViewModels
         // Optimization: Compile Regex once to avoid overhead on every keystroke
         private static readonly Regex PlaceholderRegex = new Regex(@"\{[^}]+\}", RegexOptions.Compiled);
 
-        private string _type = "";
-        private string _prefix = "";
-        private string _suffix = "";
-        private bool _showZero;
+        // --- NEW: Category Mapping Logic ---
+        private static readonly Dictionary<string, List<string>> CategoryMap = new Dictionary<string, List<string>>
+        {
+            { "Value", new List<string> { "Value", "Number", "Pokemon", "Ball", "Form", "Item" } },
+            { "Work", new List<string> { "Work" } },
+            { "Flag", new List<string> { "Flag" } },
+            { "SysFlag", new List<string> { "SysFlag" } },
+            { "String", new List<string> { "String", "Event", "Message", "Label" } }
+        };
 
+        public IEnumerable<string> Categories => CategoryMap.Keys;
+
+        private ObservableCollection<string> _availableSubTypes = new ObservableCollection<string>();
+        public ObservableCollection<string> AvailableSubTypes => _availableSubTypes;
+
+        private string _category = "Value";
+        public string Category
+        {
+            get => _category;
+            set
+            {
+                if (_category != value)
+                {
+                    _category = value;
+                    OnPropertyChanged();
+                    UpdateSubTypes(preserveType: false);
+                }
+            }
+        }
+
+        private string _type = "";
         public string Type
         {
             get => _type;
@@ -71,9 +97,15 @@ namespace RelumiScript.ViewModels
                 {
                     _type = value;
                     OnPropertyChanged();
+                    // When Type changes (e.g. from load), ensure Category matches
+                    SyncCategoryFromType();
                 }
             }
         }
+
+        private string _prefix = "";
+        private string _suffix = "";
+        private bool _showZero;
 
         // Always use {Value} as the token to ensure consistency with the Engine
         public string PlaceholderToken => "{Value}";
@@ -155,6 +187,43 @@ namespace RelumiScript.ViewModels
             get => _showZero;
             set { _showZero = value; OnPropertyChanged(); }
         }
+
+        public FragmentItem()
+        {
+            // Initialize sub-types based on default category
+            UpdateSubTypes(preserveType: true);
+        }
+
+        private void SyncCategoryFromType()
+        {
+            // Find which category contains the current Type
+            var match = CategoryMap.FirstOrDefault(x => x.Value.Contains(_type));
+            if (!string.IsNullOrEmpty(match.Key))
+            {
+                if (_category != match.Key)
+                {
+                    _category = match.Key;
+                    OnPropertyChanged(nameof(Category));
+                    UpdateSubTypes(preserveType: true);
+                }
+            }
+        }
+
+        private void UpdateSubTypes(bool preserveType)
+        {
+            _availableSubTypes.Clear();
+            if (CategoryMap.TryGetValue(_category, out var list))
+            {
+                foreach (var s in list) _availableSubTypes.Add(s);
+            }
+
+            if (!preserveType)
+            {
+                // Default to first item if switching categories
+                if (_availableSubTypes.Count > 0)
+                    Type = _availableSubTypes[0];
+            }
+        }
     }
 
     public class HintParamViewModel : ViewModelBase
@@ -162,12 +231,6 @@ namespace RelumiScript.ViewModels
         public HintParamDef Model { get; }
 
         public ObservableCollection<FragmentItem> Fragments { get; }
-
-        public List<string> AvailableTypes { get; } = new List<string>
-        {
-            "Value", "Work", "Flag", "SysFlag", "Pokemon", "Item",
-            "Ball", "Form", "Number", "Label", "String"
-        };
 
         // Event to notify parent when the Ref name changes
         public event Action<string, string>? RefChanged;
@@ -215,7 +278,8 @@ namespace RelumiScript.ViewModels
                 foreach (var kvp in model.Fragments)
                 {
                     bool showZero = model.ShowZero != null && model.ShowZero.Contains(kvp.Key);
-                    Fragments.Add(new FragmentItem { Type = kvp.Key, Text = kvp.Value, ShowZero = showZero });
+                    var item = new FragmentItem { Type = kvp.Key, Text = kvp.Value, ShowZero = showZero };
+                    Fragments.Add(item);
                 }
             }
 
@@ -259,7 +323,9 @@ namespace RelumiScript.ViewModels
         {
             if (Fragments.Any(f => f.Type == type)) return;
             string defaultText = "{Value}";
-            if (type == "Label") defaultText = "Jump to {Value}";
+
+            if (type == "Label" || type == "Event") defaultText = "Jump to {Value}";
+
             Fragments.Add(new FragmentItem { Type = type, Text = defaultText, ShowZero = false });
         }
 
@@ -312,6 +378,20 @@ namespace RelumiScript.ViewModels
         private string _description;
 
         public HintDef Model => _model;
+
+        // NEW: Enabled Property
+        public bool IsEnabled
+        {
+            get => _model.IsEnabled;
+            set
+            {
+                if (_model.IsEnabled != value)
+                {
+                    _model.IsEnabled = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public string Cmd
         {
@@ -417,7 +497,7 @@ namespace RelumiScript.ViewModels
         {
             var newPart = new HintSentencePartDef
             {
-                Text = " new part",
+                Text = "new part",
                 IsRef = false
             };
             SentenceParts.Add(new SentencePartViewModel(newPart));

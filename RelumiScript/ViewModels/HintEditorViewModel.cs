@@ -68,6 +68,7 @@ namespace RelumiScript.ViewModels
                 {
                     Cmd = s.Cmd,
                     Description = s.Description,
+                    IsEnabled = s.IsEnabled, // FIX: Ensure IsEnabled state is copied
                     Params = new List<HintParamDef>(),
                     Sentence = new List<HintSentencePartDef>()
                 };

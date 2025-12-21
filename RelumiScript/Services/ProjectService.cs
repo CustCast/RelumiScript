@@ -277,13 +277,39 @@ namespace RelumiScript.Services
                         if (def != null)
                         {
                             string snippet = "";
-                            // Optimization: Use the updated FlagLocation to get content directly
-                            if (def.NodeObject is ScriptNode sNode && !string.IsNullOrEmpty(sNode.Content))
+
+                            ScriptNode? targetScript = null;
+                            int localOffset = 0;
+
+                            if (def.NodeObject is ScriptNode sNode)
                             {
-                                int bodyStart = def.StartIndex + def.Length;
-                                if (bodyStart < sNode.Content.Length)
+                                targetScript = sNode;
+                                localOffset = def.StartIndex;
+                            }
+                            else if (def.NodeObject is FileNode fNode)
+                            {
+                                int currentLineBase = 0;
+                                foreach (var s in fNode.Scripts)
                                 {
-                                    snippet = sNode.Content.Substring(bodyStart).TrimStart();
+                                    int lineCount = CountLines(s.Content);
+                                    if (def.LineNumber > currentLineBase && def.LineNumber <= currentLineBase + lineCount)
+                                    {
+                                        targetScript = s;
+                                        localOffset = def.StartIndex;
+                                        break;
+                                    }
+                                    currentLineBase += lineCount;
+                                }
+                            }
+
+                            if (targetScript != null && !string.IsNullOrEmpty(targetScript.Content))
+                            {
+                                int bodyStart = localOffset + def.Length;
+                                if (bodyStart < targetScript.Content.Length)
+                                {
+                                    // FIXED: Removed character limit (200) to allow full scrolling
+                                    string fullBody = targetScript.Content.Substring(bodyStart).TrimStart();
+                                    snippet = fullBody;
                                 }
                             }
 
@@ -313,7 +339,14 @@ namespace RelumiScript.Services
 
                 string js = $"window.RELUMI_DATA = {JsonConvert.SerializeObject(dataObj)}; window.RELUMI_DATA_LOADED = true;";
 
-                File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Monaco", "syntax_data.js"), js, Encoding.UTF8);
+                try
+                {
+                    File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Monaco", "syntax_data.js"), js, Encoding.UTF8);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Error writing syntax_data.js: " + ex.Message);
+                }
             });
         }
 

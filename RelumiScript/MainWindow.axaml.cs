@@ -281,10 +281,25 @@ namespace RelumiScript
                     var l = editor.getModel().getLineContent(e.position.lineNumber);
                     var m = l.match(/(?:_TALKMSG|_TALK_KEYWAIT|_EASY_OBJ_MSG|_EASY_BOARD_MSG)\s*\(\s*'([\w-]+)%([\w-]+)'\s*.*\)/);
                     var macroMatch = l.match(/(?:_MACRO_TALKMSG|_MACRO_TALK_KEYWAIT|_MACRO_EASY_OBJ_MSG)\s*\(\s*'([\w-]+)',\s*'([\w-]+)',\s*'([^']+)'\s*\)/);
+                    
                     if (m) {
                         window.chrome.webview.postMessage('PREVIEW:' + m[1] + '%' + m[2]);
                     } else if (macroMatch) {
-                        window.chrome.webview.postMessage('PREVIEW:' + macroMatch[1] + '%' + macroMatch[2] + '%' + macroMatch[3]);
+                        // Calculate cursor offset relative to the message content
+                        var fullMatch = macroMatch[0];
+                        var msg = macroMatch[3];
+                        var matchIndex = macroMatch.index;
+                        
+                        // Find start index of message within the match (searching for 'MSG')
+                        // We add 1 to skip the opening quote
+                        var msgStartRel = fullMatch.indexOf(""'"" + msg + ""'"");
+                        if (msgStartRel === -1) msgStartRel = fullMatch.indexOf(msg); // Fallback
+                        else msgStartRel += 1;
+
+                        var msgStartAbs = matchIndex + msgStartRel + 1; // 1-based column
+                        var offset = e.position.column - msgStartAbs;
+
+                        window.chrome.webview.postMessage('PREVIEW:' + macroMatch[1] + '%' + macroMatch[2] + '%' + macroMatch[3] + '%' + offset);
                     } else {
                         window.chrome.webview.postMessage('HIDE_PREVIEW');
                     }
@@ -325,6 +340,14 @@ namespace RelumiScript
                 else if (p.Length == 3)
                 {
                     ShowMessagePreview(p[0].Trim(), p[1].Trim(), p[2].Trim());
+                }
+                else if (p.Length == 4)
+                {
+                    // Handle offset from cursor
+                    if (int.TryParse(p[3], out int offset))
+                    {
+                        ShowMessagePreview(p[0].Trim(), p[1].Trim(), p[2].Trim(), offset);
+                    }
                 }
                 return;
             }
@@ -592,7 +615,8 @@ namespace RelumiScript
 
         private void BtnPrevPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex > 0) { _currentPageIndex--; RenderCurrentPage(); } }
         private void BtnNextPage_Click(object? sender, RoutedEventArgs e) { if (_currentPageIndex < _currentMessagePages.Count - 1) { _currentPageIndex++; RenderCurrentPage(); } }
-        private void ShowMessagePreview(string file, string label, string? message = null)
+
+        private void ShowMessagePreview(string file, string label, string? message = null, int cursorIndex = -1)
         {
             TryInitMessageRenderer();
 
@@ -618,10 +642,32 @@ namespace RelumiScript
             else
             {
                 _currentMessagePages = _messageRenderer.SplitIntoPages(message, true);
-                _currentPageIndex = 0;
+
+                // Determine page from cursor index
+                if (cursorIndex >= 0 && _currentMessagePages.Count > 0)
+                {
+                    int accum = 0;
+                    int foundPage = 0;
+                    for (int i = 0; i < _currentMessagePages.Count; i++)
+                    {
+                        accum += _currentMessagePages[i].Length;
+                        // If the cursor is within this page's cumulative length
+                        if (cursorIndex <= accum)
+                        {
+                            foundPage = i;
+                            break;
+                        }
+                        foundPage = i; // Default to the latest page we've fully passed
+                    }
+                    _currentPageIndex = foundPage;
+                }
+                else
+                {
+                    _currentPageIndex = 0;
+                }
+
                 RenderCurrentPage();
             }
-
         }
 
         private void RenderCurrentPage()

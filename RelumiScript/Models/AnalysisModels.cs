@@ -98,6 +98,25 @@ namespace RelumiScript.Models
                     int safeLen = Math.Max(0, Math.Min(Length, sn.Content.Length - safeStart));
                     return sn.Content.Substring(safeStart, safeLen);
                 }
+                // NEW: Handle FileNode by finding the correct script chunk
+                else if (NodeObject is FileNode fn)
+                {
+                    int currentOffset = 0;
+                    foreach (var script in fn.Scripts)
+                    {
+                        // Count lines in this script chunk
+                        int lineCount = script.Content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None).Length;
+
+                        // Check if the global LineNumber falls within this script's range
+                        if (LineNumber > currentOffset && LineNumber <= currentOffset + lineCount)
+                        {
+                            int safeStart = Math.Max(0, Math.Min(StartIndex, script.Content.Length));
+                            int safeLen = Math.Max(0, Math.Min(Length, script.Content.Length - safeStart));
+                            return script.Content.Substring(safeStart, safeLen);
+                        }
+                        currentOffset += lineCount;
+                    }
+                }
                 return "";
             }
         }
